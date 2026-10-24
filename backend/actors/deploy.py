@@ -1,6 +1,6 @@
-"""Create or update the two private Apify actors from this folder, then build them.
+"""Create or update the private Apify actors from this folder, then build them.
 
-    python deploy.py            # both
+    python deploy.py            # all three
     python deploy.py secondhand
 
 Uses APIFY_TOKEN if set; otherwise relies on a proxy that injects the Authorization header.
@@ -14,7 +14,7 @@ from pathlib import Path
 import httpx
 
 HERE = Path(__file__).parent
-MODES = ['mainstream', 'secondhand']
+MODES = ['mainstream', 'secondhand', 'indie']
 
 
 def files(mode):

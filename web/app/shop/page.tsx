@@ -509,7 +509,8 @@ function Impact({ counts, results }: { counts: SearchCounts; results: Listing[] 
 }
 
 // "Loading matches" → "3 matches so far" → "20 matches".
-// "new" covers every store in the retailer bank (the mainstream actor); "secondhand" covers resale apps and small shops.
+// "new" covers every store in the retailer bank (the mainstream actor); "secondhand" covers resale apps, small shops
+// and independent labels' own stores (the indie actor).
 type Kind = "all" | "secondhand" | "new";
 const kindOf = (item: Listing): Kind => (item.source === "mainstream" ? "new" : "secondhand");
 

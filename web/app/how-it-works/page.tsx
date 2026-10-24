@@ -16,7 +16,7 @@ const NEVER_SHOWN = [
 const STEPS = [
   ["You ask", "Describe what you want in the chat and Niche searches for it. If a search is Niche's own idea, it asks you first."],
   ["Claude plans the search", "Your request and taste profile become a few concrete search phrases (garment, colour, silhouette)."],
-  ["Stores are searched", "Mainstream retailers through Google Shopping, plus Depop, Poshmark, Vinted and Etsy for secondhand and small shops."],
+  ["Stores are searched", "Mainstream retailers through Google Shopping, Depop, Poshmark, Vinted and Etsy for secondhand and small shops, and independent labels' own online stores, read directly from their public catalogs."],
   ["Hard filters", "Your size for that kind of garment, your price cap, and the exclusions above."],
   ["Claude looks at each photo", "Every shortlisted listing is compared with your taste profile: colour, silhouette and overall aesthetic, a one-line reason, and caveats."],
   ["Variety", "At most two pieces from the same seller, and when both have good matches, at least a quarter of results each from stores and from secondhand and small shops. Stores and brands you said you like can add up to 10 of 100 points, and only to something that already fits."],

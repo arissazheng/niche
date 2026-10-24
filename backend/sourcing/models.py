@@ -2,7 +2,7 @@ from typing import Literal
 from pydantic import BaseModel, Field, HttpUrl, ConfigDict
 
 # mainstream / secondhand are the two Niche Apify actors (backend/actors); the others are single-marketplace adapters.
-Source = Literal['mainstream', 'secondhand', 'etsy', 'depop', 'poshmark', 'grailed']
+Source = Literal['mainstream', 'secondhand', 'indie', 'etsy', 'depop', 'poshmark', 'grailed']
 
 class StrictModel(BaseModel):
     model_config = ConfigDict(extra='forbid')

@@ -480,3 +480,15 @@ def test_preloads_use_the_agents_category_not_words_in_the_brief(request_data):
     request_data.request.category = 'dress'
     assert [x.title for x in matching(items, request_data.request.query, requested_types(request_data.request))] == \
         ['Black velvet strapless gown']
+
+
+def test_indie_is_a_third_source_with_its_own_share(request_data):
+    from sourcing.pipeline import diversify
+    pools = {s: asyncio.run(FixtureSources().fetch(s, '', 6, ''))[0] for s in ('mainstream', 'secondhand', 'indie')}
+    for s, items in pools.items():
+        for i, x in enumerate(items):
+            x.seller, x.score = f'{s}{i}', (95 if s == 'secondhand' else 70) - i
+    picked = diversify([x for items in pools.values() for x in items], 12)
+    counts = {s: sum(x.source == s for x in picked) for s in pools}
+    assert all(n >= 3 for n in counts.values())  # each source with good fits keeps a quarter
+    assert pools['indie'][0].retailer == 'Independent label' and pools['indie'][0].tier == 'small_shop'

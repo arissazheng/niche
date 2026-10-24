@@ -30,6 +30,8 @@ class Settings(BaseSettings):
     # Niche's own actors (backend/actors), deployed privately to the team's Apify account.
     mainstream_actor: str = 'zaarahemd/niche-mainstream'
     secondhand_actor: str = 'zaarahemd/niche-secondhand'
+    # Independent labels' own Shopify stores, fetched directly (backend/actors/niche_actors/indie.py).
+    indie_actor: str = 'arissazheng/niche-indie'
     # Google Shopping costs $0.02 per result on Apify's free plan ($0.005 on paid plans), at least 10 per phrase.
     mainstream_queries: int = Field(default=1, ge=1, le=3)
     mainstream_items_per_query: int = Field(default=10, ge=10, le=60)

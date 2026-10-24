@@ -1,0 +1,43 @@
+"""Seed list for niche-indie: independent fashion labels that sell from their own Shopify store.
+
+(domain, display name, currency of the store's prices). Small and mid-size labels only: no fast fashion, no
+department stores or big brands. Each was checked live (catalog answers at /products.json, sells apparel).
+"""
+
+SHOPS = [{'domain': domain, 'name': name, 'currency': currency} for domain, name, currency in [
+    ('christydawn.com', 'Christy Dawn', 'USD'),
+    ('shopdoen.com', 'DÔEN', 'USD'),
+    ('ciaolucia.com', 'Ciao Lucia', 'USD'),
+    ('cleobella.com', 'Cleobella', 'USD'),
+    ('loupcharmant.com', 'Loup Charmant', 'USD'),
+    ('rachelcomey.com', 'Rachel Comey', 'USD'),
+    ('ozmaofcalifornia.com', 'Ozma of California', 'USD'),
+    ('lisasaysgah.com', 'Lisa Says Gah', 'USD'),
+    ('mirrorpalais.com', 'Mirror Palais', 'USD'),
+    ('marahoffman.com', 'Mara Hoffman', 'USD'),
+    ('girlfriend.com', 'Girlfriend Collective', 'USD'),
+    ('lunya.co', 'Lunya', 'USD'),
+    ('batsheva.com', 'Batsheva', 'USD'),
+    ('rentrayage.com', 'Rentrayage', 'USD'),
+    ('selkiecollection.com', 'Selkie', 'USD'),
+    ('lirikamatoshi.com', 'Lirika Matoshi', 'USD'),
+    ('dearfrances.com', 'Dear Frances', 'USD'),
+    ('nisolo.com', 'Nisolo', 'USD'),
+    ('lacausaclothing.com', 'LACAUSA', 'USD'),
+    ('hopeforflowers.com', 'Hope for Flowers', 'USD'),
+    ('aninebing.com', 'Anine Bing', 'USD'),
+    ('staud.clothing', 'STAUD', 'USD'),
+    ('wildfang.com', 'Wildfang', 'USD'),
+    ('elizabethsuzann.com', 'Elizabeth Suzann', 'USD'),
+    ('tradlands.com', 'Tradlands', 'USD'),
+    ('gravelandgold.com', 'Gravel & Gold', 'USD'),
+    ('houseofaama.com', 'House of Aama', 'USD'),
+    ('diarrablu.com', 'Diarrablu', 'USD'),
+    ('matethelabel.com', 'MATE the Label', 'USD'),
+    ('bigbudpress.com', 'Big Bud Press', 'USD'),
+    ('maisiewilen.com', 'Maisie Wilen', 'USD'),
+    ('sea-ny.com', 'Sea New York', 'USD'),
+    ('kikavargas.com', 'Kika Vargas', 'USD'),
+    ('hanifa.co', 'Hanifa', 'USD'),
+    ('cuyana.com', 'Cuyana', 'USD'),
+]]

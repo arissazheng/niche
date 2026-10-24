@@ -1,0 +1,48 @@
+{
+  "actorSpecification": 1,
+  "name": "niche-indie",
+  "title": "Niche: independent labels",
+  "description": "Products from independent fashion labels' own Shopify stores, fetched from each store's public catalog (no third-party scrapers) and matched to your search phrases. In-stock items only, labelled by shop.",
+  "version": "0.1",
+  "dockerfile": "./Dockerfile",
+  "input": {
+    "title": "Independent labels search",
+    "type": "object",
+    "schemaVersion": 1,
+    "properties": {
+      "queries": {
+        "title": "Search queries",
+        "type": "array",
+        "editor": "stringList",
+        "description": "1 to 3 search phrases, e.g. \"black satin midi dress\".",
+        "prefill": [
+          "black satin midi dress"
+        ]
+      },
+      "maxPrice": {
+        "title": "Max price",
+        "type": "integer",
+        "editor": "number",
+        "description": "Items above this price (in the shop's currency) are dropped."
+      },
+      "itemsPerQuery": {
+        "title": "Items per query",
+        "type": "integer",
+        "editor": "number",
+        "default": 10,
+        "minimum": 1,
+        "maximum": 40,
+        "description": "Best matches kept per search phrase, across all shops."
+      },
+      "shops": {
+        "title": "Shops",
+        "type": "array",
+        "editor": "stringList",
+        "description": "Shopify store domains to search instead of the built-in list of independent labels."
+      }
+    },
+    "required": [
+      "queries"
+    ]
+  }
+}

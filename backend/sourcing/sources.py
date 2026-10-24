@@ -8,7 +8,7 @@ from .store import now
 
 DOMAINS = {'etsy': 'etsy.com', 'depop': 'depop.com', 'poshmark': 'poshmark.com', 'grailed': 'grailed.com'}
 # Sources served by Niche's own actors, which take all query variants at once and return normalized rows.
-NICHE = ('mainstream', 'secondhand')
+NICHE = ('mainstream', 'secondhand', 'indie')
 
 
 def public_url(value, domain=None):
@@ -117,6 +117,8 @@ class ApifySources:
             if source == 'mainstream':
                 actor, queries = self.settings.mainstream_actor, queries[:self.settings.mainstream_queries]
                 per_query = self.settings.mainstream_items_per_query
+            elif source == 'indie':
+                actor, per_query = self.settings.indie_actor, max(5, limit // len(queries))
             else:
                 actor, per_query = self.settings.secondhand_actor, max(5, limit // len(queries))
             return actor, {'queries': queries, 'itemsPerQuery': per_query, **({'maxPrice': int(max_price)} if max_price else {})}
@@ -207,7 +209,8 @@ class ApifySources:
 
 
 class FixtureSources:
-    LABELS = {'mainstream': ('Madewell', 'mainstream', 'new'), 'secondhand': ('Depop', 'resale', 'used')}
+    LABELS = {'mainstream': ('Madewell', 'mainstream', 'new'), 'secondhand': ('Depop', 'resale', 'used'),
+              'indie': ('Independent label', 'small_shop', 'new')}
 
     async def fetch(self, source, query, limit, job_id, max_price=None):
         # Deliberately synthetic; never presented as purchasable inventory.
