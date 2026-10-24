@@ -46,15 +46,17 @@ export function Binder({
   view,
   viewerName,
   onOpenImage,
+  readOnly = false,
 }: {
   view: ProfileView;
   viewerName: string;
   onOpenImage?: (image: TasteImage) => void;
+  readOnly?: boolean; // a friend's view through a share link: look, don't rearrange
 }) {
   const spreadRef = useRef<HTMLDivElement>(null);
   const aspect = useAspect(spreadRef);
   const shapes = useShapes(view.images);
-  const pieces = layout(view, shapes, aspect);
+  const pieces = layout(view, shapes, aspect, readOnly);
   // A rebuilt profile has different clusters, so each version gets a fresh board.
   const boardId = `${view.board_id ?? view.profile.id}:v${view.profile.version}`;
 
@@ -87,6 +89,7 @@ export function Binder({
   };
 
   function startDrag(e: React.PointerEvent, piece: Piece) {
+    if (readOnly) return;
     const spread = spreadRef.current;
     if (!spread || e.button !== 0) return;
     e.preventDefault();
@@ -186,7 +189,7 @@ export function Binder({
               <div
                 key={piece.id}
                 onPointerDown={(e) => startDrag(e, piece)}
-                className="absolute cursor-grab active:cursor-grabbing touch-none"
+                className={`absolute touch-none ${readOnly ? "" : "cursor-grab active:cursor-grabbing"}`}
                 style={{
                   left: `${piece.left + (m?.dx ?? 0)}%`,
                   top: `${piece.top + (m?.dy ?? 0)}%`,
@@ -205,12 +208,14 @@ export function Binder({
           <Cursor key={c.key} x={c.x} y={c.y} name={c.name} color={c.color} />
         ))}
       </div>
-      <div className="absolute bottom-3 right-4 z-[999] flex gap-4 bg-ink text-paper px-3 py-1.5">
-        <span className="label opacity-60">
-          {others.length > 0 ? `${others.length + 1} people here · ` : ""}Drag to rearrange · click a photo to edit its notes
-        </span>
-        <button onClick={reset} className="label underline">Reset layout</button>
-      </div>
+      {!readOnly && (
+        <div className="absolute bottom-3 right-4 z-[999] flex gap-4 bg-ink text-paper px-3 py-1.5">
+          <span className="label opacity-60">
+            {others.length > 0 ? `${others.length + 1} people here · ` : ""}Drag to rearrange · click a photo to edit its notes
+          </span>
+          <button onClick={reset} className="label underline">Reset layout</button>
+        </div>
+      )}
     </section>
   );
 }
@@ -357,7 +362,7 @@ interface Zone {
  * prints out on a loose grid sized to the zone, so every print stays mostly visible and inside the page.
  * `aspect` is the spread's width / height, used to keep each print's real proportions.
  */
-function layout(view: ProfileView, shapes: Shapes, aspect: number): Piece[] {
+function layout(view: ProfileView, shapes: Shapes, aspect: number, readOnly = false): Piece[] {
   const byId = new Map(view.images.map((x) => [x.id, x]));
   const placed = new Set<string>();
   const clusters = view.profile.clusters.map((cluster) => {
@@ -375,7 +380,7 @@ function layout(view: ProfileView, shapes: Shapes, aspect: number): Piece[] {
 
   const name = view.profile.onboarding.name.trim();
   const pieces: Piece[] = [
-    { id: "title", kind: "title", left: 3, top: 3, width: 20, rotate: -2, z: 60, text: name ? `${name}'s taste` : "My taste" },
+    { id: "title", kind: "title", left: 3, top: 3, width: 20, rotate: -2, z: 60, text: name ? `${name}'s taste` : readOnly ? "Their taste" : "My taste" },
   ];
   const zoneFor = zones(clusters.map((c) => c.images.length));
 

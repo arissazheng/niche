@@ -142,12 +142,16 @@ export default function TastePage() {
               <button onClick={stopSharing} className="label underline text-muted">Stop sharing</button>
             )}
           </>
-        ) : (
-          <span className="label">You&apos;re viewing {ownerName ? `${ownerName}'s` : "a shared"} moodboard</span>
-        )}
+        ) : null}
       </div>
       {!isOwner && token && (
-        <div className="flex justify-center pb-3">
+        // A friend's view: clearly someone else's board, read-only, with shopping as the one thing to do here.
+        <div className="mx-4 mb-4 border border-ink px-4 py-5 grid gap-3 justify-items-center text-center">
+          <p className="label">Shared with you · view only</p>
+          <p className="text-display">
+            Shopping for a friend? Explore {ownerName ? `${ownerName}'s` : "their"} taste profile, then find something
+            they&apos;ll love.
+          </p>
           <Link href={`/gift/${token}`} className="text-display bg-ink text-paper px-8 py-3 hover:opacity-90">
             Find something for {ownerName || "them"}
           </Link>
@@ -157,6 +161,7 @@ export default function TastePage() {
         view={view}
         viewerName={isOwner ? ownerName || "Owner" : "Guest"}
         onOpenImage={isOwner ? setNoteFor : undefined}
+        readOnly={!isOwner}
       />
       <div className="px-4 mt-10 mx-auto max-w-3xl grid gap-6">
         {isOwner ? (
