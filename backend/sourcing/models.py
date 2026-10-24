@@ -7,6 +7,12 @@ Source = Literal['mainstream', 'secondhand', 'indie', 'etsy', 'depop', 'poshmark
 class StrictModel(BaseModel):
     model_config = ConfigDict(extra='forbid')
 
+class IndieShop(StrictModel):
+    """An independent label's own Shopify store, read by niche-indie (backend/actors/niche_actors/indie.py)."""
+    domain: str = Field(pattern=r'^[a-z0-9-]+(\.[a-z0-9-]+)+$', max_length=100)
+    name: str = Field(min_length=1, max_length=80)
+    currency: str = Field(default='USD', pattern=r'^[A-Z]{3}$')
+
 class TasteProfile(StrictModel):
     summary: str = Field(max_length=3000)
     colors: list[str] = Field(default_factory=list, max_length=20)
@@ -16,6 +22,8 @@ class TasteProfile(StrictModel):
     # Brands and stores the user asked for; used in queries and as a modest ranking boost, never over taste fit.
     preferred_brands: list[str] = Field(default_factory=list, max_length=30)
     preferred_stores: list[str] = Field(default_factory=list, max_length=30)
+    # The shopper's own independent shops, searched alongside niche-indie's seed list.
+    indie_shops: list[IndieShop] = Field(default_factory=list, max_length=30)
     reference_image_urls: list[HttpUrl] = Field(default_factory=list, max_length=3)
 
 class ShoppingRequest(StrictModel):

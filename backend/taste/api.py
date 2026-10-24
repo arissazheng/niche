@@ -21,12 +21,15 @@ from .imports import Importer, LinkError
 from .nearby import Nearby, NearbyError
 from .links import extract_urls, read_link
 from .engine import TasteEngine, fingerprint
-from .models import EditInstruction, ImageFromUrl, ImageKind, ImportRequest, Measurements, LookbookNotes, NoteUpdate, Onboarding, ProfileSearch, PromptUpdate
+from .models import EditInstruction, ImageFromUrl, ImageKind, ImportRequest, Measurements, LookbookNotes, NoteUpdate, Onboarding, ProfileSearch, PromptUpdate, ShopRequest
+from . import shops
 from .signing import Signer
 from .store import TasteStore
 
 log = logging.getLogger(__name__)
 MAX_UPLOAD_BYTES = 15 * 1024 * 1024
+MAX_SHOPS = 30
+LOOKUPS_PER_BUILD = 10  # favorite brands looked up for a store per build; the rest wait for the next one
 
 
 def create_router(settings, store: Store, budgets: Budgets | None = None, signer: Signer | None = None):
@@ -184,9 +187,44 @@ def create_router(settings, store: Store, budgets: Budgets | None = None, signer
             profile = await engine.build(profile)
         except ValueError as exc:
             raise HTTPException(422, str(exc))
+        profile = await find_favorite_shops(profile)
         # Start scraping this taste's core pieces now, so the first search has results ready to rank.
         prefetcher.start(search_request(profile, ProfileSearch(query=BROAD_QUERY)))
         return view(profile)
+
+    async def find_favorite_shops(profile):
+        # Favorite brands that sell from their own Shopify store get searched directly from then on (taste/shops.py).
+        have = {x.domain for x in profile.indie_shops}
+        names = [b for b in profile.onboarding.favorite_brands if b.strip().lower() not in profile.shop_lookups]
+        names = names[:LOOKUPS_PER_BUILD]
+        if not names or len(profile.indie_shops) >= MAX_SHOPS:
+            return profile
+        for shop in await shops.find_many(names):
+            if shop.domain not in have and len(profile.indie_shops) < MAX_SHOPS:
+                have.add(shop.domain)
+                profile.indie_shops.append(shop)
+        profile.shop_lookups = list(dict.fromkeys(profile.shop_lookups + [n.strip().lower() for n in names]))[-100:]
+        return await engine.save(profile)
+
+    @router.post('/profiles/{ident}/shops', status_code=201)
+    async def add_shop(ident: str, body: ShopRequest):
+        profile = profile_or_404(ident)
+        if len(profile.indie_shops) >= MAX_SHOPS:
+            raise HTTPException(422, f'You can add up to {MAX_SHOPS} shops; remove one first')
+        shop = await shops.find(body.shop)
+        if not shop:
+            raise HTTPException(422, "Couldn't find an online shop Niche can read for that. Try pasting the brand's "
+                                     "website (Niche can read shops built on Shopify, which most small labels use).")
+        if all(x.domain != shop.domain for x in profile.indie_shops):
+            profile.indie_shops.append(shop)
+            profile = await engine.save(profile)
+        return view(profile)
+
+    @router.delete('/profiles/{ident}/shops/{domain}')
+    async def remove_shop(ident: str, domain: str):
+        profile = profile_or_404(ident)
+        profile.indie_shops = [x for x in profile.indie_shops if x.domain != domain.lower()]
+        return view(await engine.save(profile))
 
     @router.post('/profiles/{ident}/edit')
     async def edit(ident: str, edit: EditInstruction):

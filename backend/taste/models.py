@@ -1,6 +1,6 @@
 from typing import Literal
 from pydantic import BaseModel, Field, ConfigDict, field_validator, model_validator
-from sourcing.models import TasteProfile as SourcingProfile
+from sourcing.models import IndieShop, TasteProfile as SourcingProfile
 from .sizing import Sizing, legacy
 
 ImageKind = Literal['outfit', 'item', 'own']  # own: the user wearing their own clothes
@@ -117,6 +117,11 @@ class Profile(StrictModel):
     # Set when the owner shares their moodboard: friends with /taste?board=<token> see a redacted board and can shop
     # for them (gift chat). Empty means not shared; clearing it revokes every link handed out.
     share_token: str = ''
+    # Independent labels' own Shopify stores the shopper added (or that their favorite brands were found at); every
+    # search reads them directly, so small labels show up new, not only secondhand. taste/shops.py finds them.
+    indie_shops: list[IndieShop] = []
+    # Favorite brands already looked up, so a rebuild doesn't search for the same missing store again.
+    shop_lookups: list[str] = []
     updated_at: str = ''
 
     def to_sourcing(self) -> SourcingProfile:
@@ -125,7 +130,8 @@ class Profile(StrictModel):
             silhouettes=self.silhouettes[:20], materials=(self.materials + self.patterns)[:20], avoid=self.avoid[:20],
             # Visible designers in liked photos count as brand preferences alongside the ones the user named.
             preferred_brands=list(dict.fromkeys(ob.favorite_brands + self.designers))[:30],
-            preferred_stores=ob.usual_shops[:30])
+            preferred_stores=list(dict.fromkeys(ob.usual_shops + [x.name for x in self.indie_shops]))[:30],
+            indie_shops=self.indie_shops[:30])
 
 
 class LookbookNotes(StrictModel):
@@ -141,6 +147,10 @@ class LookbookNotes(StrictModel):
 class ImageFromUrl(StrictModel):
     url: str = Field(min_length=8, max_length=2000)
     kind: ImageKind = 'outfit'
+
+
+class ShopRequest(StrictModel):
+    shop: str = Field(min_length=2, max_length=200)  # a brand name or the brand's website
 
 
 class ImportRequest(StrictModel):

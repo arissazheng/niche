@@ -171,6 +171,14 @@ export interface Profile {
   updated_at: string;
   /** Set while the owner shares their moodboard (friends can view it and shop for them). */
   share_token?: string;
+  /** Independent labels' own stores the shopper added; every search reads them directly. */
+  indie_shops?: IndieShop[];
+}
+
+export interface IndieShop {
+  domain: string;
+  name: string;
+  currency: string;
 }
 
 export interface ProfileView {
