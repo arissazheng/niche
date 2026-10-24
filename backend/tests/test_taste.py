@@ -304,3 +304,14 @@ def test_chat_accepts_history_with_linked_pages(client):
                                                                    'title': 'Jacket', 'readable': True}]},
                {'role': 'user', 'text': 'black halter top'}]
     assert client.post(f'/v1/taste/profiles/{pid}/chat', json={'messages': history}).status_code == 200
+
+
+def test_notes_only_lookbook_builds_and_own_fits_upload(client):
+    pid = client.post('/v1/taste/profiles', json={'name': 'Ari'}).json()['profile']['id']
+    assert client.post(f'/v1/taste/profiles/{pid}/build').status_code == 422  # nothing yet
+    saved = client.put(f'/v1/taste/profiles/{pid}/notes', json={'notes': [' cropped brown leather jacket ', '', 'cropped brown leather jacket']})
+    assert saved.json()['profile']['lookbook_notes'] == ['cropped brown leather jacket']
+    built = client.post(f'/v1/taste/profiles/{pid}/build').json()
+    assert 'cropped brown leather jacket' in built['profile']['prompt']
+    own = client.post(f'/v1/taste/profiles/{pid}/images', files={'file': ('me.png', png((90, 60, 40)))}, data={'kind': 'own'})
+    assert own.status_code == 201 and own.json()['kind'] == 'own' and own.json()['source'] == 'upload'

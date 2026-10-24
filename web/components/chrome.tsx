@@ -3,7 +3,7 @@ import { APP_NAME } from "@/lib/session";
 
 const NAV = [
   { href: "/onboard", label: "Profile" },
-  { href: "/upload", label: "Upload" },
+  { href: "/upload", label: "Lookbook" },
   { href: "/taste", label: "Taste" },
   { href: "/shop", label: "Shop" },
 ];

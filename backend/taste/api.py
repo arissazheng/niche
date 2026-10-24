@@ -11,7 +11,7 @@ from .chat import ChatRequest, ShopAgent, guess_category, profile_size, result_c
 from .imports import Importer, LinkError
 from .links import extract_urls, read_link
 from .engine import TasteEngine
-from .models import EditInstruction, ImageKind, ImportRequest, NoteUpdate, Onboarding, ProfileSearch, PromptUpdate
+from .models import EditInstruction, ImageKind, ImportRequest, LookbookNotes, NoteUpdate, Onboarding, ProfileSearch, PromptUpdate
 from .store import TasteStore
 
 MAX_UPLOAD_BYTES = 15 * 1024 * 1024
@@ -60,9 +60,17 @@ def create_router(settings, store: Store, budgets: Budgets | None = None):
         except (UnidentifiedImageError, OSError):
             raise HTTPException(422, 'Unsupported image')
 
+    @router.put('/profiles/{ident}/notes')
+    def lookbook_notes(ident: str, body: LookbookNotes):
+        # "Can't find the right pic? Leave a short note": these feed the next build like photos do.
+        profile = profile_or_404(ident)
+        profile.lookbook_notes = body.notes
+        return view(taste.save_profile(profile))
+
     @router.post('/profiles/{ident}/imports', status_code=202)
-    def start_import(ident: str, body: ImportRequest):
+    async def start_import(ident: str, body: ImportRequest):
         # Public Pinterest boards/profiles and Instagram profiles, via Bright Data; photos arrive in the background.
+        # Async so the background task starts on the server's event loop.
         profile_or_404(ident)
         try:
             return importer.start(ident, body.url).model_dump(mode='json')

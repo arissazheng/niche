@@ -146,6 +146,12 @@ class Importer:
         self.tasks = set()
         with taste.store.connect() as db:
             db.execute('CREATE TABLE IF NOT EXISTS imports (id TEXT PRIMARY KEY, profile_id TEXT, data TEXT, created_at TEXT)')
+            stale = [ImportJob.model_validate_json(r[0]) for r in db.execute('SELECT data FROM imports').fetchall()]
+        # Imports run in this process; any still marked running were cut off by a restart.
+        for job in stale:
+            if job.status == 'running':
+                job.status, job.message = 'failed', 'The import was interrupted. Paste the link again.'
+                self.save(job)
 
     def save(self, job: ImportJob):
         with self.taste.store.connect() as db:
@@ -164,9 +170,9 @@ class Importer:
         if link.kind == 'board' and not self.brightdata.unlocker_zone:
             raise LinkError('Board links need one more setup step on our side. For now, paste your Pinterest '
                             'profile link (pinterest.com/yourname) to import your latest pins.')
-        job = self.save(ImportJob(id=str(uuid.uuid4()), profile_id=profile_id, created_at=now(),
-                                  **link.model_dump()))
+        job = ImportJob(id=str(uuid.uuid4()), profile_id=profile_id, created_at=now(), **link.model_dump())
         task = asyncio.create_task(self.run(job))
+        self.save(job)
         self.tasks.add(task)
         task.add_done_callback(self.tasks.discard)
         return job

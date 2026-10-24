@@ -1,4 +1,5 @@
 import asyncio
+import time
 import io
 import pytest
 from PIL import Image
@@ -102,3 +103,33 @@ def test_private_instagram_says_so(tmp_path):
         return imp.jobs('p1')[0]
     job = asyncio.run(go())
     assert job.status == 'empty' and 'private' in job.message
+
+
+def test_import_endpoint_starts_a_background_job(tmp_path, monkeypatch):
+    from fastapi.testclient import TestClient
+    from app import create_app
+
+    async def no_photos(self, dataset_id, url, limit, timeout=300):
+        return []
+    monkeypatch.setattr(BrightData, 'collect', no_photos)
+    settings = Settings(database_path=str(tmp_path / 'a.sqlite'), upload_dir=str(tmp_path / 'up'))
+    with TestClient(create_app(settings)) as client:
+        pid = client.post('/v1/taste/profiles', json={}).json()['profile']['id']
+        bad = client.post(f'/v1/taste/profiles/{pid}/imports', json={'url': 'https://www.pinterest.com/pin/1/'})
+        assert bad.status_code == 422 and 'board or profile' in bad.json()['detail']
+        started = client.post(f'/v1/taste/profiles/{pid}/imports', json={'url': 'https://www.pinterest.com/jane/'})
+        assert started.status_code == 202 and started.json()['status'] == 'running'
+        for _ in range(50):
+            jobs = client.get(f'/v1/taste/profiles/{pid}/imports').json()
+            if jobs[0]['status'] != 'running':
+                break
+            time.sleep(0.1)
+        assert jobs[0]['status'] == 'empty' and 'public' in jobs[0]['message']
+
+
+def test_imports_cut_off_by_a_restart_are_marked_failed(tmp_path):
+    imp, taste = importer(tmp_path, [])
+    from taste.imports import ImportJob
+    imp.save(ImportJob(id='j', profile_id='p1', site='pinterest', kind='profile', url='u', created_at='t'))
+    again = Importer(Settings(database_path=str(tmp_path / 'i.sqlite')), taste, imp.engine, imp.brightdata)
+    assert again.jobs('p1')[0].status == 'failed'

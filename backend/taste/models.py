@@ -1,8 +1,8 @@
 from typing import Literal
-from pydantic import BaseModel, Field, ConfigDict
+from pydantic import BaseModel, Field, ConfigDict, field_validator
 from sourcing.models import TasteProfile as SourcingProfile
 
-ImageKind = Literal['outfit', 'item']
+ImageKind = Literal['outfit', 'item', 'own']  # own: the user wearing their own clothes
 SizeLabel = Literal['XS', 'S', 'M', 'L', 'XL', 'XXL']
 
 
@@ -82,6 +82,8 @@ class Profile(StrictModel):
     designers: list[str] = []
     aesthetics: list[str] = []
     avoid: list[str] = []
+    # Lookbook notes: what the user described in words when they couldn't find a photo.
+    lookbook_notes: list[str] = []
     # The editable "taste prompt": the backend text fed into sourcing and chat agents.
     prompt: str = ''
     mode: Literal['empty', 'fixture', 'claude'] = 'empty'
@@ -94,6 +96,16 @@ class Profile(StrictModel):
             # Visible designers in liked photos count as brand preferences alongside the ones the user named.
             preferred_brands=list(dict.fromkeys(ob.favorite_brands + self.designers))[:30],
             preferred_stores=ob.usual_shops[:30])
+
+
+class LookbookNotes(StrictModel):
+    notes: list[str] = Field(max_length=20)
+
+    @field_validator('notes')
+    @classmethod
+    def clean(cls, notes):
+        notes = [n.strip()[:500] for n in notes if n.strip()]
+        return list(dict.fromkeys(notes))
 
 
 class ImportRequest(StrictModel):

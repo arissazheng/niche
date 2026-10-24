@@ -1,4 +1,4 @@
-import type { AgentReply, Budget, ChatTurn, ImageKind, Onboarding, ProfileView, SearchJob, Source, TasteImage } from "./types";
+import type { AgentReply, Budget, ChatTurn, ImageKind, ImportJob, Onboarding, ProfileView, SearchJob, Source, TasteImage } from "./types";
 
 export const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://127.0.0.1:8000";
 
@@ -28,6 +28,11 @@ export const api = {
   },
   setNote: (imageId: string, note: string) =>
     request<TasteImage>(`/v1/taste/images/${imageId}/note`, { method: "PUT", body: json({ note }) }),
+  setLookbookNotes: (id: string, notes: string[]) =>
+    request<ProfileView>(`/v1/taste/profiles/${id}/notes`, { method: "PUT", body: json({ notes }) }),
+  importLink: (id: string, url: string) =>
+    request<ImportJob>(`/v1/taste/profiles/${id}/imports`, { method: "POST", body: json({ url }) }),
+  imports: (id: string) => request<ImportJob[]>(`/v1/taste/profiles/${id}/imports`),
   deleteImage: (imageId: string) => request<void>(`/v1/taste/images/${imageId}`, { method: "DELETE" }),
   build: (id: string) => request<ProfileView>(`/v1/taste/profiles/${id}/build`, { method: "POST" }),
   edit: (id: string, instruction: string, source: "text" | "voice" = "text") =>

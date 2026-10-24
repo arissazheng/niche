@@ -2,7 +2,8 @@
 // Run the API and open http://127.0.0.1:8000/docs for the authoritative contract.
 
 export type SizeLabel = "XS" | "S" | "M" | "L" | "XL" | "XXL";
-export type ImageKind = "outfit" | "item";
+// own: the shopper wearing their own clothes, the strongest signal of what they actually wear.
+export type ImageKind = "outfit" | "item" | "own";
 // mainstream / secondhand are the two Niche Apify actors (backend/actors); the rest are single-marketplace adapters.
 export type Source = "mainstream" | "secondhand" | "etsy" | "depop" | "poshmark" | "grailed";
 export type Tier =
@@ -42,6 +43,7 @@ export interface TasteImage {
   profile_id: string;
   kind: ImageKind;
   url: string;
+  source?: "upload" | "pinterest" | "instagram";
   note: string;
   palette: string[];
   analysis: {
@@ -76,6 +78,7 @@ export interface Profile {
   designers: string[];
   aesthetics: string[];
   avoid: string[];
+  lookbook_notes?: string[];
   prompt: string;
   mode: "empty" | "fixture" | "claude";
   updated_at: string;
@@ -154,4 +157,16 @@ export interface AgentReply {
   budget?: Omit<Budget, "linked"> | null;
   search_id?: string;
   status_url?: string;
+}
+
+/** A Pinterest/Instagram import running in the background (backend/taste/imports.py). */
+export interface ImportJob {
+  id: string;
+  site: "pinterest" | "instagram";
+  kind: "board" | "profile";
+  url: string;
+  status: "running" | "done" | "empty" | "failed";
+  added: number;
+  message: string;
+  created_at: string;
 }

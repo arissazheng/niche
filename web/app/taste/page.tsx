@@ -6,6 +6,7 @@ import { useTable } from "spacetimedb/react";
 import { Binder } from "@/components/binder";
 import { BuildProgress } from "@/components/build-progress";
 import { Drawer } from "@/components/drawer";
+import { EditLookbookButton } from "@/components/edit-lookbook";
 import { NoteEditor } from "@/components/note-editor";
 import { ProfilePanel } from "@/components/profile-panel";
 import { api } from "@/lib/api";
@@ -133,7 +134,7 @@ export default function TastePage() {
       <div className="px-4 mt-10 mx-auto max-w-3xl grid gap-6">
         {isOwner ? (
           <>
-            <Link href="/upload" className="label underline justify-self-start">← Add or change images</Link>
+            <Link href="/upload" className="label underline justify-self-start">← Add or remove photos</Link>
             <ProfilePanel view={view} onChange={run} />
           </>
         ) : (
@@ -141,6 +142,7 @@ export default function TastePage() {
         )}
       </div>
 
+      {isOwner && <EditLookbookButton />}
       <Drawer open={!!noteFor} onClose={() => setNoteFor(null)}>
         {noteFor && (
           <NoteEditor
