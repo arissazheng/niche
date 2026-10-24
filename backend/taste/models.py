@@ -101,6 +101,8 @@ class Profile(StrictModel):
     # The editable "taste prompt": the backend text fed into sourcing and chat agents.
     prompt: str = ''
     mode: Literal['empty', 'fixture', 'claude'] = 'empty'
+    # Fingerprint of the photos, notes and preferences the last build used; unchanged means no rebuild is needed.
+    built_from: str = ''
     updated_at: str = ''
 
     def to_sourcing(self) -> SourcingProfile:

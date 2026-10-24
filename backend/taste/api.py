@@ -11,7 +11,7 @@ import json
 from .chat import ChatRequest, ShopAgent, guess_category, profile_size, result_cards
 from .imports import Importer, LinkError
 from .links import extract_urls, read_link
-from .engine import TasteEngine
+from .engine import TasteEngine, fingerprint
 from .models import EditInstruction, ImageFromUrl, ImageKind, ImportRequest, LookbookNotes, NoteUpdate, Onboarding, ProfileSearch, PromptUpdate
 from .signing import Signer
 from .store import TasteStore
@@ -34,8 +34,11 @@ def create_router(settings, store: Store, budgets: Budgets | None = None, signer
         return profile
 
     def view(profile):
+        images = taste.images(profile.id)
+        # up_to_date: built, and nothing in the lookbook or preferences changed since, so Build can just show it.
         return {'profile': profile.model_dump(mode='json'),
-                'images': [signer.image(x.model_dump(mode='json')) for x in taste.images(profile.id)]}
+                'images': [signer.image(x.model_dump(mode='json')) for x in images],
+                'up_to_date': bool(profile.version and profile.built_from == fingerprint(profile, images))}
 
     @router.post('/profiles', status_code=201)
     def create(onboarding: Onboarding):
@@ -109,13 +112,15 @@ def create_router(settings, store: Store, budgets: Budgets | None = None, signer
             raise HTTPException(422, "That link isn't an image. Copy the image itself, or paste a page link above.")
 
     @router.put('/images/{ident}/note')
-    def note(ident: str, update: NoteUpdate):
+    async def note(ident: str, update: NoteUpdate):
         # Long-press details ("I like the color, not the frills"). Clears analysis so the next build re-reads it.
         image = taste.image(ident)
         if not image:
             raise HTTPException(404, 'Image not found')
         image.note, image.analysis = update.note, None
-        return signer.image(taste.save_image(image).model_dump(mode='json'))
+        saved = taste.save_image(image)
+        engine.read_soon(saved)
+        return signer.image(saved.model_dump(mode='json'))
 
     @router.delete('/images/{ident}', status_code=204)
     def delete(ident: str):

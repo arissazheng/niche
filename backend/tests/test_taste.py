@@ -80,7 +80,7 @@ def test_live_build_drops_invented_image_ids(tmp_path):
     stages = []
 
     class FakeModel:
-        async def call(self, system, content, job_id, stage, max_tokens, schema=None):
+        async def call(self, system, content, job_id, stage, max_tokens, schema=None, effort=None):
             stages.append(stage)
             if stage == 'extract':
                 assert content[0]['type'] == 'image'
@@ -124,7 +124,7 @@ def test_live_build_redoes_fixture_analyses(tmp_path):
     stages = []
 
     class FakeModel:
-        async def call(self, system, content, job_id, stage, max_tokens, schema=None):
+        async def call(self, system, content, job_id, stage, max_tokens, schema=None, effort=None):
             stages.append(stage)
             if stage == 'extract':
                 return {'garments': [{'category': 'skirt', 'colors': ['black'], 'silhouette': 'mini', 'pattern': 'solid',
@@ -137,6 +137,42 @@ def test_live_build_redoes_fixture_analyses(tmp_path):
     asyncio.run(live.build(taste.profile(profile.id)))
     assert stages == ['extract', 'synthesize']
     assert taste.images(profile.id)[0].analysis.garments[0].category == 'skirt'
+
+    # Nothing changed: building again reuses the saved profile without calling Claude.
+    before = taste.profile(profile.id)
+    again = asyncio.run(live.build(before))
+    assert stages == ['extract', 'synthesize'] and again.version == before.version
+    # A new note changes the inputs, so the next build runs again.
+    before.lookbook_notes = ['more denim']
+    asyncio.run(live.build(taste.save_profile(before)))
+    assert stages[-1] == 'synthesize' and len(stages) == 3
+
+
+def test_photos_are_read_as_soon_as_they_are_added(tmp_path):
+    settings = Settings(database_path=str(tmp_path/'t.sqlite'), upload_dir=str(tmp_path/'u'), taste_mode='live')
+    taste = TasteStore(Store(settings.database_path))
+    stages = []
+
+    class FakeModel:
+        async def call(self, system, content, job_id, stage, max_tokens, schema=None, effort=None):
+            stages.append(stage)
+            if stage == 'extract':
+                return {'garments': [], 'aesthetic_tags': ['minimal'], 'liked_aspects': [], 'disliked_aspects': [],
+                        'confidence_notes': []}
+            return {'summary': 's', 'clusters': [], 'colors': [], 'silhouettes': [], 'patterns': [], 'materials': [],
+                    'designers': [], 'aesthetics': [], 'avoid': [], 'prompt': 'p'}
+
+    engine = TasteEngine(settings, taste, model=FakeModel())
+    profile = taste.create_profile(Onboarding())
+
+    async def add_then_build():
+        engine.add_image(profile.id, png((10, 20, 30)), 'outfit')
+        await asyncio.sleep(0.05)  # the background read finishes before Build is clicked
+        assert taste.images(profile.id)[0].analysis.aesthetic_tags == ['minimal']
+        await engine.build(taste.profile(profile.id))
+
+    asyncio.run(add_then_build())
+    assert stages == ['extract', 'synthesize']  # the photo was read once, in the background
 
 
 class RecordingLive:

@@ -97,6 +97,8 @@ export interface Profile {
 export interface ProfileView {
   profile: Profile;
   images: TasteImage[];
+  /** Built, and nothing in the lookbook or preferences has changed since, so there's nothing to rebuild. */
+  up_to_date?: boolean;
 }
 
 export interface Listing {

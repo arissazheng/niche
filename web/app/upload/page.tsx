@@ -179,6 +179,7 @@ export default function LookbookPage() {
 
   // Build errors show next to the button, not at the top of the page where they'd be missed.
   async function build() {
+    if (view?.up_to_date) return router.push("/taste"); // nothing changed since the last build
     setBuildError(null);
     setBuilding(true);
     try {
@@ -252,7 +253,13 @@ export default function LookbookPage() {
             disabled={!consented || importing || uploading > 0}
             className="rule-t rule-b text-display py-2 w-full disabled:text-muted"
           >
-            {importing ? "Waiting for your import…" : profile.version ? "Rebuild my taste profile" : "Build my taste profile"}
+            {importing
+              ? "Waiting for your import…"
+              : view.up_to_date
+                ? "View my taste profile"
+                : profile.version
+                  ? "Rebuild my taste profile"
+                  : "Build my taste profile"}
           </button>
           {buildError && <p className="text-sm" role="alert">{buildError}</p>}
         </section>
