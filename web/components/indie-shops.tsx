@@ -29,7 +29,8 @@ export function IndieShops({ view, onChange }: { view: ProfileView; onChange: Ch
       <SectionTitle aside={shops.length ? `${shops.length}` : undefined}>Your independent shops</SectionTitle>
       <p className="text-sm">
         Small labels you love. Niche searches their own stores on every search, so you get their new pieces and not
-        only resale. Brands you named when you signed up are looked up when you build your profile.
+        only resale. Paste a website if the name isn&apos;t found. Brands you named when you signed up are looked up
+        when you build your profile.
       </p>
       {shops.length > 0 && (
         <ul className="grid gap-1 text-sm">
