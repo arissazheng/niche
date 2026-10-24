@@ -12,7 +12,7 @@ backend/          FastAPI, Python 3.11+
   sourcing/       Apify marketplace search + Claude query planning/ranking (prior Person 3 work; see SOURCING.md)
   actors/         Niche's two Apify actors: niche-mainstream (retailer bank) and niche-secondhand (see actors/README.md)
   taste/          image upload, palette, Claude extraction → clustering → taste profile, edits
-  checkout/       Stripe PaymentIntents (Link) + Capital One Nessie ledger mirror
+  checkout/       "Mark as bought": records purchases (made on the store's site) to the shopper's Nessie budget
   tests/
 web/              Next.js 15 (App Router) + Tailwind v4
   app/            / landing · /onboard setup questions · /taste uploads, moodboard, profile · /shop search + checkout
@@ -44,7 +44,6 @@ npm install && npm run dev
 Everything runs with **no API keys** in fixture mode:
 - `TASTE_MODE=fixture` builds the profile from measured palettes only, with no Claude call.
 - `SOURCING_MODE=fixture` returns synthetic listings that are clearly labelled and can't be purchased.
-- With no `STRIPE_SECRET_KEY`, checkout shows the total and a disabled button.
 
 Turn on real services one at a time:
 
@@ -52,7 +51,6 @@ Turn on real services one at a time:
 |---|---|
 | `TASTE_MODE=live` + `ANTHROPIC_API_KEY` (or `NICHE_ANTHROPIC_API_KEY`) | Claude extraction, clustering and edits (`claude-opus-5-5`) |
 | `SOURCING_MODE=live` + `APIFY_TOKEN` + `ANTHROPIC_API_KEY` | Real marketplace listings. Runs cost money; read `backend/SOURCING.md` first |
-| `STRIPE_SECRET_KEY=sk_test_…` (+ `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY` in web) | In-page Stripe Payment Element with Link |
 | `NESSIE_API_KEY`, then `python -m finance.seed <profile_id>` | Budget-aware shopping agent: links a Capital One Nessie demo bank account (balance, this month's clothing spend, upcoming bills); demo purchases are recorded to it |
 
 ## Debugging Claude
