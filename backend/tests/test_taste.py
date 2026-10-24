@@ -185,3 +185,34 @@ def test_live_listing_row_carries_store_labels():
                        'retailer': 'Depop', 'tier': 'resale', 'marketplace': 'depop', 'brand': None})
     assert (row['retailer'], row['tier'], row['marketplace'], row['brand']) == ('Depop', 'resale', 'depop', '')
     assert row['score'] == {'none': []} and row['rank'] == {'none': []}
+
+
+def test_chat_turn_refines_and_starts_search(client):
+    pid = client.post('/v1/taste/profiles', json={'budget_max': 80}).json()['profile']['id']
+    client.post(f'/v1/taste/profiles/{pid}/images', files={'file': ('a.png', png((20, 20, 20)))}, data={'kind': 'outfit'})
+    assert client.post(f'/v1/taste/profiles/{pid}/chat', json={'messages': [{'role': 'user', 'text': 'tops'}]}).status_code == 422
+    client.post(f'/v1/taste/profiles/{pid}/build')
+    turns = [{'role': 'user', 'text': 'i want an asymmetrical buttoned top'},
+             {'role': 'agent', 'text': 'Searching.', 'brief': 'asymmetrical buttoned top'},
+             {'role': 'user', 'text': 'no actually less formal'}]
+    reply = client.post(f'/v1/taste/profiles/{pid}/chat', json={'messages': turns}).json()
+    assert reply['action'] == 'search' and 'less formal' in reply['brief'] and reply['search_id']
+    assert client.post(f'/v1/taste/profiles/{pid}/chat', json={'messages': turns[:2]}).status_code == 422
+
+
+def test_shop_agent_live_uses_claude_and_conversation(tmp_path):
+    from taste.chat import ChatTurn, ShopAgent
+    seen = {}
+
+    class FakeModel:
+        async def call(self, system, content, job_id, stage, max_tokens, schema=None, effort=None):
+            seen.update(stage=stage, effort=effort, content=content)
+            return {'reply': 'Looking for relaxed ones.', 'action': 'search',
+                    'brief': 'asymmetrical buttoned top, relaxed casual style', 'max_item_price': None, 'size': None}
+
+    from taste.models import Profile
+    agent = ShopAgent(Settings(taste_mode='live', anthropic_api_key='k'), FakeModel())
+    turn = asyncio.run(agent.respond(Profile(id='p', prompt='monochrome y2k'),
+        [ChatTurn(role='user', text='asymmetrical buttoned top'), ChatTurn(role='user', text='less formal')]))
+    assert turn.action == 'search' and 'relaxed' in turn.brief
+    assert seen['stage'] == 'chat' and seen['effort'] == 'low' and 'less formal' in seen['content']

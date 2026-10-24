@@ -126,3 +126,17 @@ export interface CheckoutIntent {
   client_secret: string | null;
   payment_intent_id?: string;
 }
+
+export interface ChatTurn {
+  role: "user" | "agent";
+  text: string;
+  brief?: string; // what an agent turn searched for
+}
+
+export interface AgentReply {
+  reply: string;
+  action: "search" | "clarify";
+  brief: string;
+  search_id?: string;
+  status_url?: string;
+}

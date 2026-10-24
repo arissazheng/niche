@@ -113,5 +113,5 @@ class ProfileSearch(StrictModel):
     max_item_price: float | None = Field(default=None, gt=0, le=100000)
     size: str | None = Field(default=None, max_length=30)
     sources: list[Literal['mainstream', 'secondhand', 'etsy', 'depop', 'poshmark', 'grailed']] = ['mainstream', 'secondhand']
-    limit: int = Field(default=12, ge=1, le=24)
+    limit: int = Field(default=20, ge=1, le=24)
 

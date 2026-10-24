@@ -3,6 +3,7 @@ from fastapi import APIRouter, File, Form, HTTPException, UploadFile
 from PIL import UnidentifiedImageError
 from sourcing.models import SearchRequest, ShoppingRequest
 from sourcing.store import Store
+from .chat import ChatRequest, ShopAgent
 from .engine import TasteEngine
 from .models import EditInstruction, ImageKind, NoteUpdate, Onboarding, ProfileSearch, PromptUpdate
 from .store import TasteStore
@@ -82,12 +83,14 @@ def create_router(settings, store: Store):
         profile.prompt, profile.version = update.prompt, profile.version + 1
         return view(await engine.save(profile))
 
-    @router.post('/profiles/{ident}/searches', status_code=202)
-    def search(ident: str, search: ProfileSearch):
-        # Hand-off to the sourcing pipeline: the taste prompt becomes the SearchRequest's taste_profile.
+    def built_profile(ident):
         profile = profile_or_404(ident)
         if not (profile.prompt or profile.summary):
             raise HTTPException(422, 'Build the taste profile first')
+        return profile
+
+    def start_search(profile, search: ProfileSearch):
+        # Hand-off to the sourcing pipeline: the taste prompt becomes the SearchRequest's taste_profile.
         ob = profile.onboarding
         request = SearchRequest(taste_profile=profile.to_sourcing(), sources=search.sources, limit=search.limit,
             profile_id=profile.id,
@@ -95,5 +98,24 @@ def create_router(settings, store: Store):
                 currency=ob.currency, size=search.size))
         job = store.create(request.model_dump(mode='json'))
         return {'search_id': job, 'status': 'queued', 'status_url': f'/v1/searches/{job}'}
+
+    @router.post('/profiles/{ident}/searches', status_code=202)
+    def search(ident: str, search: ProfileSearch):
+        return start_search(built_profile(ident), search)
+
+    agent = ShopAgent(settings, engine.model)
+
+    @router.post('/profiles/{ident}/chat')
+    async def chat(ident: str, chat: ChatRequest):
+        # One conversational turn: a clarifying question, or a refined search over the whole conversation.
+        if chat.messages[-1].role != 'user':
+            raise HTTPException(422, 'The last message must be from the user')
+        profile = built_profile(ident)
+        turn = await agent.respond(profile, chat.messages)
+        out = {'reply': turn.reply, 'action': turn.action, 'brief': turn.brief}
+        if turn.action == 'search':
+            out.update(start_search(profile, ProfileSearch(query=turn.brief, max_item_price=turn.max_item_price,
+                                                           size=turn.size)))
+        return out
 
     return router

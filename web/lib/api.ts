@@ -1,4 +1,4 @@
-import type { CheckoutIntent, ImageKind, Onboarding, ProfileView, SearchJob, Source, TasteImage } from "./types";
+import type { AgentReply, ChatTurn, CheckoutIntent, ImageKind, Onboarding, ProfileView, SearchJob, Source, TasteImage } from "./types";
 
 export const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://127.0.0.1:8000";
 
@@ -37,6 +37,8 @@ export const api = {
       method: "POST",
       body: json({ query, ...(sources && { sources }) }),
     }),
+  chat: (id: string, messages: ChatTurn[]) =>
+    request<AgentReply>(`/v1/taste/profiles/${id}/chat`, { method: "POST", body: json({ messages }) }),
   getSearch: (statusUrl: string) => request<SearchJob>(statusUrl),
   checkoutIntent: (search_id: string, listing_id: string) =>
     request<CheckoutIntent>("/v1/checkout/intents", { method: "POST", body: json({ search_id, listing_id }) }),

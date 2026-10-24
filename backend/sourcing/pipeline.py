@@ -116,7 +116,8 @@ class Pipeline:
                  for i,s in enumerate(sources)]
         # Each source is filtered, shortlisted and ranked as soon as it returns, so Claude ranks the fast
         # sources while the slow ones are still scraping; the page shows everything ranked so far.
-        per_source = max(1,24//len(sources))
+        # Each source can fill the whole page on its own: mainstream often keeps only a handful of results.
+        per_source = max(request.limit,24//len(sources))
         counts = {'retrieved':0,'eligible':0}
         seen_urls, ranked, provisional, methods, rankers = set(), [], {}, [], []
 
