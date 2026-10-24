@@ -84,17 +84,34 @@ def lexical_score(item, request):
         + 10*min(preferred, 1) - 30*sum(t.lower() in text for t in profile.avoid)))
 
 
+# Each source (new from stores, secondhand) with good matches gets at least this share of the results, so one side
+# can't crowd out the other just by returning more listings. Better fits still rank first within the list.
+MIX_FLOOR = 0.25
+GOOD_FIT = 50
+
+
 def diversify(items, limit):
-    counts, selected = {}, []
+    counts, capped = {}, []
     for item in sorted(items,key=lambda x: x.score or 0,reverse=True):
         key = (item.source,item.seller or item.id)
         if counts.get(key,0)>=2:
             continue
         counts[key] = counts.get(key,0)+1
-        selected.append(item)
-        if len(selected)>=limit:
-            break
-    return selected
+        capped.append(item)
+    selected = capped[:limit]
+    floor = int(limit*MIX_FLOOR)
+    for source in dict.fromkeys(x.source for x in capped):
+        chosen = {id(x) for x in selected}
+        missing = floor - sum(x.source==source for x in selected)
+        extra = [x for x in capped if x.source==source and id(x) not in chosen and (x.score or 0)>=GOOD_FIT][:max(0,missing)]
+        for item in extra:
+            others = [x for x in selected if x.source!=source]
+            biggest = max({x.source for x in others}, key=lambda s: sum(x.source==s for x in selected), default=None)
+            if biggest is None or sum(x.source==biggest for x in selected) <= floor:
+                break
+            selected.remove(min((x for x in selected if x.source==biggest), key=lambda x: x.score or 0))
+            selected.append(item)
+    return sorted(selected,key=lambda x: x.score or 0,reverse=True)
 
 class Pipeline:
     def __init__(self, settings, store, sources=None, model=None, live=None):

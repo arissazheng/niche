@@ -399,3 +399,19 @@ def test_prefetch_is_ranked_ahead_and_shown_first(request_data, store):
     # Shown with the scores from the warm-up: no Claude call needed at search time.
     assert result['prefetched'] > 0 and model.ranked == [] and result['ranking_method'] == 'claude'
     assert all('trousers' in x['title'].lower() for x in result['results'])
+
+
+def test_results_keep_a_mix_of_new_and_secondhand(request_data):
+    from sourcing.pipeline import diversify
+    items, _ = asyncio.run(FixtureSources().fetch('secondhand', '', 6, ''))
+    more, _ = asyncio.run(FixtureSources().fetch('mainstream', '', 6, ''))
+    for i, x in enumerate(items):
+        x.seller, x.score = f's{i}', 90 - i
+    for i, x in enumerate(more):
+        x.seller, x.score = f'm{i}', 70 - i  # good fits, but every secondhand item scores higher
+    picked = diversify(items + more, 8)
+    assert sum(x.source == 'mainstream' for x in picked) == 2  # a quarter of 8
+    assert [x.score for x in picked] == sorted((x.score for x in picked), reverse=True)
+    for x in more:
+        x.score = 30  # poor fits don't get a guaranteed place
+    assert all(x.source == 'secondhand' for x in diversify(items + more, 6))

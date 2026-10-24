@@ -7,9 +7,12 @@ import { HandCircle } from "@/components/hand-circle";
 import { VoiceButton } from "@/components/voice";
 import { api } from "@/lib/api";
 import { getProfileId, setProfileId } from "@/lib/session";
-import type { Onboarding, SizeLabel } from "@/lib/types";
+import type { Length, Onboarding, SizeLabel } from "@/lib/types";
 
 const SIZES: SizeLabel[] = ["XS", "S", "M", "L", "XL", "XXL"];
+// US numbered sizes for pants and skirts, 00 through 40 (misses through plus).
+const NUMBERED = ["00", "0", ...Array.from({ length: 20 }, (_, i) => String((i + 1) * 2))];
+const LENGTHS: [Length, string][] = [["short", "Short (petite)"], ["regular", "Regular"], ["long", "Long (tall)"]];
 const SHOPS = ["Depop", "Etsy", "Poshmark", "Grailed", "Thrift stores", "Vintage shops", "Local boutiques", "Big retailers"];
 type SizeSlot = "top" | "bottom" | "outerwear";
 
@@ -42,8 +45,10 @@ export default function OnboardPage() {
     );
   }, []);
 
-  const setSize = (slot: SizeSlot, size: SizeLabel) =>
+  const setSize = (slot: SizeSlot, size: string) =>
     setForm((f) => ({ ...f, sizes: { ...f.sizes, [slot]: f.sizes[slot] === size ? null : size } }));
+  const setLength = (length: Length) =>
+    setForm((f) => ({ ...f, sizes: { ...f.sizes, bottom_length: f.sizes.bottom_length === length ? null : length } }));
   const toggleShop = (shop: string) =>
     setForm((f) => ({
       ...f,
@@ -107,12 +112,32 @@ export default function OnboardPage() {
           <SectionTitle aside="02">Sizes</SectionTitle>
           {(["top", "bottom", "outerwear"] as SizeSlot[]).map((slot) => (
             <div key={slot} className="flex flex-wrap items-center gap-2 py-1">
-              <span className="label w-24">{slot}</span>
+              <span className="label w-24">{slot === "bottom" ? "Pants & skirts" : slot}</span>
               {SIZES.map((size) => (
                 <button type="button" key={size} onClick={() => setSize(slot, size)} aria-pressed={form.sizes[slot] === size}>
                   <HandCircle selected={form.sizes[slot] === size}>{size}</HandCircle>
                 </button>
               ))}
+              {slot === "bottom" && (
+                <>
+                  <span className="label w-full sm:w-auto sm:pl-4 text-muted">or your number</span>
+                  <div className="flex flex-wrap gap-1 w-full pl-0 sm:pl-24">
+                    {NUMBERED.map((size) => (
+                      <button type="button" key={size} onClick={() => setSize("bottom", size)} aria-pressed={form.sizes.bottom === size}>
+                        <HandCircle selected={form.sizes.bottom === size}>{size}</HandCircle>
+                      </button>
+                    ))}
+                  </div>
+                  <div className="flex flex-wrap items-center gap-2 w-full sm:pl-24">
+                    <span className="label text-muted">Length</span>
+                    {LENGTHS.map(([length, label]) => (
+                      <button type="button" key={length} onClick={() => setLength(length)} aria-pressed={form.sizes.bottom_length === length}>
+                        <HandCircle selected={form.sizes.bottom_length === length}>{label}</HandCircle>
+                      </button>
+                    ))}
+                  </div>
+                </>
+              )}
             </div>
           ))}
           <div className="flex items-center gap-2 py-1">

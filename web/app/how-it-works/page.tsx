@@ -20,7 +20,7 @@ const STEPS = [
   ["Stores are searched", "Mainstream retailers through Google Shopping, plus Depop, Poshmark, Vinted and Etsy for secondhand and small shops."],
   ["Hard filters", "Your size for that kind of garment, your price cap, and the exclusions above."],
   ["Claude looks at each photo", "Every shortlisted listing is compared with your taste profile: colour, silhouette and overall aesthetic, a one-line reason, and caveats."],
-  ["Variety", "At most two pieces from the same seller. Stores and brands you said you like can add up to 10 of 100 points, and only to something that already fits."],
+  ["Variety", "At most two pieces from the same seller, and when both have good matches, at least a quarter of results each from stores and from secondhand and small shops. Stores and brands you said you like can add up to 10 of 100 points, and only to something that already fits."],
 ];
 
 const CANT_CHECK = [
@@ -90,6 +90,7 @@ export default function HowItWorks() {
               <li>— Your searches and their results</li>
               <li>— If you connect a bank (demo): balance, this month&apos;s clothing spend, upcoming bills. Read only; Niche can&apos;t move money.</li>
               <li>— Your chat history stays in this browser</li>
+              <li>— If you import a public Pinterest board or Instagram profile, its link is fetched through Bright Data</li>
             </ul>
           </div>
           <div className="grid gap-2 content-start">
@@ -99,6 +100,7 @@ export default function HowItWorks() {
               <li>— Your taste profile, sizes, budget and the conversation, to plan searches and reply</li>
               <li>— Listing photos and details, to rank them for you</li>
               <li>— Your budget summary, if you&apos;ve connected a bank</li>
+              <li>— Photos imported from Pinterest or Instagram (photos only: no account names or captions)</li>
               <li className="font-medium">Never your name, email or age.</li>
             </ul>
           </div>

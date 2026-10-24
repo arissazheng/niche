@@ -8,9 +8,10 @@ from sourcing.prefetch import BROAD_QUERY, Prefetcher
 from sourcing.store import Store
 import json
 from .chat import ChatRequest, ShopAgent, guess_category, profile_size, result_cards
+from .imports import Importer, LinkError
 from .links import extract_urls, read_link
 from .engine import TasteEngine
-from .models import EditInstruction, ImageKind, NoteUpdate, Onboarding, ProfileSearch, PromptUpdate
+from .models import EditInstruction, ImageKind, ImportRequest, LookbookNotes, NoteUpdate, Onboarding, ProfileSearch, PromptUpdate
 from .store import TasteStore
 
 MAX_UPLOAD_BYTES = 15 * 1024 * 1024
@@ -20,6 +21,7 @@ def create_router(settings, store: Store, budgets: Budgets | None = None):
     taste = TasteStore(store)
     engine = TasteEngine(settings, taste)
     prefetcher = Prefetcher(settings, store)
+    importer = Importer(settings, taste, engine)
     router = APIRouter(prefix='/v1/taste', tags=['taste'])
 
     def profile_or_404(ident):
@@ -57,6 +59,28 @@ def create_router(settings, store: Store, budgets: Budgets | None = None):
             return engine.add_image(ident, data, kind, note).model_dump(mode='json')
         except (UnidentifiedImageError, OSError):
             raise HTTPException(422, 'Unsupported image')
+
+    @router.put('/profiles/{ident}/notes')
+    def lookbook_notes(ident: str, body: LookbookNotes):
+        # "Can't find the right pic? Leave a short note": these feed the next build like photos do.
+        profile = profile_or_404(ident)
+        profile.lookbook_notes = body.notes
+        return view(taste.save_profile(profile))
+
+    @router.post('/profiles/{ident}/imports', status_code=202)
+    async def start_import(ident: str, body: ImportRequest):
+        # Public Pinterest boards/profiles and Instagram profiles, via Bright Data; photos arrive in the background.
+        # Async so the background task starts on the server's event loop.
+        profile_or_404(ident)
+        try:
+            return importer.start(ident, body.url).model_dump(mode='json')
+        except LinkError as exc:
+            raise HTTPException(422, str(exc))
+
+    @router.get('/profiles/{ident}/imports')
+    def imports(ident: str):
+        profile_or_404(ident)
+        return [x.model_dump(mode='json') for x in importer.jobs(ident)]
 
     @router.put('/images/{ident}/note')
     def note(ident: str, update: NoteUpdate):
@@ -104,7 +128,7 @@ def create_router(settings, store: Store, budgets: Budgets | None = None):
         return SearchRequest(taste_profile=profile.to_sourcing(), sources=search.sources, limit=search.limit,
             profile_id=profile.id,
             request=ShoppingRequest(query=search.query, max_item_price=search.max_item_price or ob.budget_max,
-                currency=ob.currency, size=search.size))
+                currency=ob.currency, size=search.size, length=search.length))
 
     def start_search(profile, search: ProfileSearch):
         job = store.create(search_request(profile, search).model_dump(mode='json'))
@@ -150,6 +174,7 @@ def create_router(settings, store: Store, budgets: Budgets | None = None):
             # Unless the user named a size, search in their saved size for this kind of garment.
             category = turn.category if turn.category != 'other' else guess_category(turn.brief)
             out['size'] = turn.size or profile_size(profile, category)
+            out['length'] = profile.onboarding.sizes.bottom_length if category == 'bottom' else None
             out['category'] = category
             price = turn.max_item_price
             if price is None and budget and budget.remaining >= 1:
@@ -158,7 +183,7 @@ def create_router(settings, store: Store, budgets: Budgets | None = None):
             out['max_item_price'] = price
         if turn.action == 'search':
             out.update(start_search(profile, ProfileSearch(query=turn.brief, max_item_price=out['max_item_price'],
-                                                           size=out['size'])))
+                                                           size=out['size'], length=out['length'])))
         return out
 
     return router

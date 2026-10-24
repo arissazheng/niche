@@ -2,10 +2,34 @@
 
 import type { TasteImage } from "@/lib/types";
 
-/** Grey plinth tile with index number. Clicking opens the detail note. */
-export function ImageTile({ image, index, onOpen }: { image: TasteImage; index: number; onOpen: () => void }) {
+const BADGES: Record<string, string> = { pinterest: "Pinterest", instagram: "Instagram" };
+
+/** Grey plinth tile with index number. Clicking opens the detail note; the ✕ (when given) removes it. */
+export function ImageTile({
+  image,
+  index,
+  onOpen,
+  onRemove,
+}: {
+  image: TasteImage;
+  index: number;
+  onOpen: () => void;
+  onRemove?: () => void;
+}) {
+  const badge = image.kind === "own" ? "My fit" : BADGES[image.source ?? ""];
   return (
-    <figure>
+    <figure className="relative">
+      {badge && <span className="label absolute left-1 top-1 z-10 bg-paper px-1">{badge}</span>}
+      {onRemove && (
+        <button
+          type="button"
+          onClick={onRemove}
+          aria-label={`Remove image ${index}`}
+          className="absolute right-1 top-1 z-10 bg-paper border border-ink size-7 leading-none text-lg"
+        >
+          ×
+        </button>
+      )}
       <button
         type="button"
         onClick={onOpen}
