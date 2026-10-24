@@ -1,4 +1,4 @@
-import type { AgentReply, Budget, ChatTurn, ClothingSizes, ImageKind, ImportJob, Measurements, Onboarding, ProfileView, SearchJob, SizeCatalog, SizeSystem, Source, TasteImage } from "./types";
+import type { AgentReply, Budget, ChatTurn, ClothingSizes, ImageKind, ImportJob, Measurements, NearbyShops, Onboarding, ProfileView, SearchJob, SizeCatalog, SizeSystem, Source, TasteImage } from "./types";
 
 export const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://127.0.0.1:8000";
 
@@ -38,6 +38,8 @@ export const api = {
   importLink: (id: string, url: string) =>
     request<ImportJob>(`/v1/taste/profiles/${id}/imports`, { method: "POST", body: json({ url }) }),
   imports: (id: string) => request<ImportJob[]>(`/v1/taste/profiles/${id}/imports`),
+  nearby: (id: string, searchId: string) =>
+    request<NearbyShops>(`/v1/taste/profiles/${id}/nearby?search_id=${encodeURIComponent(searchId)}`),
   deleteProfile: (id: string) => request<void>(`/v1/taste/profiles/${id}`, { method: "DELETE" }),
   deleteImage: (imageId: string) => request<void>(`/v1/taste/images/${imageId}`, { method: "DELETE" }),
   build: (id: string) => request<ProfileView>(`/v1/taste/profiles/${id}/build`, { method: "POST" }),

@@ -1,4 +1,6 @@
 import asyncio
+import logging
+import httpx
 from typing import Annotated, Literal
 from fastapi import APIRouter, File, Form, HTTPException, UploadFile
 from PIL import UnidentifiedImageError
@@ -13,12 +15,14 @@ from .chat import ChatRequest, ShopAgent, guess_category, result_cards, search_s
 from .fit import inches, suggest
 from .sizing import CATALOG
 from .imports import Importer, LinkError
+from .nearby import Nearby, NearbyError
 from .links import extract_urls, read_link
 from .engine import TasteEngine, fingerprint
 from .models import EditInstruction, ImageFromUrl, ImageKind, ImportRequest, Measurements, LookbookNotes, NoteUpdate, Onboarding, ProfileSearch, PromptUpdate
 from .signing import Signer
 from .store import TasteStore
 
+log = logging.getLogger(__name__)
 MAX_UPLOAD_BYTES = 15 * 1024 * 1024
 
 
@@ -190,6 +194,7 @@ def create_router(settings, store: Store, budgets: Budgets | None = None, signer
         return start_search(built_profile(ident), search)
 
     agent = ShopAgent(settings, engine.model)
+    nearby = Nearby(settings)
 
     def on_screen(ident, search_id):
         # Loaded server-side (not sent by the browser), and only for this profile's own searches.
@@ -200,6 +205,25 @@ def create_router(settings, store: Store, budgets: Budgets | None = None, signer
         if not row or json.loads(row[0]).get('profile_id') != ident:
             return None
         return result_cards(store.get(search_id))
+
+    @router.get('/profiles/{ident}/nearby')
+    async def nearby_shops(ident: str, search_id: str):
+        # Opt-in only: the shopper's ZIP and this search's brief go to Gemini (Google Maps grounding), nothing else.
+        profile = profile_or_404(ident)
+        ob = profile.onboarding
+        if not (ob.nearby_shops and ob.zip_code and nearby.enabled):
+            return {'enabled': False, 'shops': []}
+        with store.connect() as db:
+            row = db.execute('SELECT request FROM jobs WHERE id=?', (search_id,)).fetchone()
+        request = json.loads(row[0]) if row else {}
+        if request.get('profile_id') != ident:
+            raise HTTPException(404, 'Search not found')
+        try:
+            shops = await nearby.shops(ob.zip_code, request['request']['query'])
+        except (NearbyError, httpx.HTTPError, ValueError) as exc:
+            log.warning('nearby shops unavailable: %s', exc)
+            return {'enabled': True, 'shops': [], 'unavailable': True}
+        return {'enabled': True, 'zip_code': ob.zip_code, 'shops': shops}
 
     @router.get('/profiles/{ident}/budget')
     async def budget(ident: str):

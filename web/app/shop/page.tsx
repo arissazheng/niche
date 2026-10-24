@@ -10,7 +10,7 @@ import { VoiceButton } from "@/components/voice";
 import { api } from "@/lib/api";
 import { getProfileId } from "@/lib/session";
 import { tables } from "@/lib/spacetime";
-import { TIER_LABELS, type Budget, type ChatTurn, type Listing, type SearchCounts, type SearchJob } from "@/lib/types";
+import { TIER_LABELS, type Budget, type ChatTurn, type Listing, type NearbyShops, type SearchCounts, type SearchJob } from "@/lib/types";
 
 const DONE = new Set(["completed", "partial", "failed", "interrupted"]);
 // Tap-to-ask starters in the chat: before the first message, then once results are on screen.
@@ -262,6 +262,7 @@ export default function ShopPage() {
                 </button>
               ))}
             </div>
+            {finished && searchId && <NearbyShopsSection key={searchId} profileId={profileId} searchId={searchId} />}
           </>
         )}
       </section>
@@ -487,6 +488,33 @@ function BudgetStrip({
         </button>
       </div>
     </div>
+  );
+}
+
+/** Opt-in local shops for this search, from Gemini with Google Maps; hidden when off or unavailable. */
+function NearbyShopsSection({ profileId, searchId }: { profileId: string; searchId: string }) {
+  const [data, setData] = useState<NearbyShops | null>(null);
+  useEffect(() => {
+    api.nearby(profileId, searchId).then(setData, () => setData(null));
+  }, [profileId, searchId]);
+  if (!data?.enabled || !data.shops.length) return null;
+  return (
+    <section className="mt-10">
+      <SectionTitle aside={data.zip_code ? `Near ${data.zip_code}` : undefined}>Shops near you</SectionTitle>
+      <p className="text-sm text-muted mb-3">Worth a visit for this search. We can&apos;t see their stock, so call ahead.</p>
+      <ul className="grid gap-3 sm:grid-cols-2">
+        {data.shops.map((shop) => (
+          <li key={shop.maps_url} className="border border-ink p-3 grid gap-1">
+            <p className="text-display">{shop.name}</p>
+            <p className="text-sm">{shop.why}</p>
+            {/* Google's terms: each Maps source sits right after what it supports, named and linked. */}
+            <a href={shop.maps_url} target="_blank" rel="noopener noreferrer" className="label underline" translate="no">
+              {shop.name} on Google Maps ↗
+            </a>
+          </li>
+        ))}
+      </ul>
+    </section>
   );
 }
 

@@ -49,6 +49,10 @@ class Onboarding(StrictModel):
     usual_shops: list[str] = Field(default_factory=list, max_length=20)
     favorite_brands: list[str] = Field(default_factory=list, max_length=30)
     data_consent: bool = False  # agreed that photos and notes go to Claude to build the taste profile
+    # "Shops near you": off unless the shopper opts in. Only a US ZIP code is kept, never precise location; it goes to
+    # Gemini (Google Maps grounding) to suggest nearby shops, and never to Claude.
+    nearby_shops: bool = False
+    zip_code: str = Field(default='', pattern=r'^(\d{5})?$')
 
 
 class Garment(StrictModel):

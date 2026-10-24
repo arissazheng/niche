@@ -169,6 +169,35 @@ export default function OnboardPage() {
           </div>
         </section>
 
+        <section>
+          <SectionTitle aside="05">Shops near you</SectionTitle>
+          <label className="flex items-start gap-3 text-sm">
+            <input
+              type="checkbox"
+              className="mt-1 accent-ink"
+              checked={!!form.nearby_shops}
+              onChange={(e) => setForm({ ...form, nearby_shops: e.target.checked })}
+            />
+            <span>
+              Also suggest local shops worth visiting under my search results. Only your ZIP code is used: it&apos;s sent
+              to Google&apos;s Gemini to find shops on Google Maps, never your exact location.
+            </span>
+          </label>
+          {form.nearby_shops && (
+            <Field label="ZIP code">
+              <input
+                className="input w-32"
+                inputMode="numeric"
+                pattern="\d{5}"
+                maxLength={5}
+                required
+                value={form.zip_code ?? ""}
+                onChange={(e) => setForm({ ...form, zip_code: e.target.value.replace(/\D/g, "").slice(0, 5) })}
+              />
+            </Field>
+          )}
+        </section>
+
         <label className="flex items-start gap-3 text-sm">
           <input
             type="checkbox"

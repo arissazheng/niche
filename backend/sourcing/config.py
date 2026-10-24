@@ -19,6 +19,9 @@ class Settings(BaseSettings):
     # Not read from ANTHROPIC_BASE_URL on purpose: hosts can set that to their own gateway.
     anthropic_base_url: str = Field(default='https://api.anthropic.com', validation_alias='NICHE_ANTHROPIC_BASE_URL')
     claude_model: str = 'claude-opus-5-5'
+    # Gemini with Grounding with Google Maps, for the optional "Shops near you" list under search results.
+    gemini_api_key: str = ''
+    gemini_model: str = 'gemini-3.8-flash'
     sourcing_api_key: str = ''
     database_path: str = 'data/sourcing.sqlite3'
     actor_timeout_seconds: int = Field(default=180, ge=10, le=600)

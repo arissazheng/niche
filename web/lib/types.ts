@@ -105,6 +105,9 @@ export interface Onboarding {
   favorite_brands?: string[];
   /** Agreed that photos and notes are sent to Claude to build the taste profile. */
   data_consent?: boolean;
+  /** "Shops near you": opt-in; only the ZIP code is kept and sent to Gemini (Google Maps). */
+  nearby_shops?: boolean;
+  zip_code?: string;
 }
 
 export interface Garment {
@@ -267,4 +270,12 @@ export interface ImportJob {
   added: number;
   message: string;
   created_at: string;
+}
+
+/** Real shops near the shopper's ZIP worth checking for a search (Gemini with Google Maps grounding). */
+export interface NearbyShops {
+  enabled: boolean;
+  zip_code?: string;
+  unavailable?: boolean;
+  shops: { name: string; why: string; maps_url: string }[];
 }

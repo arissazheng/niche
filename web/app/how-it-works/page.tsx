@@ -105,6 +105,7 @@ export default function HowItWorks() {
               <li>— Your searches and their results</li>
               <li>— If you connect a bank (demo): balance, this month&apos;s clothing spend, upcoming bills. Read only; Niche can&apos;t move money.</li>
               <li>— Your chat history stays in this browser</li>
+              <li>— If you turn on Shops near you: your ZIP code, sent with each search&apos;s description to Google&apos;s Gemini to find shops on Google Maps</li>
               <li>— If you import a public Pinterest, Instagram or TikTok link, it may be fetched through Bright Data</li>
             </ul>
           </div>
@@ -117,7 +118,7 @@ export default function HowItWorks() {
               <li>— Your body measurements, if you added them, to check a listing&apos;s stated garment measurements (never used for your taste profile)</li>
               <li>— Your budget summary, if you&apos;ve connected a bank</li>
               <li>— Photos imported from Pinterest, Instagram or TikTok (images only: no account names or captions)</li>
-              <li className="font-medium">Never your name, email or age.</li>
+              <li className="font-medium">Never your name, email, age or ZIP code.</li>
             </ul>
           </div>
         </div>
