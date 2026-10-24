@@ -6,10 +6,10 @@ import { tables, type DbConnection } from "@/lib/spacetime";
 import type { ProfileView, StyleCluster, TasteImage } from "@/lib/types";
 
 // One open, ring-bound spread that fills the screen. Every cluster is a loose, overlapping collage
-// (prints, an embossed heading slip, a vellum note, handwritten labels, color dots). Every piece can be
+// (prints, an embossed heading slip, a vellum note, color dots). Every piece can be
 // dragged. Positions and cursors live in SpacetimeDB, so everyone with the board link sees moves live.
 
-type PieceKind = "image" | "slip" | "note" | "dots" | "label" | "title";
+type PieceKind = "image" | "slip" | "note" | "dots" | "title";
 
 interface Piece {
   id: string;
@@ -52,7 +52,9 @@ export function Binder({
   onOpenImage?: (image: TasteImage) => void;
 }) {
   const spreadRef = useRef<HTMLDivElement>(null);
-  const pieces = layout(view);
+  const aspect = useAspect(spreadRef);
+  const shapes = useShapes(view.images);
+  const pieces = layout(view, shapes, aspect);
   // A rebuilt profile has different clusters, so each version gets a fresh board.
   const boardId = `${view.profile.id}:v${view.profile.version}`;
 
@@ -213,6 +215,41 @@ export function Binder({
   );
 }
 
+/** The spread's width / height, so prints keep their proportions in percentage coordinates. */
+function useAspect(ref: React.RefObject<HTMLDivElement | null>) {
+  const [aspect, setAspect] = useState(1.7);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const measure = () => el.clientHeight && setAspect(el.clientWidth / el.clientHeight);
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [ref]);
+  return aspect;
+}
+
+/** Each photo's real width / height, loaded once per photo (links are re-signed hourly, so keyed by image id). */
+function useShapes(images: TasteImage[]) {
+  const [shapes, setShapes] = useState<Shapes>({});
+  useEffect(() => {
+    let live = true;
+    for (const image of images) {
+      if (shapes[image.id]) continue;
+      const probe = new Image();
+      probe.onload = () => {
+        if (live && probe.naturalHeight) setShapes((s) => ({ ...s, [image.id]: probe.naturalWidth / probe.naturalHeight }));
+      };
+      probe.src = image.url;
+    }
+    return () => {
+      live = false;
+    };
+  }, [images]); // eslint-disable-line react-hooks/exhaustive-deps -- shapes only grows; re-probing is wasted work
+  return shapes;
+}
+
 function Cursor({ x, y, name, color }: { x: number; y: number; name: string; color: string }) {
   return (
     <div
@@ -252,7 +289,7 @@ function PieceBody({ piece }: { piece: Piece }) {
                 src={piece.image!.url}
                 alt=""
                 draggable={false}
-                className="block w-full max-h-[34dvh] object-cover"
+                className="block w-full"
                 style={{ clipPath: `polygon(${piece.torn.ink})` }}
               />
             </div>
@@ -262,7 +299,7 @@ function PieceBody({ piece }: { piece: Piece }) {
       return (
         <figure className="relative shadow-[0_1px_6px_rgba(0,0,0,.22)]">
           {/* eslint-disable-next-line @next/next/no-img-element -- user uploads served by the API */}
-          <img src={piece.image!.url} alt="" draggable={false} className="block w-full max-h-[34dvh] object-cover" />
+          <img src={piece.image!.url} alt="" draggable={false} className="block w-full" />
           {piece.text === "tape" && <Tape />}
           {piece.text === "clip" && <BinderClip />}
         </figure>
@@ -293,16 +330,6 @@ function PieceBody({ piece }: { piece: Piece }) {
           ))}
         </div>
       );
-    case "label":
-      return (
-        <div className="flex items-end gap-1">
-          <span className="font-hand text-[1.35vw] leading-none">{piece.text}</span>
-          <svg viewBox="0 0 30 30" className="w-[1.7vw] shrink-0" aria-hidden>
-            <path d="M2 6 C 14 4, 22 10, 20 26" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
-            <path d="M15 21 L 20 27 L 24 20" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
-          </svg>
-        </div>
-      );
     case "title":
       return (
         <p className="font-script text-[2.6vw] leading-none">{piece.text}</p>
@@ -310,8 +337,27 @@ function PieceBody({ piece }: { piece: Piece }) {
   }
 }
 
-/** Splits the spread into one zone per cluster, then packs each cluster's prints with heavy overlap. */
-function layout(view: ProfileView): Piece[] {
+/** Width / height of a photo; 3:4 until the photo has loaded and its real shape is known. */
+type Shapes = Record<string, number>;
+const DEFAULT_SHAPE = 3 / 4;
+const PAGE_TOP = 11; // % of spread height: below the title
+const PAGE_BOTTOM = 96.5; // % of spread height: the paper ends at 98.5
+const OVERLAP = 1.12; // prints are a little larger than their slot, so neighbours overlap without hiding each other
+
+interface Zone {
+  left: number;
+  top: number;
+  width: number;
+  height: number;
+  page: { left: number; right: number };
+}
+
+/**
+ * Balances clusters across both pages by photo count, gives each cluster a zone sized to its photos, then lays its
+ * prints out on a loose grid sized to the zone, so every print stays mostly visible and inside the page.
+ * `aspect` is the spread's width / height, used to keep each print's real proportions.
+ */
+function layout(view: ProfileView, shapes: Shapes, aspect: number): Piece[] {
   const byId = new Map(view.images.map((x) => [x.id, x]));
   const placed = new Set<string>();
   const clusters = view.profile.clusters.map((cluster) => {
@@ -331,52 +377,65 @@ function layout(view: ProfileView): Piece[] {
   const pieces: Piece[] = [
     { id: "title", kind: "title", left: 3, top: 3, width: 20, rotate: -2, z: 60, text: name ? `${name}'s taste` : "My taste" },
   ];
+  const zoneFor = zones(clusters.map((c) => c.images.length));
 
-  zones(clusters.length).forEach((zone, i) => {
-    const { cluster, images } = clusters[i];
+  clusters.forEach(({ cluster, images }, i) => {
+    const zone = zoneFor[i];
     const rand = seeded(cluster.name + i);
     const n = Math.max(images.length, 1);
-    const cols = Math.max(1, Math.round(Math.sqrt(n * (zone.width / zone.height) * 0.56)));
+    // Columns chosen so each slot is roughly portrait, like the prints.
+    const zoneShape = (zone.width * aspect) / zone.height;
+    const cols = Math.min(n, Math.max(1, Math.round(Math.sqrt((n * zoneShape) / DEFAULT_SHAPE))));
     const rows = Math.ceil(n / cols);
     const cellW = zone.width / cols;
     const cellH = zone.height / rows;
+    const clamp = (v: number, lo: number, hi: number) => Math.min(Math.max(v, lo), Math.max(lo, hi));
 
     images.forEach((image, k) => {
-      const col = k % cols;
       const row = Math.floor(k / cols);
-      const width = Math.min(cellW * (1.25 + rand() * 0.35), zone.width * 0.62, 17);
+      const inRow = row === rows - 1 ? n - row * cols : cols;
+      const col = k % cols;
+      const shape = shapes[image.id] ?? DEFAULT_SHAPE;
+      // Fit the print to its slot (by width or by height, whichever is tighter), then enlarge slightly.
+      const width = Math.min(cellW, (cellH / aspect) * shape) * OVERLAP;
+      const height = (width * aspect) / shape;
+      const rowOffset = ((cols - inRow) * cellW) / 2; // centre a short last row
+      const left = zone.left + rowOffset + col * cellW + (cellW - width) / 2 + (rand() - 0.5) * cellW * 0.12;
+      const top = zone.top + row * cellH + (cellH - height) / 2 + (rand() - 0.5) * cellH * 0.12;
       pieces.push({
         id: image.id,
         kind: "image",
-        left: zone.left + col * cellW + (cellW - width) / 2 + (rand() - 0.5) * cellW * 0.45,
-        top: zone.top + row * cellH + (rand() - 0.5) * cellH * 0.35 - cellH * 0.08,
+        left: clamp(left, zone.page.left, zone.page.right - width),
+        top: clamp(top, PAGE_TOP - 2, PAGE_BOTTOM - height),
         width,
-        rotate: (rand() - 0.5) * 6,
-        z: 10 + Math.floor(rand() * 30),
+        rotate: (rand() - 0.5) * 5,
+        z: 10 + row * 4 + Math.floor(rand() * 4),
         image,
         ...decoration(rand, image.id),
       });
     });
 
     // Heading slip sits on top of the pile near the zone's upper-left; the note overlaps the lower-right.
+    const slipWidth = Math.min(zone.width * 0.48, 19);
     pieces.push({
       id: `slip:${i}`,
       kind: "slip",
-      left: zone.left + zone.width * (0.04 + rand() * 0.12),
-      top: zone.top + zone.height * (0.02 + rand() * 0.1),
-      width: Math.min(zone.width * 0.48, 19),
+      left: clamp(zone.left + zone.width * (0.02 + rand() * 0.08), zone.page.left, zone.page.right - slipWidth),
+      top: zone.top + zone.height * (0.02 + rand() * 0.06),
+      width: slipWidth,
       rotate: (rand() - 0.5) * 5,
       z: 70,
       cluster,
       index: i,
     });
     if (cluster.description) {
+      const noteWidth = Math.min(zone.width * 0.36, 13);
       pieces.push({
         id: `note:${i}`,
         kind: "note",
-        left: zone.left + zone.width * (0.48 + rand() * 0.1),
-        top: zone.top + zone.height * (0.56 + rand() * 0.12),
-        width: Math.min(zone.width * 0.36, 13),
+        left: clamp(zone.left + zone.width * (0.58 + rand() * 0.06), zone.page.left, zone.page.right - noteWidth),
+        top: Math.min(zone.top + zone.height * (0.6 + rand() * 0.1), PAGE_BOTTOM - 14),
+        width: noteWidth,
         rotate: (rand() - 0.5) * 6,
         z: 75,
         text: cluster.description,
@@ -387,60 +446,54 @@ function layout(view: ProfileView): Piece[] {
       pieces.push({
         id: `dots:${i}`,
         kind: "dots",
-        left: zone.left + zone.width * 0.05,
-        top: zone.top + zone.height * 0.93,
+        left: zone.left + zone.width * 0.03,
+        top: Math.min(zone.top + zone.height - 3, PAGE_BOTTOM - 2.5),
         width: 9,
         rotate: 0,
         z: 65,
         colors,
       });
     }
-    images
-      .map((image) => ({ image, text: labelFor(image) }))
-      .filter((x): x is { image: TasteImage; text: string } => !!x.text)
-      .slice(0, 2)
-      .forEach(({ image, text }, k) => {
-        const target = pieces.find((p) => p.id === image.id)!;
-        pieces.push({
-          id: `label:${image.id}`,
-          kind: "label",
-          left: target.left + target.width * (k ? 0.45 : 0.1),
-          top: target.top - 3.5,
-          width: 14,
-          rotate: (rand() - 0.5) * 6,
-          z: 80,
-          text,
-        });
-      });
   });
   return pieces;
 }
 
-/** Zones per page: clusters alternate pages, then stack in a 1- or 2-column grid within each page. */
-function zones(count: number) {
+/**
+ * One zone per cluster. Clusters go to whichever page has fewer photos so far (biggest first), so both pages fill
+ * evenly. A page with three or more clusters splits into two columns the same way; within a column, clusters stack
+ * with heights in proportion to their photo counts.
+ */
+function zones(counts: number[]): Zone[] {
   const pageWidth = (100 - GUTTER) / 2;
-  const perPage = [Math.ceil(count / 2), Math.floor(count / 2)];
-  const out: { left: number; top: number; width: number; height: number }[] = [];
-  perPage.forEach((m, page) => {
-    if (!m) return;
-    const cols = m <= 2 ? 1 : 2;
-    const rows = Math.ceil(m / cols);
+  const weight = (n: number) => Math.max(n, 1) + 1;
+  const spread = (indices: number[], parts: number) => {
+    const bins: number[][] = Array.from({ length: parts }, () => []);
+    const load = new Array(parts).fill(0);
+    for (const i of [...indices].sort((a, b) => counts[b] - counts[a])) {
+      const lightest = load.indexOf(Math.min(...load));
+      bins[lightest].push(i);
+      load[lightest] += weight(counts[i]);
+    }
+    return bins.map((bin) => bin.sort((a, b) => a - b)); // keep the profile's order within a page
+  };
+
+  const out: Zone[] = [];
+  spread(counts.map((_, i) => i), counts.length > 1 ? 2 : 1).forEach((onPage, page) => {
     const x0 = page * (pageWidth + GUTTER) + 3;
     const w = pageWidth - 6;
-    const y0 = 11;
-    const h = 84;
-    for (let k = 0; k < m; k++) {
-      const col = k % cols;
-      const row = Math.floor(k / cols);
-      // The last cluster on a page widens to fill an empty column.
-      const span = k === m - 1 && cols === 2 && m % 2 === 1 ? 2 : 1;
-      out.push({ left: x0 + (col * w) / cols, top: y0 + (row * h) / rows, width: (w / cols) * span, height: h / rows });
-    }
+    const bounds = { left: x0 - 1.5, right: x0 + w + 1.5 };
+    const columns = spread(onPage, onPage.length >= 3 ? 2 : 1);
+    columns.forEach((column, c) => {
+      const total = column.reduce((sum, i) => sum + weight(counts[i]), 0);
+      let y = PAGE_TOP;
+      for (const i of column) {
+        const height = ((PAGE_BOTTOM - PAGE_TOP) * weight(counts[i])) / total;
+        out[i] = { left: x0 + (c * w) / columns.length, top: y, width: w / columns.length, height, page: bounds };
+        y += height;
+      }
+    });
   });
-  // Interleave so cluster 1 is on the left page, cluster 2 on the right, and so on.
-  const left = out.slice(0, perPage[0]);
-  const right = out.slice(perPage[0]);
-  return Array.from({ length: count }, (_, i) => (i % 2 ? right[(i - 1) / 2] : left[i / 2]));
+  return out;
 }
 
 /** About a third of prints are torn out of a magazine; the rest get tape, a binder clip or nothing. */
@@ -489,13 +542,6 @@ function tornEdge(rand: () => number, torn: Set<Side>, depth = 4, fringe = 1.6) 
   for (let i = 0; i < steps; i++) add("bottom", (d) => `${100 - (i / steps) * 100}% ${100 - d}%`);
   for (let i = 0; i < steps; i++) add("left", (d) => `${d}% ${100 - (i / steps) * 100}%`);
   return { paper: paper.join(", "), ink: ink.join(", ") };
-}
-
-function labelFor(image: TasteImage) {
-  const garment = image.analysis?.garments[0];
-  if (!garment) return null;
-  const color = garment.colors[0];
-  return `${color && !garment.category.toLowerCase().includes(color.toLowerCase()) ? `${color} ` : ""}${garment.category}`.toLowerCase();
 }
 
 // Page stock: visible fine grain plus broad, uneven mottling.
