@@ -7,21 +7,17 @@ export default function Home() {
   return (
     <div className="px-4">
       <p className="text-display text-center my-2">{CATEGORIES.join(", ")}</p>
-      {/* Full-width band in the photo's own dark red, with the whole photo centred in it: nothing is cropped, and the
-          photo's edges fade into the band so it reads as one image across the page. */}
-      <section className="relative -mx-4 my-4 bg-[#1e070a] flex justify-center">
+      {/* Full-width black band with the envelopes (cropped from niche-front.webp) centred on it. */}
+      <section className="relative -mx-4 my-4 bg-ink flex flex-col items-center gap-6 py-10">
         <Image
-          src="/niche-front.webp"
+          src="/niche-front-envelopes.webp"
           alt="Niche"
-          width={1080}
-          height={1350}
+          width={802}
+          height={708}
           priority
-          className="h-[70dvh] min-h-[380px] w-auto max-w-full object-contain [mask-image:linear-gradient(to_right,transparent,black_12%,black_88%,transparent)]"
+          className="h-[60dvh] min-h-[320px] w-auto max-w-[92%] object-contain"
         />
-        <Link
-          href="/onboard"
-          className="label absolute bottom-6 left-1/2 -translate-x-1/2 bg-paper text-ink px-6 py-3"
-        >
+        <Link href="/onboard" className="label bg-paper text-ink px-6 py-3">
           Find your niche
         </Link>
       </section>
