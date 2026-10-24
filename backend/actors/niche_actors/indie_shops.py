@@ -40,4 +40,7 @@ SHOPS = [{'domain': domain, 'name': name, 'currency': currency} for domain, name
     ('kikavargas.com', 'Kika Vargas', 'USD'),
     ('hanifa.co', 'Hanifa', 'USD'),
     ('cuyana.com', 'Cuyana', 'USD'),
+    ('batulthecollection.com', 'Batul The Collection', 'USD'),
+    ('veiled.com', 'Veiled', 'USD'),
+    ('velascarves.com', 'Vela', 'USD'),
 ]]
