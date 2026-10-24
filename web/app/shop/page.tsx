@@ -121,6 +121,7 @@ export default function ShopPage() {
       // The current search lets the agent answer questions like "what about #2?".
       const reply = await api.chat(profileId, next, searchId);
       const agentTurn: ChatTurn = { role: "agent", text: reply.reply };
+      if (reply.linked?.length) agentTurn.linked = reply.linked;
       if (reply.action === "search") agentTurn.brief = reply.brief;
       if (reply.action === "propose") {
         agentTurn.proposed = reply.brief;
@@ -315,6 +316,11 @@ function ChatPanel({
               <p className="label mb-1">Niche</p>
               {/* Outlined box: reads as a reply next to the user's grey bubbles, in the site's ruled style. */}
               <div className="border border-ink px-3 py-2">
+                {m.linked?.map((page) => (
+                  <p key={page.url} className="label text-muted mb-1">
+                    {page.readable ? `Read: ${page.title ?? page.site}` : `Couldn't open ${page.site ?? "that link"}`}
+                  </p>
+                ))}
                 <p className="text-sm">{m.text}</p>
                 {m.brief && <p className="label text-muted mt-1">Searched: {m.brief}</p>}
                 {m === pending && !thinking && (

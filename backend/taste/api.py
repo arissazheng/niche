@@ -1,3 +1,4 @@
+import asyncio
 from typing import Annotated
 from fastapi import APIRouter, File, Form, HTTPException, UploadFile
 from PIL import UnidentifiedImageError
@@ -6,6 +7,7 @@ from finance.budget import Budgets
 from sourcing.store import Store
 import json
 from .chat import ChatRequest, ShopAgent, result_cards
+from .links import extract_urls, read_link
 from .engine import TasteEngine
 from .models import EditInstruction, ImageKind, NoteUpdate, Onboarding, ProfileSearch, PromptUpdate
 from .store import TasteStore
@@ -130,9 +132,13 @@ def create_router(settings, store: Store, budgets: Budgets | None = None):
             raise HTTPException(422, 'The last message must be from the user')
         profile = built_profile(ident)
         budget = await budgets.snapshot(ident) if budgets else None
-        turn = await agent.respond(profile, chat.messages, budget, on_screen(ident, chat.search_id))
+        urls = extract_urls(chat.messages[-1].text)
+        linked = list(await asyncio.gather(*map(read_link, urls))) if urls else None
+        turn = await agent.respond(profile, chat.messages, budget, on_screen(ident, chat.search_id), linked)
         out = {'reply': turn.reply, 'action': turn.action, 'brief': turn.brief,
                'budget': budget.model_dump() if budget else None}
+        if linked:
+            out['linked'] = [{'url': x.url, 'site': x.site, 'title': x.title, 'readable': x.readable} for x in linked]
         if turn.action in ('propose', 'search'):
             price = turn.max_item_price
             if price is None and budget and budget.remaining >= 1:

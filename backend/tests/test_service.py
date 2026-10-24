@@ -144,6 +144,10 @@ def test_claude_ranker_sends_photos_inline(monkeypatch,request_data,store):
             return httpx.Response(200,content=jpeg,headers={'content-type':'text/html'})
         return httpx.Response(404)
     monkeypatch.setattr(httpx,'AsyncClient',lambda **kw: original(transport=httpx.MockTransport(handler),**kw))
+    from sourcing import safe_fetch
+    async def public_dns(host):
+        return ['93.184.216.34']
+    monkeypatch.setattr(safe_fetch,'resolve',public_dns)  # keep the test offline
     sent=[]
     class Model(Claude):
         async def call(self,system,content,*args,**kwargs):

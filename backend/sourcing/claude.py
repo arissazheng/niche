@@ -4,8 +4,8 @@ import io
 import json
 import logging
 import anthropic
-import httpx
 from PIL import Image, UnidentifiedImageError
+from . import safe_fetch
 from .sources import public_url
 
 log = logging.getLogger(__name__)
@@ -48,16 +48,11 @@ def shrink(data):
 async def fetch_image(client, url):
     # Photos are sent inline because Claude can't fetch some hosts by URL: Google Shopping thumbnails are
     # disallowed by robots.txt, and one unfetchable URL fails the whole request. A failed download is skipped.
-    try:
-        async with client.stream('GET', url) as response:
-            response.raise_for_status()
-            data = b''
-            async for chunk in response.aiter_bytes():
-                data += chunk
-                if len(data) > MAX_IMAGE_BYTES:  # stop reading instead of buffering an oversized file
-                    return None
-    except httpx.HTTPError:
+    # URLs come from scraped listings or users, so only public hosts are fetched, with a streamed size cap.
+    fetched = await safe_fetch.fetch(client, url, MAX_IMAGE_BYTES)
+    if not fetched:
         return None
+    data = fetched[0]
     if not media_type(data):
         return None
     try:
@@ -114,7 +109,7 @@ class Claude:
                    {'type':'text','text':f'Rank all {len(listings)} listings below: return exactly {len(listings)} rankings, one per id.'}]
         references = [str(url) for url in request.taste_profile.reference_image_urls if public_url(str(url))]
         urls = references+[item.image_urls[0] if item.image_urls else None for item in listings]
-        async with httpx.AsyncClient(timeout=10,follow_redirects=True,headers={'User-Agent':'Mozilla/5.0 (Niche)'}) as client:
+        async with safe_fetch.client() as client:
             images = await asyncio.gather(*(fetch_image(client,url) if url else asyncio.sleep(0) for url in urls))
         self.store.event(job_id,'ranker_images',{'sent':sum(x is not None for x in images),
             'failed':sum(x is None for url,x in zip(urls,images) if url)})

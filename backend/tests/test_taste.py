@@ -237,7 +237,7 @@ def test_chat_sees_numbered_results_of_own_search_only(client, monkeypatch):
     from taste import chat as chat_module
     seen = []
 
-    async def fake_respond(self, profile, messages, budget=None, results=None):
+    async def fake_respond(self, profile, messages, budget=None, results=None, linked=None):
         seen.append(results)
         return chat_module.AgentTurn(reply='ok', action='reply', brief='', max_item_price=None, size=None)
     monkeypatch.setattr(chat_module.ShopAgent, 'respond', fake_respond)
