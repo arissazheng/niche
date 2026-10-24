@@ -1,12 +1,6 @@
 import Link from "next/link";
 import { APP_NAME } from "@/lib/session";
-
-const NAV = [
-  { href: "/onboard", label: "Profile" },
-  { href: "/upload", label: "Lookbook" },
-  { href: "/taste", label: "Taste" },
-  { href: "/shop", label: "Shop" },
-];
+import { SiteNav } from "./site-nav";
 
 export function SiteHeader() {
   return (
@@ -14,14 +8,7 @@ export function SiteHeader() {
       <div className="bg-ink text-paper label py-2 text-center">
         Major retailers, small shops &amp; secondhand — no sponsored placements
       </div>
-      <nav className="label flex justify-center gap-4 py-2">
-        <Link href="/">{APP_NAME}</Link>
-        {NAV.map((item) => (
-          <Link key={item.href} href={item.href} className="hover:underline">
-            {item.label}
-          </Link>
-        ))}
-      </nav>
+      <SiteNav />
     </header>
   );
 }

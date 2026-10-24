@@ -5,6 +5,7 @@ import { use, useEffect, useRef, useState } from "react";
 import { SectionTitle } from "@/components/chrome";
 import { Drawer } from "@/components/drawer";
 import { api } from "@/lib/api";
+import { setFriendView } from "@/lib/session";
 import { TIER_LABELS, type ChatTurn, type Listing, type SearchJob } from "@/lib/types";
 
 // Shopping for a friend through the moodboard link they shared: the agent uses their taste and sizes, you set the
@@ -29,7 +30,10 @@ export default function GiftPage({ params }: { params: Promise<{ token: string }
 
   useEffect(() => {
     api.shared(token).then(
-      (view) => setName(view.profile.onboarding.name || "your friend"),
+      (view) => {
+        setName(view.profile.onboarding.name || "your friend");
+        setFriendView({ token, name: view.profile.onboarding.name.trim() });
+      },
       () => setGone(true),
     );
   }, [token]);

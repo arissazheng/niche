@@ -10,7 +10,7 @@ import { EditLookbookButton } from "@/components/edit-lookbook";
 import { NoteEditor } from "@/components/note-editor";
 import { ProfilePanel } from "@/components/profile-panel";
 import { api } from "@/lib/api";
-import { getProfileId } from "@/lib/session";
+import { getProfileId, setFriendView } from "@/lib/session";
 import { tables } from "@/lib/spacetime";
 import type { ProfileView, TasteImage } from "@/lib/types";
 
@@ -49,7 +49,11 @@ export default function TastePage() {
     if (board) {
       setIsOwner(false);
       setToken(board);
-      run(() => api.shared(board));
+      run(async () => {
+        const shared = await api.shared(board);
+        setFriendView({ token: board, name: shared.profile.onboarding.name.trim() }); // menu switches to their view
+        return shared;
+      });
       return;
     }
     const own = getProfileId();

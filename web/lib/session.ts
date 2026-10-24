@@ -28,3 +28,40 @@ export function clearProfile(id: string) {
 }
 
 export const APP_NAME = process.env.NEXT_PUBLIC_APP_NAME ?? "Niche";
+
+// Friend view: set when this tab opens someone's share link, so the menu shops for them and doesn't open
+// Profile / Lookbook (which belong to whoever owns this browser). Per tab; ends when the visitor builds their own.
+const FRIEND_KEY = "friend-view";
+
+export interface FriendView {
+  token: string;
+  name: string;
+}
+
+export function getFriendView(): FriendView | null {
+  try {
+    return JSON.parse(sessionStorage.getItem(FRIEND_KEY) ?? "null") as FriendView | null;
+  } catch {
+    return null;
+  }
+}
+
+export function setFriendView(view: FriendView) {
+  try {
+    sessionStorage.setItem(FRIEND_KEY, JSON.stringify(view));
+    window.dispatchEvent(new Event(FRIEND_KEY));
+  } catch {
+    // storage blocked: the menu just stays as normal
+  }
+}
+
+export function clearFriendView() {
+  try {
+    sessionStorage.removeItem(FRIEND_KEY);
+    window.dispatchEvent(new Event(FRIEND_KEY));
+  } catch {
+    // nothing stored
+  }
+}
+
+export const FRIEND_EVENT = FRIEND_KEY;
