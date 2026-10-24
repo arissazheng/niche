@@ -21,6 +21,7 @@ export default function LookbookPage() {
   const [building, setBuilding] = useState(false);
   const [uploading, setUploading] = useState(0);
   const [error, setError] = useState<string | null>(null);
+  const [buildError, setBuildError] = useState<string | null>(null);
   const [noteFor, setNoteFor] = useState<TasteImage | null>(null);
   const [imports, setImports] = useState<ImportJob[]>([]);
   const router = useRouter();
@@ -129,12 +130,22 @@ export default function LookbookPage() {
     }
   };
 
+  // Build errors show next to the button, not at the top of the page where they'd be missed.
   async function build() {
+    setBuildError(null);
     setBuilding(true);
-    const error = await run(() => api.build(id));
-    if (!error) return router.push("/taste");
-    setBuilding(false);
+    try {
+      await api.build(id);
+      router.push("/taste");
+    } catch (err) {
+      setBuildError((err as Error).message);
+      setBuilding(false);
+    }
   }
+
+  const consented = !!profile.onboarding.data_consent;
+  const setConsent = (data_consent: boolean) =>
+    run(() => api.updateOnboarding(id, { ...profile.onboarding, data_consent }));
 
   if (building) {
     return (
@@ -179,10 +190,24 @@ export default function LookbookPage() {
       )}
 
       {(images.length > 0 || notes.length > 0) && (
-        <section>
-          <button onClick={build} disabled={importing || uploading > 0} className="rule-t rule-b text-display py-2 w-full disabled:text-muted">
+        <section className="grid gap-3">
+          {!consented && (
+            <label className="flex items-start gap-3 text-sm">
+              <input type="checkbox" className="mt-1 accent-ink" checked={consented} onChange={(e) => setConsent(e.target.checked)} />
+              <span>
+                I agree that my photos and notes are sent to Claude (Anthropic) to build my taste profile. My name, email
+                and age never are. <Link href="/how-it-works#data" className="underline">What Niche keeps</Link>
+              </span>
+            </label>
+          )}
+          <button
+            onClick={build}
+            disabled={!consented || importing || uploading > 0}
+            className="rule-t rule-b text-display py-2 w-full disabled:text-muted"
+          >
             {importing ? "Waiting for your import…" : profile.version ? "Rebuild my taste profile" : "Build my taste profile"}
           </button>
+          {buildError && <p className="text-sm" role="alert">{buildError}</p>}
         </section>
       )}
 
