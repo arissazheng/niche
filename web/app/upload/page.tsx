@@ -9,6 +9,7 @@ import { Drawer } from "@/components/drawer";
 import { ImageTile } from "@/components/image-tile";
 import { NoteEditor } from "@/components/note-editor";
 import { api } from "@/lib/api";
+import { SHOPPING, useAssistant, useAssistantSkill } from "@/lib/assistant";
 import { getProfileId } from "@/lib/session";
 import type { ImageKind, ImportJob, ProfileView, TasteImage } from "@/lib/types";
 
@@ -80,6 +81,42 @@ export default function LookbookPage() {
     }, 3000);
     return () => clearInterval(timer);
   }, [profileId, importing, run]);
+
+  // The assistant reacts to new photos like a friend would ("ooh, I'm sensing a 90s minimal thing").
+  const { say } = useAssistant();
+  const seen = useRef<Set<string> | null>(null);
+  const imageIds = view?.images.map((x) => x.id).join(",") ?? "";
+  useEffect(() => {
+    if (!profileId || !imageIds) return;
+    const ids = imageIds.split(",");
+    const added = seen.current ? ids.filter((x) => !seen.current!.has(x)) : [];
+    seen.current = new Set(ids);
+    if (added.length) api.reactToPhotos(profileId, added.slice(-4)).then(({ text }) => say(text), () => {});
+  }, [profileId, imageIds, say]);
+
+  // Talking here: describe a look to save it as a note, or say you're done to build the profile.
+  const actions = useRef<{ note: (text: string) => Promise<void>; build: () => void }>({ note: async () => {}, build: () => {} });
+  useAssistantSkill(
+    view
+      ? {
+          id: "lookbook",
+          label: "Building your lookbook",
+          intro: view.images.length
+            ? "Add a few more looks you love, or tell me about one in words. Say build when you're ready."
+            : "Now show me your style! Drop in photos of outfits you love, or just describe a look and I'll note it.",
+          placeholder: "I love oversized blazers with baggy jeans",
+          async handle(text) {
+            if (SHOPPING.test(text)) return null;
+            if (/^\s*(build|done|i'?m done|that'?s (it|all)|finish|ready|let'?s (go|see))\b/i.test(text)) {
+              actions.current.build();
+              return "Ooh, exciting. Building your taste profile now, give me a sec!";
+            }
+            await actions.current.note(text);
+            return "Love it, noted! I'll use that when I build your profile. Anything else?";
+          },
+        }
+      : null,
+  );
 
   if (missing) {
     return (
@@ -199,6 +236,11 @@ export default function LookbookPage() {
       setBuilding(false);
     }
   }
+
+  actions.current = {
+    note: async (text) => void (await run(() => api.setLookbookNotes(id, [...notes, text.slice(0, 300)].slice(-20)))),
+    build,
+  };
 
   const consented = !!profile.onboarding.data_consent;
   const setConsent = (data_consent: boolean) =>

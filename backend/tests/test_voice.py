@@ -1,3 +1,4 @@
+import json
 import httpx
 import pytest
 from fastapi.testclient import TestClient
@@ -72,6 +73,46 @@ def test_onboarding_only_returns_what_was_said(tmp_path):
 def test_clean_drops_values_the_form_would_reject():
     heard = voice.Heard(name=' Ari ', age=7, email='not-an-email', budget_min=-1, budget_max=0, currency='usd',
         usual_shops=['Depop', 'Made Up'], favorite_brands=['Zara'],
-        measurements=voice.HeardMeasurements(unit='feet', shoulder=None, bust=None, waist=999, hips=None, inseam=None, arm=None))
+        measurements=voice.HeardMeasurements(unit='feet', shoulder=None, bust=None, waist=999, hips=None, inseam=None, arm=None),
+        system=None, sizes=None)
     out = voice.clean(heard, SHOPS).model_dump(exclude_none=True)
     assert out == {'name': 'Ari', 'usual_shops': ['Depop'], 'favorite_brands': ['Zara']}
+
+
+def test_speak_returns_cartesia_mp3(tmp_path, monkeypatch):
+    seen = []
+
+    def handler(request):
+        seen.append(request)
+        return httpx.Response(200, content=b'ID3-mp3-bytes', headers={'content-type': 'audio/mpeg'})
+    monkeypatch.setattr(voice, 'transport', httpx.MockTransport(handler))
+    with make_client(tmp_path, cartesia_api_key='sk_test') as client:
+        r = client.post('/v1/voice/speak', json={'text': 'Got it. Where do you usually shop?'})
+    assert r.status_code == 200 and r.content == b'ID3-mp3-bytes' and r.headers['content-type'] == 'audio/mpeg'
+    sent = seen[0]
+    assert str(sent.url) == 'https://api.cartesia.ai/tts/bytes' and sent.headers['authorization'] == 'Bearer sk_test'
+    body = json.loads(sent.content)
+    assert body['transcript'] == 'Got it. Where do you usually shop?' and body['output_format']['container'] == 'mp3'
+
+
+def test_speak_off_without_key_and_errors_stay_plain(tmp_path, monkeypatch):
+    with make_client(tmp_path) as client:
+        assert client.post('/v1/voice/speak', json={'text': 'hi'}).status_code == 503
+    monkeypatch.setattr(voice, 'transport', httpx.MockTransport(lambda r: httpx.Response(400, text='bad voice sk_test')))
+    with make_client(tmp_path, cartesia_api_key='sk_test') as client:
+        r = client.post('/v1/voice/speak', json={'text': 'hi'})
+        assert client.post('/v1/voice/speak', json={'text': ''}).status_code == 422
+    assert r.status_code == 502 and 'sk_test' not in r.text
+
+
+def test_onboarding_hears_sizes_and_drops_ones_off_the_chart(tmp_path):
+    text = "I shop women's, I'm a small in tops, 27 waist, and a size 8 shoe"
+    with make_client(tmp_path) as client:
+        heard = client.post('/v1/voice/onboarding', json={'transcript': text, 'shop_options': SHOPS}).json()
+    assert heard['system'] == 'womens'
+    assert heard['sizes'] == [{'category': 'tops', 'format': 'alpha', 'value': 'S'},
+                              {'category': 'shoes', 'format': 'us', 'value': '8'},
+                              {'category': 'bottoms', 'format': 'waist', 'value': '27'}]
+    off = voice.Heard.model_validate(dict.fromkeys(voice.Heard.model_fields) | {'sizes': [
+        {'category': 'shoes', 'format': 'us', 'value': '99'}, {'category': 'tops', 'format': 'alpha', 'value': 'm'}]})
+    assert voice.clean(off, SHOPS).sizes == [voice.HeardSize(category='tops', format='alpha', value='M')]

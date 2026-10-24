@@ -2,12 +2,12 @@
 
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { SectionTitle } from "@/components/chrome";
 import { HandCircle } from "@/components/hand-circle";
 import { MeasurementsPanel } from "@/components/measurements";
-import { VoiceButton } from "@/components/voice";
 import { api } from "@/lib/api";
+import { SHOPPING, useAssistant, useAssistantSkill } from "@/lib/assistant";
 import { clearProfile, getProfileId, setProfileId } from "@/lib/session";
 import { SizingSection, emptySizing, withDefaults } from "@/components/sizing";
 import type { ClothingSizes, HeardOnboarding, Onboarding, SizePick } from "@/lib/types";
@@ -33,6 +33,22 @@ export default function OnboardPage() {
   const [existing, setExisting] = useState<{ id: string; built: boolean } | null>(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [voiceNote, setVoiceNote] = useState<string | null>(null);
+  const assistant = useAssistant();
+  const formEl = useRef<HTMLFormElement>(null);
+  const latest = useRef(form);
+  latest.current = form;
+  const budgetTalked = useRef(false);
+
+  // The assistant fills this form in conversation: it asks, the shopper answers, the fields fill themselves.
+  useAssistantSkill({
+    id: "onboarding",
+    label: existing ? "Updating your profile" : "Getting to know you",
+    intro: existing
+      ? "Want to change anything here? Just tell me, like \u201CI'm a medium in tops now\u201D."
+      : "Hi, I'm Niche! I'll help you shop your style. Let's get to know each other: what's your name, and where do you usually shop?",
+    placeholder: "I\u2019m Dana, I shop on Depop and thrift stores\u2026",
+    handle: answered,
+  });
 
   useEffect(() => {
     const id = getProfileId();
@@ -52,34 +68,60 @@ export default function OnboardPage() {
       usual_shops: f.usual_shops.includes(shop) ? f.usual_shops.filter((s) => s !== shop) : [...f.usual_shops, shop],
     }));
 
-  // A spoken answer fills in only the fields it mentions; lists add to what is already picked.
-  async function answered(transcript: string) {
-    setVoiceNote(`\u201C${transcript}\u201D \u2014 filling in\u2026`);
-    try {
-      const heard: HeardOnboarding = await api.heardOnboarding(transcript, SHOPS);
-      const { usual_shops, favorite_brands, measurements, ...rest } = heard;
-      setForm((f) => ({
-        ...f,
-        ...rest,
-        usual_shops: [...new Set([...f.usual_shops, ...(usual_shops ?? [])])],
-        favorite_brands: [...new Set([...(f.favorite_brands ?? []), ...(favorite_brands ?? [])])],
-        measurements: { ...(f.measurements ?? { unit: "in" }), ...measurements, unit: measurements?.unit ?? f.measurements?.unit ?? "in" },
-      }));
-      const filled = [
-        rest.name !== undefined && "name",
-        rest.age !== undefined && "age",
-        rest.email !== undefined && "email",
-        (rest.budget_min !== undefined || rest.budget_max !== undefined) && "budget",
-        usual_shops?.length && "shops",
-        favorite_brands?.length && `brands (${favorite_brands.join(", ")})`,
-        measurements && "measurements",
-      ].filter(Boolean);
-      setVoiceNote(
-        `\u201C${transcript}\u201D \u2014 ${filled.length ? `filled in ${filled.join(", ")}` : "nothing to fill in from that"}. Sizes are picked below.`,
-      );
-    } catch (err) {
-      setVoiceNote(`Couldn\u2019t use that answer: ${(err as Error).message}`);
+  // An answer (spoken or typed) fills in only the fields it mentions; lists add to what is already picked.
+  // Returns what the assistant says back: what it got, then the next thing it needs.
+  async function answered(transcript: string): Promise<string | null> {
+    if (existing?.built && SHOPPING.test(transcript)) return null; // "find me boots": that's for the shopping agent
+    if (/^\s*(save|continue|done|next|i'?m done|that'?s (it|all|everything)|let'?s go)\b/i.test(transcript)) {
+      if (!latest.current.data_consent) {
+        return "Almost there! Tick the box at the bottom so I can look at your photos with Claude, then say continue.";
+      }
+      formEl.current?.requestSubmit();
+      return existing ? "Saved!" : "Saved! Now show me some looks you love. Drop in photos and I'll tell you what I see.";
     }
+    setVoiceNote(`\u201C${transcript}\u201D \u2014 filling in\u2026`);
+    const heard: HeardOnboarding = await api.heardOnboarding(transcript, SHOPS);
+    const { usual_shops, favorite_brands, measurements, system, sizes, ...rest } = heard;
+    const f = latest.current;
+    const sizeSystem = system ?? f.sizing.system ?? "womens";
+    let sizing = system ? { ...f.sizing, system } : f.sizing;
+    if (sizes?.length) {
+      const chart = { ...sizing[sizeSystem] };
+      for (const size of sizes) {
+        const pick = chart[size.category];
+        const values = pick.format === size.format ? [...new Set([...pick.values, size.value])] : [size.value];
+        chart[size.category] = { ...pick, format: size.format, values };
+      }
+      sizing = { ...sizing, system: sizeSystem, [sizeSystem]: chart };
+    }
+    const next: Onboarding = {
+      ...f,
+      ...rest,
+      sizing,
+      usual_shops: [...new Set([...f.usual_shops, ...(usual_shops ?? [])])],
+      favorite_brands: [...new Set([...(f.favorite_brands ?? []), ...(favorite_brands ?? [])])],
+      measurements: { ...(f.measurements ?? { unit: "in" }), ...measurements, unit: measurements?.unit ?? f.measurements?.unit ?? "in" },
+    };
+    latest.current = next;
+    setForm(next);
+    if (rest.budget_min !== undefined || rest.budget_max !== undefined) budgetTalked.current = true;
+    const filled = [
+      rest.name !== undefined && "name",
+      rest.age !== undefined && "age",
+      rest.email !== undefined && "email",
+      (rest.budget_min !== undefined || rest.budget_max !== undefined) && "budget",
+      usual_shops?.length && "shops",
+      favorite_brands?.length && `brands (${favorite_brands.join(", ")})`,
+      (sizes?.length || system) && "sizes",
+      measurements && "measurements",
+    ].filter(Boolean);
+    setVoiceNote(`\u201C${transcript}\u201D \u2014 ${filled.length ? `filled in ${filled.join(", ")}` : "nothing to fill in from that"}.`);
+    const ack = rest.name
+      ? `Nice to meet you, ${rest.name}!`
+      : filled.length
+        ? ["Got it.", "Love that.", "Perfect.", "Noted!"][transcript.length % 4]
+        : "Hmm, I didn't catch anything to fill in from that.";
+    return `${ack} ${nextQuestion(next, budgetTalked.current, !!existing)}`;
   }
 
   async function submit(e: React.FormEvent) {
@@ -116,16 +158,20 @@ export default function OnboardPage() {
   }
 
   return (
-    <form onSubmit={submit} className="px-4 grid gap-10 md:grid-cols-[1fr_2fr] mt-6">
+    <form ref={formEl} onSubmit={submit} className="px-4 grid gap-10 md:grid-cols-[1fr_2fr] mt-6">
       <aside className="md:sticky md:top-4 self-start">
         <h1 className="text-display">{existing ? "Your profile" : "Let\u2019s get to know you."}</h1>
         <p className="text-sm mt-2 max-w-xs">
-          Talk it through with the voice agent, or tap your answers. You can change everything later.
+          Talk it through with Niche, or tap your answers. You can change everything later.
         </p>
         <div className="mt-4">
-          <VoiceButton context="onboarding" label="Answer out loud" onTranscript={answered} />
+          {assistant.mode === "off" && (
+            <button type="button" onClick={() => assistant.start("voice")} className="label bg-ink text-paper px-3 py-2">
+              Talk it through
+            </button>
+          )}
           <p className="text-xs text-muted mt-2 max-w-xs">
-            {"Try: \u201CI\u2019m Dana, 25, I shop on Depop and thrift stores, budget up to $120.\u201D"}
+            {"Niche asks as you go. Try: \u201CI\u2019m Dana, I shop on Depop and thrift stores, budget up to $120.\u201D"}
           </p>
           {voiceNote && (
             <p className="text-xs mt-2 max-w-xs" role="status" aria-live="polite">
@@ -294,6 +340,20 @@ function ConfirmDelete({ busy, onYes, onNo }: { busy: boolean; onYes: () => void
       </div>
     </div>
   );
+}
+
+/** The next thing the assistant asks for, in the order a friend would. Age and email stay optional. */
+function nextQuestion(form: Onboarding, budgetTalked: boolean, existing: boolean) {
+  if (existing) return "Anything else to change? Say save when you're done.";
+  if (!form.name.trim()) return "What should I call you?";
+  if (!form.usual_shops.length) return "Where do you usually shop? Depop, thrift stores, big retailers?";
+  const chart = form.sizing.system ? form.sizing[form.sizing.system] : null;
+  if (!chart || !(chart.tops.values.length || chart.bottoms.values.length || chart.shoes.values.length)) {
+    return "What sizes do you wear? Like a small in tops, a 27 waist, and an 8 in shoes. And is that women's or men's sizing?";
+  }
+  if (!budgetTalked) return "And what's the most you'd usually spend on one piece?";
+  if (!form.data_consent) return "That's everything I need! Tick the box at the bottom so I can look at your photos, then say continue.";
+  return "You're all set! Say continue when you're ready.";
 }
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
