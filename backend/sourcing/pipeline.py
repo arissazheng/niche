@@ -210,6 +210,8 @@ class Pipeline:
         async def batches(source, query):
             args = (source,query,request.candidates_per_source,job_id,request.request.max_item_price)
             named = {'brands': request.request.brands} if request.request.brands else {}  # older test doubles lack it
+            if source == 'indie' and request.taste_profile.indie_shops:
+                named['shops'] = request.taste_profile.indie_shops  # the shopper's own independent shops
             if hasattr(self.sources,'stream'):
                 async for batch in self.sources.stream(*args, **named):
                     yield batch

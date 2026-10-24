@@ -9,6 +9,7 @@ import { Drawer } from "@/components/drawer";
 import { EditLookbookButton } from "@/components/edit-lookbook";
 import { NoteEditor } from "@/components/note-editor";
 import { ProfilePanel } from "@/components/profile-panel";
+import { IndieShops } from "@/components/indie-shops";
 import { api } from "@/lib/api";
 import { getProfileId, setFriendView } from "@/lib/session";
 import { tables } from "@/lib/spacetime";
@@ -191,6 +192,7 @@ export default function TastePage() {
           <>
             <Link href="/upload" className="label underline justify-self-start">← Add or remove photos</Link>
             <ProfilePanel view={view} onChange={run} />
+            <IndieShops view={view} onChange={run} />
           </>
         ) : (
           <p className="text-sm">{view.profile.summary}</p>

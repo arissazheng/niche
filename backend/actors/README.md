@@ -6,7 +6,7 @@ Three private actors on the team Apify account. The backend runs all three for e
 |---|---|---|
 | `niche-mainstream` | Google Shopping (`burbn/google-shopping-scraper`), kept only for stores in the retailer bank | store name + type, e.g. `Nordstrom · Department store` |
 | `niche-secondhand` | Depop (`abotapi/depop-scraper`), Poshmark (`piotrv1001/poshmark-listings-scraper`), Vinted (`epicscrapers/vinted-search-scraper`), Etsy (`one_dollar_store/etsy-listings-scraper`); Grailed opt-in | `Depop · Secondhand`, `Etsy · Small shop` |
-| `niche-indie` | Independent labels' own Shopify stores, read directly from each store's public `/products.json` (no third-party scrapers); seed list in `indie_shops.py` | `Christy Dawn · Small shop` |
+| `niche-indie` | Independent labels' own Shopify stores, read directly from each store's public `/products.json` (no third-party scrapers); seed list in `indie_shops.py`, plus the shopper's own shops (below) | `Christy Dawn · Small shop` |
 
 All three drop sold items, promoted/sponsored listings, items over `maxPrice` and duplicates. Every row has the same fields as the backend `Listing` (`id, marketplace, retailer, tier, title, url, price, currency, image_urls, sizes, condition, brand, seller, ...`).
 
@@ -41,5 +41,10 @@ cd .. && .venv/bin/pytest -q                                                  # 
   is tried first if the plan allows it. Catalogs have no search endpoint, so matching happens in the actor: a phrase
   that names an item type (dress, jacket...) only matches that type, a colour alone never matches, and one shop can
   take at most 3 places per phrase.
+- Shoppers add their own independent labels on the Taste page (`POST /v1/taste/profiles/{id}/shops`, a brand name or
+  website), and favorite brands from onboarding are looked up when the profile builds (`backend/taste/shops.py`). A
+  store counts when it answers `/products.json`; a guessed domain also has to call itself by the brand's name in
+  `/meta.json`. The backend sends those shops first plus the seed list as the actor's `shops` input, and their names
+  join `preferred_stores` for the usual small ranking boost. Only Shopify stores can be read so far.
 - Grailed has not been run live yet; it charges $0.20 per run, so it is off by default.
 - Community scrapers can change or disappear (the old `crawlerbros` Depop/Poshmark scraper did). If a marketplace starts failing, check `OUTPUT` on the run in the Apify console, then swap the actor in `core.py` and its parser in `normalize.py`.

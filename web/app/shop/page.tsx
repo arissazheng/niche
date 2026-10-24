@@ -76,6 +76,11 @@ export default function ShopPage() {
         if (token === pollToken.current) setError((err as Error).message);
       }
     })();
+    // Leaving the page (or a newer search) stops this loop; otherwise every visit leaves another one running.
+    const polls = pollToken;
+    return () => {
+      polls.current++;
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps -- one loop per search
   }, [searchId]);
 
