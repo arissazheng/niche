@@ -2,12 +2,14 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import { useSpacetimeDB, useTable } from "spacetimedb/react";
 import { Checkout } from "@/components/checkout";
 import { SectionTitle } from "@/components/chrome";
 import { Drawer } from "@/components/drawer";
 import { VoiceButton } from "@/components/voice";
 import { api } from "@/lib/api";
 import { getProfileId } from "@/lib/session";
+import { tables } from "@/lib/spacetime";
 import type { Listing, SearchJob } from "@/lib/types";
 
 const DONE = new Set(["completed", "partial", "failed", "interrupted"]);
@@ -18,21 +20,47 @@ export default function ShopPage() {
   const [job, setJob] = useState<SearchJob | null>(null);
   const [selected, setSelected] = useState<Listing | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [searchId, setSearchId] = useState<string | null>(null);
 
   useEffect(() => setProfileIdState(getProfileId()), []);
+
+  // Listings stream in from SpacetimeDB as each marketplace returns; ranking then reorders them in place.
+  const { isActive } = useSpacetimeDB();
+  const [liveRows] = useTable(tables.listing.where((r) => r.searchId.eq(searchId ?? "")), { enabled: !!searchId });
+  const [liveSearch] = useTable(tables.search.where((r) => r.searchId.eq(searchId ?? "")), { enabled: !!searchId });
+  const liveListings: Listing[] = [...liveRows]
+    .sort((a, b) => (a.rank ?? 1e9) - (b.rank ?? 1e9))
+    .map((r) => ({
+      id: r.listingId,
+      source: r.source as Listing["source"],
+      title: r.title,
+      url: r.url,
+      image_urls: r.imageUrl ? [r.imageUrl] : [],
+      price: r.price,
+      currency: r.currency,
+      seller: r.seller || null,
+      condition: null,
+      sizes: [],
+      warnings: r.warnings,
+      score: r.score ?? null,
+      reason: r.reason,
+      is_fixture: r.isFixture,
+    }));
 
   async function search(text: string) {
     if (!profileId || !text.trim()) return;
     setError(null);
     setJob(null);
     try {
-      const { status_url } = await api.search(profileId, text);
-      // TODO(spacetime): replace polling with a SpacetimeDB subscription so listings stream in live.
+      const { search_id, status_url } = await api.search(profileId, text);
+      setSearchId(search_id);
+      // The live subscription drives the page; polling just picks up the final record (and covers a
+      // dropped SpacetimeDB connection, when it polls faster).
       for (;;) {
         const next = await api.getSearch(status_url);
         setJob(next);
         if (DONE.has(next.status)) break;
-        await new Promise((r) => setTimeout(r, 1500));
+        await new Promise((r) => setTimeout(r, isActive ? 4000 : 1500));
       }
     } catch (err) {
       setError((err as Error).message);
@@ -47,7 +75,10 @@ export default function ShopPage() {
     );
   }
 
-  const results = job?.results ?? [];
+  const finished = !!job && DONE.has(job.status);
+  const results = finished ? job.results ?? [] : liveListings.length ? liveListings : job?.results ?? [];
+  const status = finished ? job.status : liveSearch[0]?.status ?? job?.status;
+  const ranked = finished || liveRows.some((r) => r.rank !== undefined);
   return (
     <div className="px-4 mt-6">
       <form
@@ -68,7 +99,13 @@ export default function ShopPage() {
       </form>
 
       {error && <p className="text-sm mt-3">{error}</p>}
-      {job && !DONE.has(job.status) && <p className="label mt-3">Searching independent sellers… ({job.status})</p>}
+      {status && !DONE.has(status) && (
+        <p className="label mt-3 animate-pulse">
+          {results.length
+            ? `${results.length} found so far · ${ranked ? "ranking" : "comparing them to your taste"}…`
+            : "Searching independent sellers…"}
+        </p>
+      )}
       {job?.warnings?.map((w) => (
         <p key={w} className="label mt-2 text-muted">{w}</p>
       ))}

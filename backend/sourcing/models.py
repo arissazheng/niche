@@ -30,6 +30,7 @@ class SearchRequest(StrictModel):
     sources: list[Source] = Field(default_factory=lambda: ['etsy', 'depop'], min_length=1, max_length=4)
     limit: int = Field(default=12, ge=1, le=24)
     candidates_per_source: int = Field(default=30, ge=1, le=50)
+    profile_id: str | None = Field(default=None, max_length=64)  # lets live subscribers find a profile's searches
 
 class Listing(StrictModel):
     id: str

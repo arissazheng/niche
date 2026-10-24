@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Cedarville_Cursive, Cormorant_Garamond, Inter_Tight, Reenie_Beanie } from "next/font/google";
 import { SiteFooter, SiteHeader } from "@/components/chrome";
+import { LiveProvider } from "@/components/live-provider";
 import { APP_NAME } from "@/lib/session";
 import "./globals.css";
 
@@ -20,9 +21,11 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
     // Browser extensions inject attributes on <html> before hydration; ignore those (this element only).
     <html lang="en" suppressHydrationWarning>
       <body className={`${grotesk.variable} ${serif.variable} ${script.variable} ${hand.variable} antialiased min-h-dvh flex flex-col`}>
-        <SiteHeader />
-        <main className="flex-1">{children}</main>
-        <SiteFooter />
+        <LiveProvider>
+          <SiteHeader />
+          <main className="flex-1">{children}</main>
+          <SiteFooter />
+        </LiveProvider>
       </body>
     </html>
   );

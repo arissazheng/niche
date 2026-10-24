@@ -17,7 +17,7 @@ web/              Next.js 15 (App Router) + Tailwind v4
   app/            / landing · /onboard setup questions · /taste uploads, moodboard, profile · /shop search + checkout
   components/     chrome (header/footer), drawer, hand-drawn circle, image tile, voice seam, checkout
   lib/            API client, shared types
-spacetime/        SpacetimeDB module contract (not yet initialized)
+spacetime/        SpacetimeDB module: shared moodboard, cursors, build progress, streaming search results
 docs/             workplan
 ```
 
@@ -29,6 +29,10 @@ cd backend
 uv venv && uv pip install -e '.[dev]'     # or: python -m venv .venv && pip install -e '.[dev]'
 cp .env.example .env
 .venv/bin/uvicorn app:create_app --factory --reload --port 8000
+
+# Live state — SpacetimeDB on :3100 (setup details in spacetime/README.md)
+spacetime start --listen-addr 127.0.0.1:3100
+cd spacetime && npm install && npm run publish:local
 
 # Web — http://localhost:3000
 cd web
