@@ -46,6 +46,11 @@ class Settings(BaseSettings):
     spacetime_url: str = ''
     spacetime_db: str = 'niche'
     spacetime_token: str = ''
+    # Cartesia speech-to-text for the voice button. Blank turns voice off; the key never leaves the backend.
+    cartesia_api_key: str = Field(default='', validation_alias=AliasChoices(
+        'NICHE_CARTESIA_API_KEY', 'CARTESIA_API_KEY', 'cartesia_api_key'))
+    cartesia_base_url: str = 'https://api.cartesia.ai'
+    cartesia_stt_model: str = 'ink-whisper'
 
     def validate_live(self):
         if self.sourcing_mode == 'live' and not (self.apify_token and self.anthropic_api_key):

@@ -1,4 +1,4 @@
-import type { AgentReply, Budget, ChatTurn, ClothingSizes, ImageKind, ImportJob, Measurements, NearbyShops, Onboarding, ProfileView, SearchJob, SizeCatalog, SizeSystem, Source, TasteImage } from "./types";
+import type { AgentReply, Budget, ChatTurn, ClothingSizes, HeardOnboarding, ImageKind, ImportJob, Measurements, NearbyShops, Onboarding, ProfileView, SearchJob, SizeCatalog, SizeSystem, Source, TasteImage } from "./types";
 
 export const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://127.0.0.1:8000";
 
@@ -76,4 +76,16 @@ export const api = {
       body: json({ search_id, listing_id }),
     }),
   getSearch: (statusUrl: string) => request<SearchJob>(statusUrl),
+  transcribe: (audio: Blob) => {
+    const form = new FormData();
+    const ext = audio.type.includes("mp4") ? "mp4" : audio.type.includes("ogg") ? "ogg" : "webm";
+    form.append("file", audio, `speech.${ext}`);
+    return request<{ text: string }>("/v1/voice/transcribe", { method: "POST", body: form });
+  },
+  /** Onboarding answers spoken out loud → only the form fields the user mentioned. */
+  heardOnboarding: (transcript: string, shopOptions: string[]) =>
+    request<HeardOnboarding>("/v1/voice/onboarding", {
+      method: "POST",
+      body: json({ transcript, shop_options: shopOptions }),
+    }),
 };

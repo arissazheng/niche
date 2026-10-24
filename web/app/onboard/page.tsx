@@ -10,7 +10,7 @@ import { VoiceButton } from "@/components/voice";
 import { api } from "@/lib/api";
 import { clearProfile, getProfileId, setProfileId } from "@/lib/session";
 import { SizingSection, emptySizing, withDefaults } from "@/components/sizing";
-import type { ClothingSizes, Onboarding, SizePick } from "@/lib/types";
+import type { ClothingSizes, HeardOnboarding, Onboarding, SizePick } from "@/lib/types";
 
 const SHOPS = ["Depop", "Etsy", "Poshmark", "Grailed", "Thrift stores", "Vintage shops", "Local boutiques", "Big retailers"];
 
@@ -32,6 +32,7 @@ export default function OnboardPage() {
   // An existing profile is edited in place; creating a new one would detach its photos and moodboard.
   const [existing, setExisting] = useState<{ id: string; built: boolean } | null>(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [voiceNote, setVoiceNote] = useState<string | null>(null);
 
   useEffect(() => {
     const id = getProfileId();
@@ -50,6 +51,36 @@ export default function OnboardPage() {
       ...f,
       usual_shops: f.usual_shops.includes(shop) ? f.usual_shops.filter((s) => s !== shop) : [...f.usual_shops, shop],
     }));
+
+  // A spoken answer fills in only the fields it mentions; lists add to what is already picked.
+  async function answered(transcript: string) {
+    setVoiceNote(`\u201C${transcript}\u201D \u2014 filling in\u2026`);
+    try {
+      const heard: HeardOnboarding = await api.heardOnboarding(transcript, SHOPS);
+      const { usual_shops, favorite_brands, measurements, ...rest } = heard;
+      setForm((f) => ({
+        ...f,
+        ...rest,
+        usual_shops: [...new Set([...f.usual_shops, ...(usual_shops ?? [])])],
+        favorite_brands: [...new Set([...(f.favorite_brands ?? []), ...(favorite_brands ?? [])])],
+        measurements: { ...(f.measurements ?? { unit: "in" }), ...measurements, unit: measurements?.unit ?? f.measurements?.unit ?? "in" },
+      }));
+      const filled = [
+        rest.name !== undefined && "name",
+        rest.age !== undefined && "age",
+        rest.email !== undefined && "email",
+        (rest.budget_min !== undefined || rest.budget_max !== undefined) && "budget",
+        usual_shops?.length && "shops",
+        favorite_brands?.length && `brands (${favorite_brands.join(", ")})`,
+        measurements && "measurements",
+      ].filter(Boolean);
+      setVoiceNote(
+        `\u201C${transcript}\u201D \u2014 ${filled.length ? `filled in ${filled.join(", ")}` : "nothing to fill in from that"}. Sizes are picked below.`,
+      );
+    } catch (err) {
+      setVoiceNote(`Couldn\u2019t use that answer: ${(err as Error).message}`);
+    }
+  }
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -92,7 +123,15 @@ export default function OnboardPage() {
           Talk it through with the voice agent, or tap your answers. You can change everything later.
         </p>
         <div className="mt-4">
-          <VoiceButton context="onboarding" label="Answer out loud" onTranscript={() => {}} />
+          <VoiceButton context="onboarding" label="Answer out loud" onTranscript={answered} />
+          <p className="text-xs text-muted mt-2 max-w-xs">
+            {"Try: \u201CI\u2019m Dana, 25, I shop on Depop and thrift stores, budget up to $120.\u201D"}
+          </p>
+          {voiceNote && (
+            <p className="text-xs mt-2 max-w-xs" role="status" aria-live="polite">
+              {voiceNote}
+            </p>
+          )}
         </div>
       </aside>
 

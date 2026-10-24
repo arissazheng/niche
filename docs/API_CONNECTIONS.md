@@ -42,7 +42,7 @@ All of these go through `sourcing/safe_fetch.py` (public addresses only, size-ca
 | Bright Data **Web Unlocker** | Pinterest boards when Pinterest blocks the direct feed | A zone in the Bright Data dashboard, then `BRIGHTDATA_UNLOCKER_ZONE` |
 | **Elastic** (Elasticsearch Serverless) | Instant search over every listing found so far | Project URL and API key |
 | **Fetch.ai** (Agentverse / ASI:One) | Niche as a shopping agent inside ASI:One | Agentverse account and API key |
-| **Cartesia** / **Moss** | Voice input | Voice providers are a placeholder in `web/components/voice.tsx` |
+| **Cartesia** | Voice input (speech-to-text, `ink-whisper`) | `web/components/voice.tsx` records; `backend/voice/api.py` calls Cartesia with `CARTESIA_API_KEY`. Moss is search, not speech-to-text, so it is not a voice provider |
 
 ## Removed
 
