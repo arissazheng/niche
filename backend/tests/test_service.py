@@ -224,3 +224,14 @@ def test_niche_actor_input_and_normalization(store):
     assert item.id == 'vinted:7' and item.source == 'secondhand' and item.retailer == 'Vinted' and item.currency == 'USD'
     assert item.image_urls == []  # non-https images are dropped
     assert normalize('secondhand', {**row, 'url': 'javascript:alert(1)'}, {}) is None
+
+
+def test_claude_key_and_base_url_from_niche_env(monkeypatch):
+    monkeypatch.setenv('ANTHROPIC_API_KEY', 'reserved-by-host')
+    monkeypatch.setenv('NICHE_ANTHROPIC_API_KEY', 'app-key')
+    monkeypatch.setenv('ANTHROPIC_BASE_URL', 'https://host-gateway.invalid')
+    settings = Settings(_env_file=None)
+    assert settings.anthropic_api_key == 'app-key'
+    assert settings.anthropic_base_url == 'https://api.anthropic.com'
+    monkeypatch.delenv('NICHE_ANTHROPIC_API_KEY')
+    assert Settings(_env_file=None).anthropic_api_key == 'reserved-by-host'

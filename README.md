@@ -50,7 +50,7 @@ Turn on real services one at a time:
 
 | Setting (backend/.env) | Enables |
 |---|---|
-| `TASTE_MODE=live` + `ANTHROPIC_API_KEY` | Claude extraction, clustering and edits (`claude-opus-5-5`) |
+| `TASTE_MODE=live` + `ANTHROPIC_API_KEY` (or `NICHE_ANTHROPIC_API_KEY`) | Claude extraction, clustering and edits (`claude-opus-5-5`) |
 | `SOURCING_MODE=live` + `APIFY_TOKEN` + `ANTHROPIC_API_KEY` | Real marketplace listings. Runs cost money; read `backend/SOURCING.md` first |
 | `STRIPE_SECRET_KEY=sk_test_…` (+ `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY` in web) | In-page Stripe Payment Element with Link |
 | `NESSIE_API_KEY`, `NESSIE_ACCOUNT_ID`, `NESSIE_MERCHANT_ID` | Purchases mirrored to a Nessie mock account |

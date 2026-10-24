@@ -44,7 +44,8 @@ class Claude:
         log.info('stage=%s model=%s system_prompt=%s',stage,self.settings.claude_model,system)
         self.store.event(job_id,'prompt',{'stage':stage,'version':'1','system_prompt':system,'model':self.settings.claude_model})
         if self.client is None:
-            self.client = anthropic.AsyncAnthropic(api_key=self.settings.anthropic_api_key or None)
+            self.client = anthropic.AsyncAnthropic(api_key=self.settings.anthropic_api_key or None,
+                base_url=self.settings.anthropic_base_url)
         # Server-side fallback re-runs a safety-declined request on Anthropic's recommended model.
         response = await self.client.beta.messages.create(model=self.settings.claude_model,max_tokens=max_tokens,
             system=system,messages=[{'role':'user','content':content}],
