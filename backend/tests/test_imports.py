@@ -233,3 +233,21 @@ def test_single_pin_and_tiktok_use_the_free_route_first(tmp_path, monkeypatch):
     jobs = asyncio.run(go())
     assert [j.status for j in jobs] == ['done', 'done']
     assert all('someone' not in x.model_dump_json() for x in taste.images('p1'))
+
+
+def test_pasted_image_address_is_downloaded(tmp_path, monkeypatch):
+    from fastapi.testclient import TestClient
+    from app import create_app
+
+    async def fake_fetch(http, url, max_bytes):
+        return (jpeg(), url, 'image/jpeg') if url.endswith('.jpg') else ((b'<html>', url, 'text/html') if 'page' in url else None)
+    monkeypatch.setattr(safe_fetch, 'fetch', fake_fetch)
+    settings = Settings(database_path=str(tmp_path / 'u.sqlite'), upload_dir=str(tmp_path / 'up'))
+    with TestClient(create_app(settings)) as client:
+        pid = client.post('/v1/taste/profiles', json={}).json()['profile']['id']
+        ok = client.post(f'/v1/taste/profiles/{pid}/images/from-url', json={'url': 'https://cdn.example.com/look.jpg'})
+        assert ok.status_code == 201 and ok.json()['source'] == 'upload'
+        page = client.post(f'/v1/taste/profiles/{pid}/images/from-url', json={'url': 'https://example.com/page'})
+        gone = client.post(f'/v1/taste/profiles/{pid}/images/from-url', json={'url': 'https://example.com/missing.png'})
+        assert page.status_code == 422 and "isn't an image" in page.json()['detail']
+        assert gone.status_code == 422 and "Couldn't load" in gone.json()['detail']

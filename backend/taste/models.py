@@ -122,6 +122,11 @@ class LookbookNotes(StrictModel):
         return list(dict.fromkeys(notes))
 
 
+class ImageFromUrl(StrictModel):
+    url: str = Field(min_length=8, max_length=2000)
+    kind: ImageKind = 'outfit'
+
+
 class ImportRequest(StrictModel):
     url: str = Field(min_length=4, max_length=500)
 

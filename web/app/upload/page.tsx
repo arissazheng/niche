@@ -13,6 +13,7 @@ import { getProfileId } from "@/lib/session";
 import type { ImageKind, ImportJob, ProfileView, TasteImage } from "@/lib/types";
 
 const SITE_NAMES = { pinterest: "Pinterest", instagram: "Instagram", tiktok: "TikTok" };
+const IMAGE_URL = /^https?:\/\/\S+\.(?:jpe?g|png|webp|gif|avif)(?:[?#]\S*)?$/i;
 const URLS = /(?:https?:\/\/)?(?:[\w-]+\.)*(?:pinterest\.[a-z.]+|pin\.it|instagram\.com|tiktok\.com)\/[^\s,]*/gi;
 
 export default function LookbookPage() {
@@ -24,6 +25,7 @@ export default function LookbookPage() {
   const [buildError, setBuildError] = useState<string | null>(null);
   const [noteFor, setNoteFor] = useState<TasteImage | null>(null);
   const [imports, setImports] = useState<ImportJob[]>([]);
+  const [notice, setNotice] = useState<string | null>(null);
   const router = useRouter();
 
   // Resolves to an error message, or null on success, so callers can show inline feedback.
@@ -46,7 +48,7 @@ export default function LookbookPage() {
     api.imports(id).then(setImports, () => setImports([]));
   }, [run]);
 
-  // ⌘V anywhere on the page: pasted images are added, pasted Pinterest/Instagram/TikTok links are imported.
+  // Ctrl+V / ⌘V anywhere on the page: pasted images are added, pasted Pinterest/Instagram/TikTok links are imported.
   const onPaste = useRef<(e: ClipboardEvent) => void>(() => {});
   useEffect(() => {
     const handler = (e: ClipboardEvent) => onPaste.current(e);
@@ -86,15 +88,21 @@ export default function LookbookPage() {
   const notes = profile.lookbook_notes ?? [];
   const refresh = () => api.getProfile(id);
 
+  /** Resolves to how many photos were added. */
   async function upload(files: File[], kind: ImageKind) {
     const photos = files.filter((f) => f.type.startsWith("image/"));
-    if (!photos.length) return setError("Those weren't photos. Drop JPG, PNG or HEIC images.");
+    if (!photos.length) {
+      setError("Those weren't photos. Add JPG, PNG or HEIC images.");
+      return 0;
+    }
+    setNotice(null);
     setUploading(photos.length);
-    await run(async () => {
+    const failed = await run(async () => {
       for (const file of photos) await api.uploadImage(id, file, kind);
       return refresh();
     });
     setUploading(0);
+    return failed ? 0 : photos.length;
   }
 
   // Takes one link or several (pasted together); each runs as its own background import.
@@ -114,20 +122,62 @@ export default function LookbookPage() {
     return errors.length < links.length;
   }
 
-  onPaste.current = (e: ClipboardEvent) => {
-    const files = Array.from(e.clipboardData?.files ?? []).filter((f) => f.type.startsWith("image/"));
+  // Images pasted or dragged in from a web page often arrive as an address (or inline data), not a file.
+  async function addFromWeb(urls: string[], verb: string) {
+    setError(null);
+    let added = 0;
+    const errors: string[] = [];
+    setUploading(urls.length);
+    for (const url of urls) {
+      try {
+        if (url.startsWith("data:image/")) {
+          const blob = await (await fetch(url)).blob();
+          await api.uploadImage(id, new File([blob], "pasted-image", { type: blob.type }), "outfit");
+        } else {
+          await api.imageFromUrl(id, url);
+        }
+        added++;
+      } catch (err) {
+        errors.push((err as Error).message);
+      }
+    }
+    setUploading(0);
+    if (added) await run(refresh); // before the messages: run() clears the error line
+    if (errors.length) setError([...new Set(errors)].join(" "));
+    if (added) setNotice(`Added ${added} ${verb} photo${added > 1 ? "s" : ""}.`);
+  }
+
+  /** Everything a paste or a drop can carry: image files, web images, Pinterest/Instagram/TikTok links. */
+  function take(data: DataTransfer | null, verb: "pasted" | "dropped", typing = false) {
+    if (!data) return false;
+    const files = Array.from(data.files).filter((f) => f.type.startsWith("image/"));
     if (files.length) {
-      e.preventDefault();
-      upload(files, "outfit");
-      return;
+      upload(files, "outfit").then((n) => n && setNotice(`Added ${n} ${verb} photo${n > 1 ? "s" : ""}.`));
+      return true;
     }
-    const target = e.target as HTMLElement | null;
-    if (target?.closest("input, textarea")) return; // typing a link or note: leave it alone
-    const text = e.clipboardData?.getData("text") ?? "";
-    if (text.match(URLS)) {
-      e.preventDefault();
+    if (typing) return false; // pasting text into the link or note box: leave it alone
+    const html = data.getData("text/html");
+    const images = [...html.matchAll(/<img[^>]+src="([^"]+)"/gi)].map((m) => m[1].replace(/&amp;/g, "&"))
+      .filter((src) => /^(https?:|data:image\/)/.test(src));
+    const text = data.getData("text/uri-list") || data.getData("text/plain") || "";
+    const links = text.match(URLS);
+    if (links) {
       startImport(text);
+      return true;
     }
+    const direct = text.split(/\s+/).filter((u) => IMAGE_URL.test(u) || (verb === "dropped" && /^https?:\/\//.test(u)));
+    const web = [...new Set([...images, ...direct])].slice(0, 12);
+    if (web.length) {
+      addFromWeb(web, verb);
+      return true;
+    }
+    return false;
+  }
+
+  onPaste.current = (e: ClipboardEvent) => {
+    // The target is whatever has focus, which may be the page itself rather than an element.
+    const typing = e.target instanceof Element && !!e.target.closest("input, textarea");
+    if (take(e.clipboardData, "pasted", typing)) e.preventDefault();
   };
 
   // Build errors show next to the button, not at the top of the page where they'd be missed.
@@ -162,10 +212,10 @@ export default function LookbookPage() {
         <SectionTitle aside={count}>Your lookbook</SectionTitle>
         <p className="text-sm max-w-xl mb-4">
           Collect looks you love, from anywhere: photos, a Pinterest board, Instagram posts, TikToks, or just a few
-          words. Tip: copy an image or a link anywhere and press ⌘V on this page.
+          words.
         </p>
         <div className="grid gap-4 lg:grid-cols-3">
-          <DropZone uploading={uploading} onFiles={upload} />
+          <DropZone uploading={uploading} notice={notice} onFiles={upload} onDrop={(data) => take(data, "dropped")} />
           <ImportBox jobs={imports} onImport={startImport} />
           <NotesBox notes={notes} onChange={(next) => run(() => api.setLookbookNotes(id, next))} />
         </div>
@@ -236,8 +286,20 @@ export default function LookbookPage() {
   );
 }
 
-function DropZone({ uploading, onFiles }: { uploading: number; onFiles: (files: File[], kind: ImageKind) => void }) {
+function DropZone({
+  uploading,
+  notice,
+  onFiles,
+  onDrop,
+}: {
+  uploading: number;
+  notice: string | null;
+  onFiles: (files: File[], kind: ImageKind) => void;
+  onDrop: (data: DataTransfer) => boolean;
+}) {
   const [over, setOver] = useState(false);
+  const [mac, setMac] = useState(false);
+  useEffect(() => setMac(/Mac|iPhone|iPad/.test(navigator.userAgent)), []);
   const picker = useRef<HTMLInputElement>(null);
   const own = useRef<HTMLInputElement>(null);
   const files = (list: FileList | null) => Array.from(list ?? []);
@@ -251,13 +313,19 @@ function DropZone({ uploading, onFiles }: { uploading: number; onFiles: (files: 
       onDrop={(e) => {
         e.preventDefault();
         setOver(false);
-        onFiles(files(e.dataTransfer.files), "outfit");
+        // Files from the computer, or an image dragged straight from another browser tab.
+        onDrop(e.dataTransfer);
       }}
       className={`border border-dashed border-ink p-4 flex flex-col gap-3 justify-between min-h-56 ${over ? "bg-plinth" : ""}`}
     >
       <div>
-        <p className="text-display">{uploading ? `Adding ${uploading} photo${uploading === 1 ? "" : "s"}…` : "Drop photos here"}</p>
-        <p className="text-sm mt-1">Screenshots, saved posts, anything with an outfit you love.</p>
+        <p className="text-display">{uploading ? `Adding ${uploading} photo${uploading === 1 ? "" : "s"}…` : "Paste or drop photos here"}</p>
+        <p className="text-sm mt-1">
+          See a look you love online? Copy the image and press{" "}
+          <kbd className="label border border-ink px-1">{mac ? "⌘V" : "Ctrl+V"}</kbd> anywhere on this page. No need to
+          download it. Screenshots work too.
+        </p>
+        {notice && !uploading && <p className="text-sm mt-2" role="status">{notice}</p>}
       </div>
       <button type="button" onClick={() => picker.current?.click()} className="label bg-ink text-paper px-3 py-2 self-start">
         + Add to my lookbook

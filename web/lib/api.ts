@@ -28,6 +28,8 @@ export const api = {
   },
   setNote: (imageId: string, note: string) =>
     request<TasteImage>(`/v1/taste/images/${imageId}/note`, { method: "PUT", body: json({ note }) }),
+  imageFromUrl: (id: string, url: string, kind: ImageKind = "outfit") =>
+    request<TasteImage>(`/v1/taste/profiles/${id}/images/from-url`, { method: "POST", body: json({ url, kind }) }),
   setLookbookNotes: (id: string, notes: string[]) =>
     request<ProfileView>(`/v1/taste/profiles/${id}/notes`, { method: "PUT", body: json({ notes }) }),
   importLink: (id: string, url: string) =>
