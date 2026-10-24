@@ -236,8 +236,8 @@ function ImportBox({ jobs, onImport }: { jobs: ImportJob[]; onImport: (url: stri
         aria-label="Pinterest or Instagram link"
       />
       <button type="submit" className="label border border-ink px-3 py-2 self-start">Import</button>
-      <p className="text-xs">
-        <strong>The board or profile must be public.</strong> Secret boards and private accounts can&apos;t be read.
+      <p className="text-sm">
+        The board or profile must be public. Secret boards and private accounts can&apos;t be read.
         From Instagram we only keep the outfit photos, never who posted them.
       </p>
       {jobs.slice(0, 3).map((job) => (
