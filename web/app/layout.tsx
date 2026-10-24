@@ -9,6 +9,7 @@ import "@fontsource/cormorant-garamond/500.css";
 import "@fontsource/cormorant-garamond/500-italic.css";
 import "@fontsource/cedarville-cursive/400.css";
 import "@fontsource/reenie-beanie/400.css";
+import "@fontsource/playfair-display/400-italic.css";
 import { SiteFooter, SiteHeader } from "@/components/chrome";
 import { LiveProvider } from "@/components/live-provider";
 import { APP_NAME } from "@/lib/session";

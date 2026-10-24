@@ -8,6 +8,7 @@
   --font-serif: "Cormorant Garamond", Georgia, serif;
   --font-script: "Cedarville Cursive", cursive;
   --font-hand: "Reenie Beanie", cursive;
+  --font-display: "Playfair Display", Georgia, serif; /* footer wordmark only, italic with swashes */
 }
 
 @theme {

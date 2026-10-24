@@ -28,10 +28,19 @@ export function SiteHeader() {
 
 export function SiteFooter() {
   return (
-    <footer className="bg-ink text-paper mt-16 px-4 pt-6 pb-4">
-      <a href="#" className="label block text-center">Back to top ↑</a>
-      <p className="text-wordmark font-medium tracking-tight text-center my-12">{APP_NAME}</p>
-      <Link href="/how-it-works" className="label block text-center">Ranking &amp; privacy</Link>
+    <footer className="bg-ink text-paper mt-16 px-4 pt-6 overflow-hidden">
+      <div className="label flex justify-between gap-4">
+        <a href="#">Back to top ↑</a>
+        <Link href="/how-it-works">Ranking &amp; privacy</Link>
+      </div>
+      {/* Edge-to-edge wordmark in swash italic, its descenders cut by the bottom of the page. */}
+      <p
+        aria-hidden
+        className="font-display italic text-center leading-[0.8] tracking-[-0.02em] text-[41vw] -mb-[7vw] mt-2 whitespace-nowrap select-none"
+        style={{ fontFeatureSettings: '"swsh" 1, "salt" 1' }}
+      >
+        {APP_NAME}
+      </p>
     </footer>
   );
 }
