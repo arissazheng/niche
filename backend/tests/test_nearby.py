@@ -14,7 +14,8 @@ def reply(text, places):
 def test_only_shops_with_a_google_maps_source_are_kept():
     shops = parse(reply('1. **Mars Mercantile** — vintage eveningwear and 90s satin\n'
                         'Made Up Boutique — cheerful invented shop\n'
-                        'Crossroads Trading — consignment with current labels', ['Mars Mercantile', 'Crossroads Trading Co']))
+                        'Crossroads Trading — consignment with current labels',
+                        ['Review of Mars Mercantile - Google Maps', 'Mars Mercantile - Google Maps', 'Crossroads Trading Co']))
     assert [s['name'] for s in shops] == ['Mars Mercantile', 'Crossroads Trading Co']
     assert shops[0]['why'] == 'vintage eveningwear and 90s satin' and shops[0]['maps_url'].startswith('https://maps.google')
 

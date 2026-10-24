@@ -59,7 +59,11 @@ def parse(data):
         for block in step.get('content') or []:
             if block.get('type') == 'text':
                 text += block.get('text') or ''
-                places += [a for a in block.get('annotations') or [] if a.get('type') == 'place_citation' and a.get('url')]
+                # Each place is cited twice: the place itself, and "Review of …"; keep the place.
+                places += [{**a, 'name': re.sub(r'\s+-\s+Google Maps$', '', a.get('name') or '')}
+                           for a in block.get('annotations') or []
+                           if a.get('type') == 'place_citation' and a.get('url')
+                           and not (a.get('name') or '').startswith('Review of')]
     shops = []
     for line in text.splitlines():
         match = re.match(r'^\s*(?:[-*\d.]+\s*)?\**(.+?)\**\s+[—–-]\s+(.+)$', line)
