@@ -7,16 +7,13 @@ export default function Home() {
   return (
     <div className="px-4">
       <p className="text-display text-center my-2">{CATEGORIES.join(", ")}</p>
-      <section className="flex flex-col items-center gap-6 my-6">
-        <Image
-          src="/niche-front.webp"
-          alt="Niche"
-          width={1080}
-          height={1350}
-          priority
-          className="w-auto max-h-[75dvh] max-w-full object-contain"
-        />
-        <Link href="/onboard" className="label bg-ink text-paper px-6 py-3">
+      {/* Full-bleed hero: the image spans the page width, cropped top and bottom (the subject sits centred). */}
+      <section className="relative -mx-4 my-4 h-[80dvh] min-h-[420px] overflow-hidden">
+        <Image src="/niche-front.webp" alt="Niche" fill priority sizes="100vw" className="object-cover" />
+        <Link
+          href="/onboard"
+          className="label absolute bottom-8 left-1/2 -translate-x-1/2 bg-paper text-ink px-6 py-3"
+        >
           Find your niche
         </Link>
       </section>
