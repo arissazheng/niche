@@ -42,14 +42,14 @@ def test_only_independent_sites_count():
 class FakeBrightData(webshops.WebShops):
     def __init__(self, serp, pages):
         super().__init__(Settings(brightdata_serp_zone='s', brightdata_unlocker_zone='u'))
-        self.serp_rows, self.pages, self.searched, self.read = serp, pages, [], []
+        self.serp_rows, self.pages, self.searched, self.unlocked = serp, pages, [], []
 
     async def serp(self, http, query):
         self.searched.append(query)
         return self.serp_rows.get(query, [])
 
     async def unlock(self, http, url):
-        self.read.append(url)
+        self.unlocked.append(url)
         return self.pages[url]
 
 
@@ -57,13 +57,13 @@ def test_search_finds_indie_pages_and_the_shoppers_own_shops():
     own = IndieShop(domain='veiled.shop', name='Veiled', platform='web')
     shopify = IndieShop(domain='batulthecollection.com', name='Batul')
     web = FakeBrightData({
-        'slip skirt independent designer label': [{'link': 'https://www.etsy.com/listing/1'},
+        'slip skirt independent designer label' + webshops.EXCLUDE: [{'link': 'https://www.etsy.com/listing/1'},
                                                    {'link': 'https://indie.example/skirt'}],
         'site:veiled.shop slip skirt': [{'link': 'https://veiled.shop/p/slip-skirt'}]},
         {'https://indie.example/skirt': OPEN_GRAPH, 'https://veiled.shop/p/slip-skirt': SQUARESPACE})
     rows, summary = asyncio.run(web.search(['slip skirt'], 10, 200, [own, shopify]))
     assert 'site:batulthecollection.com slip skirt' not in web.searched  # Shopify shops are niche-indie's
-    assert 'https://www.etsy.com/listing/1' not in web.read
+    assert 'https://www.etsy.com/listing/1' not in web.unlocked
     assert [r.title for r in rows] == ['Silk Bias Slip Skirt & Tie']  # the $1,120 top is over the cap
     assert rows[0].retailer == 'Veiled' and rows[0].tier == 'small_shop' and rows[0].source == 'web'
     assert summary['pages_with_products'] == 2
@@ -84,3 +84,24 @@ def test_searches_add_the_web_source_once_bright_data_is_set_up(tmp_path):
             return json.loads(db.execute('SELECT request FROM jobs WHERE id=?', (job,)).fetchone()[0])['sources']
     assert 'web' not in sources()
     assert sources(brightdata_serp_zone='s', brightdata_unlocker_zone='u')[-1] == 'web'
+
+
+def test_a_shopify_collection_page_is_read_through_its_catalog():
+    catalog = {'products': [
+        {'id': 1, 'title': 'Satin slip skirt', 'handle': 'slip', 'product_type': 'Skirts', 'vendor': 'Fame',
+         'variants': [{'price': '59.00', 'available': True}], 'images': []},
+        {'id': 2, 'title': 'Wool coat', 'handle': 'coat', 'product_type': 'Coats', 'vendor': 'Fame',
+         'variants': [{'price': '90.00', 'available': True}], 'images': []}]}
+    web = FakeBrightData({'slip skirt independent designer label' + webshops.EXCLUDE: [{'link': 'https://fame.example/collections/skirts'}]},
+        {'https://fame.example/collections/skirts': '<script src="https://fame.example/cdn/shop/t/1.js"></script>',
+         'https://fame.example/products.json?limit=250': json.dumps(catalog)})
+    rows, _ = asyncio.run(web.search(['slip skirt'], 10))
+    assert [(r.title, r.url) for r in rows] == [('Satin slip skirt', 'https://fame.example/products/slip')]
+
+
+def test_a_page_without_product_data_follows_its_product_links():
+    web = FakeBrightData({'slip skirt independent designer label' + webshops.EXCLUDE: [{'link': 'https://wix.example/shop'}]},
+        {'https://wix.example/shop': '<a href="/product-page/silk-skirt">Silk</a><a href="https://other.example/p/x">x</a>',
+         'https://wix.example/product-page/silk-skirt': SQUARESPACE})
+    rows, _ = asyncio.run(web.search(['slip skirt'], 10))
+    assert [r.title for r in rows] == ['Silk Bias Slip Skirt & Tie'] and 'https://other.example/p/x' not in web.unlocked
