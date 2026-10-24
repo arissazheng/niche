@@ -55,6 +55,8 @@ export interface Assistant {
   say(text: string): void;
   /** The latest thing it brought up while the conversation was closed, until the shopper opens it. */
   nudge: string | null;
+  /** Hide the nudge bubble (the × on it). */
+  dismissNudge: () => void;
   /** Cuts the assistant off mid-sentence and listens. */
   interrupt(): void;
   level(): number;

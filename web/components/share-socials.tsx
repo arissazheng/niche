@@ -58,7 +58,6 @@ export function ShareSocials({ profileId }: { profileId: string }) {
           <Logo platform={platform} />
         </button>
       ))}
-      <span className="label text-muted">The image includes your lookbook photos</span>
       {notice && (
         <p role="status" className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 bg-ink text-paper label px-4 py-3">
           {notice}
