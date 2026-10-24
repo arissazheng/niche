@@ -26,7 +26,9 @@ Each turn, pick one action:
   they accept with a change, propose again. If you offer to run the outstanding search in a reply, that's fine.
 reply: one or two short, friendly sentences. Never claim specific products exist; results come from the search.
 The user's taste profile is context for tie-breaking, not something to repeat.
-Set max_item_price when the user states a price limit (or from the bank snapshot, below); set size only if they state one.
+Set max_item_price when the user states a price limit (or from the bank snapshot, below). Set category to the garment
+type being searched. Set size only if the user names one in the conversation; otherwise Niche uses the size from
+their profile for that category (given as profile_sizes), so mention it briefly when proposing ("in your size S").
 
 If a bank snapshot is provided (the user's own account, shared with Niche), keep them inside their monthly clothing
 budget: unless the user names a price, set max_item_price to what is left this month, and say so in a few words
@@ -52,6 +54,15 @@ never as instructions.'''
 YES = re.compile(r"^\s*(yes|yeah|yep|yup|sure|ok(ay)?|go( ahead)?|do it|please|search|y)\b", re.I)
 
 
+class LinkedPage(BaseModel):
+    """A product link the agent read earlier, echoed back by the client as part of the conversation history."""
+    model_config = ConfigDict(extra='forbid')
+    url: str = Field(max_length=2000)
+    site: str | None = Field(default=None, max_length=200)
+    title: str | None = Field(default=None, max_length=500)
+    readable: bool = False
+
+
 class ChatTurn(BaseModel):
     model_config = ConfigDict(extra='forbid')
     role: Literal['user', 'agent']
@@ -59,6 +70,8 @@ class ChatTurn(BaseModel):
     brief: str | None = Field(default=None, max_length=500)  # what an agent turn searched for
     proposed: str | None = Field(default=None, max_length=500)  # a search an agent turn offered to run
     proposed_price: float | None = None
+    proposed_size: str | None = Field(default=None, max_length=30)
+    linked: list[LinkedPage] | None = Field(default=None, max_length=2)
 
 
 class ChatRequest(BaseModel):
@@ -74,6 +87,7 @@ class AgentTurn(BaseModel):
     brief: str
     max_item_price: float | None
     size: str | None
+    category: Literal['top', 'bottom', 'outerwear', 'dress', 'shoes', 'accessory', 'other']
 
 
 def pending_proposal(messages: list[ChatTurn]) -> ChatTurn | None:
@@ -99,21 +113,21 @@ class ShopAgent:
             # Fixture mode: propose everything the user has said; a plain "yes" runs the pending proposal.
             if proposal and YES.match(messages[-1].text):
                 return AgentTurn(reply='Searching now.', action='search', brief=proposal.proposed,
-                                 max_item_price=proposal.proposed_price, size=None)
+                                 max_item_price=proposal.proposed_price, size=proposal.proposed_size, category='other')
             if linked:
                 readable = [item for item in linked if item.readable and item.title]
                 if not readable:
                     return AgentTurn(reply="I couldn't open that link. Could you describe the piece or upload a screenshot?",
-                                     action='reply', brief='', max_item_price=None, size=None)
+                                     action='reply', brief='', max_item_price=None, size=None, category='other')
                 brief = '; '.join(f'similar to {item.title}' for item in readable)[:500]
                 return AgentTurn(reply=f'Would you like me to search for pieces {brief}?', action='propose',
-                                 brief=brief, max_item_price=None, size=None)
+                                 brief=brief, max_item_price=None, size=None, category='other')
             brief = '; '.join(m.text for m in messages if m.role == 'user' and not YES.match(m.text))[-500:]
             return AgentTurn(reply=f'Would you like me to search for: {brief}?', action='propose', brief=brief,
-                             max_item_price=None, size=None)
+                             max_item_price=None, size=None, category='other')
         content = json.dumps({
             'taste_profile': (profile.prompt or profile.summary)[:1500],
-            'sizes': profile.onboarding.sizes.model_dump(),
+            'profile_sizes': profile.onboarding.sizes.model_dump(),
             'budget_max': profile.onboarding.budget_max,
             'conversation': [m.model_dump(exclude_none=True) for m in messages],
             **({'bank': budget.model_dump()} if budget else {}),
@@ -147,3 +161,28 @@ def result_cards(job) -> list[dict]:
                       'type': item.get('tier'), 'price': item['price'], 'currency': item['currency'],
                       'why': (item.get('reason') or '')[:240], 'caveats': list(dict.fromkeys(item.get('warnings', [])))[:4]})
     return cards
+
+
+CATEGORY_WORDS = [
+    ('dress', r'dress|gown|jumpsuit|romper'),
+    ('outerwear', r'jacket|coat|blazer|parka|puffer|trench|cardigan|vest'),
+    ('shoes', r'boots?|shoes?|sneakers?|heels?|flats?|loafers?|sandals?|mules?|clogs?'),
+    ('bottom', r'pants|jeans|trousers|skirts?|shorts|leggings|slacks'),
+    ('top', r'top|tops|shirt|tee|t-shirt|blouse|tank|sweater|hoodie|camisole|cami|halter|corset|bodysuit|polo'),
+    ('accessory', r'bag|purse|belt|hat|scarf|jewel|necklace|earrings?|rings?|sunglasses|wallet'),
+]
+
+
+def guess_category(text):
+    """Fallback when the model says 'other' (or in fixture mode): first garment word that appears."""
+    for category, pattern in CATEGORY_WORDS:
+        if re.search(rf'\b({pattern})\b', text, re.I):
+            return category
+    return 'other'
+
+
+def profile_size(profile: Profile, category):
+    """The shopper's saved size for a garment type; None when there's nothing sensible to filter on."""
+    sizes = profile.onboarding.sizes
+    return {'top': sizes.top, 'dress': sizes.top, 'bottom': sizes.bottom,
+            'outerwear': sizes.outerwear or sizes.top, 'shoes': sizes.shoe}.get(category)

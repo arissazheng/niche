@@ -124,6 +124,7 @@ export interface ChatTurn {
   brief?: string; // what an agent turn searched for
   proposed?: string; // a search an agent turn offered to run
   proposed_price?: number | null;
+  proposed_size?: string | null;
   linked?: LinkedPage[]; // product links the agent read from the user's message
 }
 
@@ -148,6 +149,7 @@ export interface AgentReply {
   action: "reply" | "propose" | "search";
   brief: string;
   max_item_price?: number | null;
+  size?: string | null; // the user's profile size for this garment unless they named one
   linked?: LinkedPage[];
   budget?: Omit<Budget, "linked"> | null;
   search_id?: string;

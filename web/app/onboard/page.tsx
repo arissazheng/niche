@@ -1,12 +1,12 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { SectionTitle } from "@/components/chrome";
 import { HandCircle } from "@/components/hand-circle";
 import { VoiceButton } from "@/components/voice";
 import { api } from "@/lib/api";
-import { setProfileId } from "@/lib/session";
+import { getProfileId, setProfileId } from "@/lib/session";
 import type { Onboarding, SizeLabel } from "@/lib/types";
 
 const SIZES: SizeLabel[] = ["XS", "S", "M", "L", "XL", "XXL"];
@@ -27,6 +27,20 @@ export default function OnboardPage() {
   });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // An existing profile is edited in place; creating a new one would detach its photos and moodboard.
+  const [existing, setExisting] = useState<{ id: string; built: boolean } | null>(null);
+
+  useEffect(() => {
+    const id = getProfileId();
+    if (!id) return;
+    api.getProfile(id).then(
+      ({ profile }) => {
+        setForm(profile.onboarding);
+        setExisting({ id, built: profile.version > 0 });
+      },
+      () => {},
+    );
+  }, []);
 
   const setSize = (slot: SizeSlot, size: SizeLabel) =>
     setForm((f) => ({ ...f, sizes: { ...f.sizes, [slot]: f.sizes[slot] === size ? null : size } }));
@@ -41,6 +55,11 @@ export default function OnboardPage() {
     setBusy(true);
     setError(null);
     try {
+      if (existing) {
+        await api.updateOnboarding(existing.id, form);
+        router.push(existing.built ? "/shop" : "/upload");
+        return;
+      }
       const { profile } = await api.createProfile(form);
       setProfileId(profile.id);
       router.push("/upload");
@@ -53,7 +72,7 @@ export default function OnboardPage() {
   return (
     <form onSubmit={submit} className="px-4 grid gap-10 md:grid-cols-[1fr_2fr] mt-6">
       <aside className="md:sticky md:top-4 self-start">
-        <h1 className="text-display">Let&apos;s get to know you.</h1>
+        <h1 className="text-display">{existing ? "Your profile" : "Let\u2019s get to know you."}</h1>
         <p className="text-sm mt-2 max-w-xs">
           Talk it through with the voice agent, or tap your answers. You can change everything later.
         </p>
@@ -136,7 +155,7 @@ export default function OnboardPage() {
 
         {error && <p className="text-sm">{error}</p>}
         <button disabled={busy} className="rule-t rule-b text-display py-2 w-full disabled:text-muted">
-          {busy ? "Saving…" : "Continue"}
+          {busy ? "Saving…" : existing ? "Save changes" : "Continue"}
         </button>
       </div>
     </form>

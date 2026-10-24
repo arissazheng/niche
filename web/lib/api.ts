@@ -18,6 +18,8 @@ export const api = {
   createProfile: (onboarding: Partial<Onboarding>) =>
     request<ProfileView>("/v1/taste/profiles", { method: "POST", body: json(onboarding) }),
   getProfile: (id: string) => request<ProfileView>(`/v1/taste/profiles/${id}`),
+  updateOnboarding: (id: string, onboarding: Onboarding) =>
+    request<ProfileView>(`/v1/taste/profiles/${id}/onboarding`, { method: "PUT", body: json(onboarding) }),
   uploadImage: (id: string, file: File, kind: ImageKind) => {
     const form = new FormData();
     form.append("file", file);
@@ -32,13 +34,18 @@ export const api = {
     request<ProfileView>(`/v1/taste/profiles/${id}/edit`, { method: "POST", body: json({ instruction, source }) }),
   setPrompt: (id: string, prompt: string) =>
     request<ProfileView>(`/v1/taste/profiles/${id}/prompt`, { method: "PUT", body: json({ prompt }) }),
-  search: (id: string, query: string, options: { sources?: Source[]; maxItemPrice?: number | null } = {}) =>
+  search: (
+    id: string,
+    query: string,
+    options: { sources?: Source[]; maxItemPrice?: number | null; size?: string | null } = {},
+  ) =>
     request<{ search_id: string; status_url: string }>(`/v1/taste/profiles/${id}/searches`, {
       method: "POST",
       body: json({
         query,
         ...(options.sources && { sources: options.sources }),
         ...(options.maxItemPrice && { max_item_price: options.maxItemPrice }),
+        ...(options.size && { size: options.size }),
       }),
     }),
   chat: (id: string, messages: ChatTurn[], searchId?: string | null) =>

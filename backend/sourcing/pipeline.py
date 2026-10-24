@@ -4,6 +4,7 @@ from .models import Listing
 from .sources import NICHE, ApifySources, FixtureSources
 from .claude import Claude
 from .live import Live
+from . import sizes
 
 
 # Never shown, from any source (new, mainstream or resale): Shein and its in-house labels.
@@ -34,10 +35,11 @@ def eligible(items, request):
         if item.available is None:
             unknown.append('Availability unverified')
         if r.size:
-            if not item.sizes:
-                unknown.append('Size unverified')
-            elif r.size.casefold() not in [x.casefold() for x in item.sizes]:
+            fits = sizes.match(r.size, item.sizes)
+            if fits is False:
                 continue
+            if fits is None:
+                unknown.append(f'Size unverified (listed as {", ".join(item.sizes)})' if item.sizes else 'Size unverified')
         if not r.allow_secondhand:
             if item.condition is None:
                 unknown.append('Condition unverified')

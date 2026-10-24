@@ -214,7 +214,7 @@ def test_shop_agent_live_uses_claude_and_conversation(tmp_path):
         async def call(self, system, content, job_id, stage, max_tokens, schema=None, effort=None):
             seen.update(stage=stage, effort=effort, content=content)
             return {'reply': 'Searching relaxed ones now.', 'action': 'search',
-                    'brief': 'asymmetrical buttoned top, relaxed casual style', 'max_item_price': None, 'size': None}
+                    'brief': 'asymmetrical buttoned top, relaxed casual style', 'max_item_price': None, 'size': None, 'category': 'top'}
 
     from taste.models import Profile
     agent = ShopAgent(Settings(taste_mode='live', anthropic_api_key='k'), FakeModel())
@@ -241,7 +241,7 @@ def test_chat_sees_numbered_results_of_own_search_only(client, monkeypatch):
 
     async def fake_respond(self, profile, messages, budget=None, results=None, linked=None):
         seen.append(results)
-        return chat_module.AgentTurn(reply='ok', action='reply', brief='', max_item_price=None, size=None)
+        return chat_module.AgentTurn(reply='ok', action='reply', brief='', max_item_price=None, size=None, category='other')
     monkeypatch.setattr(chat_module.ShopAgent, 'respond', fake_respond)
     pid = client.post('/v1/taste/profiles', json={}).json()['profile']['id']
     client.post(f'/v1/taste/profiles/{pid}/images', files={'file': ('a.png', png((20, 20, 20)))})
@@ -259,3 +259,48 @@ def test_chat_sees_numbered_results_of_own_search_only(client, monkeypatch):
     client.post(f'/v1/taste/profiles/{other}/build')
     client.post(f'/v1/taste/profiles/{other}/chat', json=ask)
     assert seen[-1] is None  # another profile's search isn't shown to this agent
+
+
+def test_size_matching_across_marketplace_labels():
+    from sourcing.sizes import match
+    assert all(match('S', x) for x in (['Small'], ['S/M'], ['XS-S'], ['US S'], ['One size']))
+    assert not any(match('S', x) for x in (['L'], ['Large'], ['XL'], ['M']))
+    assert match('S', []) is None and match('S', ['US 6']) is None  # unknown / other sizing system: keep, warn
+    assert match('8', ['US 8']) and match('8', ['8.5']) is False
+
+
+def test_pipeline_drops_other_sizes_and_flags_unknown():
+    from pathlib import Path
+    from sourcing.models import SearchRequest
+    from sourcing.pipeline import eligible
+    from sourcing.sources import FixtureSources
+    request_data = SearchRequest.model_validate_json(Path('examples/search.json').read_text())
+    items, _ = asyncio.run(FixtureSources().fetch('etsy', '', 4, ''))
+    for item, labels in zip(items, (['Small'], ['L'], [], ['US 6'])):
+        item.sizes = labels
+    request_data.request.size = 'S'
+    kept = {x.sizes[0] if x.sizes else None for x in eligible(items, request_data)}
+    assert 'L' not in kept and 'Small' in kept
+    flagged = [x for x in eligible([items[3]], request_data)]
+    assert any(w.startswith('Size unverified (listed as US 6') for w in flagged[0].warnings)
+
+
+def test_chat_defaults_to_profile_size_for_the_garment(client):
+    pid = client.post('/v1/taste/profiles', json={'sizes': {'top': 'S', 'bottom': 'M'}}).json()['profile']['id']
+    client.post(f'/v1/taste/profiles/{pid}/images', files={'file': ('a.png', png((20, 20, 20)))})
+    client.post(f'/v1/taste/profiles/{pid}/build')
+    top = client.post(f'/v1/taste/profiles/{pid}/chat', json={'messages': [{'role': 'user', 'text': 'black halter top'}]}).json()
+    skirt = client.post(f'/v1/taste/profiles/{pid}/chat', json={'messages': [{'role': 'user', 'text': 'pleated mini skirt'}]}).json()
+    bag = client.post(f'/v1/taste/profiles/{pid}/chat', json={'messages': [{'role': 'user', 'text': 'black shoulder bag'}]}).json()
+    assert (top['size'], skirt['size'], bag['size']) == ('S', 'M', None)
+
+
+def test_chat_accepts_history_with_linked_pages(client):
+    pid = client.post('/v1/taste/profiles', json={}).json()['profile']['id']
+    client.post(f'/v1/taste/profiles/{pid}/images', files={'file': ('a.png', png((20, 20, 20)))})
+    client.post(f'/v1/taste/profiles/{pid}/build')
+    history = [{'role': 'user', 'text': 'like this?'},
+               {'role': 'agent', 'text': 'Read it.', 'linked': [{'url': 'https://poshmark.com/listing/a', 'site': 'Poshmark',
+                                                                   'title': 'Jacket', 'readable': True}]},
+               {'role': 'user', 'text': 'black halter top'}]
+    assert client.post(f'/v1/taste/profiles/{pid}/chat', json={'messages': history}).status_code == 200
