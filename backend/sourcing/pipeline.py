@@ -80,10 +80,37 @@ def terms(text):
     return {w.rstrip('s') for w in re.findall(r'[a-z]+', text.lower()) if len(w) > 2 and w not in STOPWORDS}
 
 
+# Item types a search can ask for. When the request names one, only listings of that type are shown before ranking.
+ITEM_TYPES = {
+    'outerwear': r'jackets?|coats?|blazers?|parkas?|puffers?|trench|anoraks?|windbreakers?|bombers?|shackets?|gilets?|vests?',
+    'knit': r'cardigans?|sweaters?|jumpers?|pullovers?|hoodies?|sweatshirts?|shrugs?|boleros?',
+    'top': r'tops?|shirts?|tees?|t-shirts?|blouses?|tanks?|camis?|camisoles?|halters?|bodysuits?|polos?|corsets?|bustiers?',
+    'dress': r'dress(es)?|gowns?|jumpsuits?|rompers?',
+    'bottom': r'pants|jeans|trousers|skirts?|shorts|leggings|slacks|culottes',
+    'shoes': r'boots?|shoes?|sneakers?|heels?|flats?|loafers?|sandals?|mules?|clogs?|pumps?|trainers?',
+    'bag': r'bags?|purses?|totes?|clutch(es)?|backpacks?|handbags?|wallets?',
+    'accessory': r'belts?|hats?|caps?|beanies?|scarf|scarves|jewel(le)?ry|necklaces?|earrings?|rings?|bracelets?|sunglasses',
+}
+COLOURS = {'black', 'white', 'grey', 'gray', 'charcoal', 'navy', 'blue', 'red', 'green', 'brown', 'beige', 'cream',
+           'pink', 'purple', 'yellow', 'orange', 'silver', 'gold', 'tan', 'olive', 'ivory', 'burgundy'}
+
+
+def item_types(text):
+    return {kind for kind, words in ITEM_TYPES.items() if re.search(rf'\b({words})\b', text, re.I)}
+
+
+def same_item(listing, wanted_types):
+    """True when the listing's title is the kind of item asked for (or the request named no item type)."""
+    return not wanted_types or bool(item_types(listing.title) & wanted_types)
+
+
 def matching(listings, query):
-    """Prefetched listings whose title shares a word with the search ("skirts" finds "Black wool midi skirt").
-    Loose on purpose: Claude scores unrelated garments low, and they lose their place to live results."""
-    wanted = terms(query)
+    """Prefetched listings for this search: the requested item type ("jacket" lets in coats and parkas, not corsets),
+    or with no type named, a shared word other than a colour ("black" alone isn't a match)."""
+    wanted_types = item_types(query)
+    if wanted_types:
+        return [x for x in listings if same_item(x, wanted_types)]
+    wanted = terms(query) - COLOURS
     return [x for x in listings if wanted & terms(x.title)]
 
 
@@ -205,6 +232,7 @@ class Pipeline:
                 item.reason = 'Text keyword overlap only; visual taste matching has not been evaluated.'
 
         shortlisted = set()
+        wanted_types = item_types(request.request.query)
 
         async def take(source, items):
             candidates = [x for x in eligible(items,request,counts['left_out']) if x.url not in seen_urls]
@@ -218,7 +246,8 @@ class Pipeline:
             if batch:
                 shortlisted.add(source)
                 key = (source, len(rankers))
-                provisional[key] = [x.model_dump(mode='json') for x in batch[:8]]
+                # Shown unranked until Claude scores them, so only listings of the requested type.
+                provisional[key] = [x.model_dump(mode='json') for x in batch if same_item(x, wanted_types)][:8]
                 await publish()
                 rankers.append(asyncio.create_task(rank_batch(key,batch)))
 

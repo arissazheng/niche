@@ -438,3 +438,14 @@ def test_claude_scores_below_relevance_are_dropped(request_data, store):
     ident = store.create(request.model_dump(mode='json'))
     result = asyncio.run(Pipeline(settings, store, sources=Live(), model=Model()).run(request, ident))
     assert result['results'] and all(x['score'] >= 40 for x in result['results'])
+
+
+def test_preloaded_listings_must_be_the_requested_item_type(request_data):
+    from sourcing.pipeline import matching
+    items, _ = asyncio.run(FixtureSources().fetch('secondhand', '', 3, ''))
+    for x, title in zip(items, ['Black satin strapless corset bustier', 'Black cropped moto jacket faux fur hood',
+                                'Black wool parka']):
+        x.title = title
+    picked = [x.title for x in matching(items, 'cool jacket with a faux-fur hood; in black or charcoal')]
+    assert picked == ['Black cropped moto jacket faux fur hood', 'Black wool parka']
+    assert matching(items, 'something black and cute') == []  # a colour alone isn't a match
