@@ -54,7 +54,7 @@ def test_shoe_size_system_and_letter_bottoms_reach_the_search(tmp_path):
     settings = Settings(database_path=str(tmp_path / 's.sqlite'), upload_dir=str(tmp_path / 'up'))
     with TestClient(create_app(settings)) as client:
         sizes = {'bottom': 'XXS', 'shoe': '8.5', 'shoe_system': 'womens'}
-        pid = client.post('/v1/taste/profiles', json={'sizes': sizes}).json()['profile']['id']
+        pid = client.post('/v1/taste/profiles', json={'data_consent': True, 'sizes': sizes}).json()['profile']['id']
         client.post(f'/v1/taste/profiles/{pid}/images', files={'file': ('a.png', png((20, 20, 20)))})
         client.post(f'/v1/taste/profiles/{pid}/build')
         boots = client.post(f'/v1/taste/profiles/{pid}/chat', json={'messages': [{'role': 'user', 'text': 'black ankle boots'}]}).json()
