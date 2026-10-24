@@ -89,8 +89,13 @@ def test_chat_caps_search_at_remaining_budget_and_demo_purchase(tmp_path):
         assert client.get(f'/v1/taste/profiles/{pid}/budget').json() == {'linked': False}
         budgets.save_link(pid, 'c1', 'a1', 100)  # 42 spent -> 58 left, below the profile's 80 default
         assert client.get(f'/v1/taste/profiles/{pid}/budget').json()['remaining'] == 58
-        reply = client.post(f'/v1/taste/profiles/{pid}/chat', json={'messages': [{'role': 'user', 'text': 'black skirt'}]}).json()
-        assert reply['max_item_price'] == 58 and reply['budget']['remaining'] == 58
+        first = [{'role': 'user', 'text': 'black skirt'}]
+        proposal = client.post(f'/v1/taste/profiles/{pid}/chat', json={'messages': first}).json()
+        assert proposal['action'] == 'propose' and proposal['max_item_price'] == 58 and proposal['budget']['remaining'] == 58
+        accepted = first + [{'role': 'agent', 'text': proposal['reply'], 'proposed': proposal['brief'],
+                             'proposed_price': proposal['max_item_price']}, {'role': 'user', 'text': 'yes'}]
+        reply = client.post(f'/v1/taste/profiles/{pid}/chat', json={'messages': accepted}).json()
+        assert reply['action'] == 'search' and reply['max_item_price'] == 58
         search = client.get(reply['status_url']).json()
         for _ in range(40):
             if search['status'] in ('completed', 'partial'):

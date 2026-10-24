@@ -118,11 +118,15 @@ export default function ShopPage() {
     setMessages(next);
     setThinking(true);
     try {
-      const reply = await api.chat(profileId, next);
-      const withReply: ChatTurn[] = [
-        ...next,
-        { role: "agent", text: reply.reply, ...(reply.action === "search" && { brief: reply.brief }) },
-      ];
+      // The current search lets the agent answer questions like "what about #2?".
+      const reply = await api.chat(profileId, next, searchId);
+      const agentTurn: ChatTurn = { role: "agent", text: reply.reply };
+      if (reply.action === "search") agentTurn.brief = reply.brief;
+      if (reply.action === "propose") {
+        agentTurn.proposed = reply.brief;
+        agentTurn.proposed_price = reply.max_item_price ?? null;
+      }
+      const withReply: ChatTurn[] = [...next, agentTurn];
       setMessages(withReply);
       if (reply.budget) setBudget({ linked: true, ...reply.budget });
       saveThread(profileId, { messages: withReply, searchId: reply.search_id ?? searchId });
@@ -132,6 +136,27 @@ export default function ShopPage() {
       setMessages(messages);
     } finally {
       setThinking(false);
+    }
+  }
+
+  // "Yes, search": run the outstanding proposal directly; no need to ask the model again.
+  async function accept(proposal: ChatTurn) {
+    if (!profileId || !proposal.proposed || thinking) return;
+    setError(null);
+    const price = proposal.proposed_price ? ` under $${Math.round(proposal.proposed_price)}` : "";
+    const next: ChatTurn[] = [
+      ...messages,
+      { role: "user", text: "Yes, search for that" },
+      { role: "agent", text: `Searching for ${proposal.proposed}${price}.`, brief: proposal.proposed },
+    ];
+    setMessages(next);
+    try {
+      const { search_id } = await api.search(profileId, proposal.proposed, { maxItemPrice: proposal.proposed_price });
+      saveThread(profileId, { messages: next, searchId: search_id });
+      follow(search_id);
+    } catch (err) {
+      setError((err as Error).message);
+      setMessages(messages);
     }
   }
 
@@ -219,6 +244,7 @@ export default function ShopPage() {
         thinking={thinking}
         error={error}
         onSend={send}
+        onAccept={accept}
         onReset={reset}
         className="order-1 lg:order-2"
       />
@@ -238,6 +264,7 @@ function ChatPanel({
   thinking,
   error,
   onSend,
+  onAccept,
   onReset,
   className,
 }: {
@@ -246,11 +273,14 @@ function ChatPanel({
   thinking: boolean;
   error: string | null;
   onSend: (text: string) => void;
+  onAccept: (proposal: ChatTurn) => void;
   onReset: () => void;
   className?: string;
 }) {
   const [draft, setDraft] = useState("");
   const end = useRef<HTMLDivElement>(null);
+  const input = useRef<HTMLTextAreaElement>(null);
+  const pending = outstandingProposal(messages);
   useEffect(() => {
     // Braces matter: newer browsers return a Promise from scrollIntoView, which React rejects as a cleanup.
     end.current?.scrollIntoView({ block: "end" });
@@ -287,6 +317,16 @@ function ChatPanel({
               <div className="border border-ink px-3 py-2">
                 <p className="text-sm">{m.text}</p>
                 {m.brief && <p className="label text-muted mt-1">Searched: {m.brief}</p>}
+                {m === pending && !thinking && (
+                  <div className="flex gap-3 mt-2">
+                    <button onClick={() => onAccept(m)} className="label bg-ink text-paper px-3 py-1.5">
+                      Yes, search
+                    </button>
+                    <button onClick={() => input.current?.focus()} className="label underline">
+                      Not quite
+                    </button>
+                  </div>
+                )}
               </div>
             </div>
           ),
@@ -303,9 +343,12 @@ function ChatPanel({
         }}
       >
         <textarea
+          ref={input}
           rows={2}
           className="flex-1 resize-none bg-transparent outline-none text-sm placeholder:text-muted"
-          placeholder={messages.length ? "No actually, less formal…" : "I want an asymmetrical buttoned top"}
+          placeholder={
+            pending ? "Yes, or say what to change…" : messages.length ? "No actually, less formal…" : "I want an asymmetrical buttoned top"
+          }
           value={draft}
           disabled={thinking}
           onChange={(e) => setDraft(e.target.value)}
@@ -325,6 +368,17 @@ function ChatPanel({
       </form>
     </aside>
   );
+}
+
+/** The latest search the agent offered that hasn't been run yet, matching the backend's rule. */
+function outstandingProposal(messages: ChatTurn[]) {
+  for (let i = messages.length - 1; i >= 0; i--) {
+    const m = messages[i];
+    if (m.role !== "agent") continue;
+    if (m.brief) return null;
+    if (m.proposed) return m;
+  }
+  return null;
 }
 
 const money = (n = 0) => `$${Math.round(n).toLocaleString()}`;

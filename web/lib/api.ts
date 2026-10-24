@@ -32,13 +32,20 @@ export const api = {
     request<ProfileView>(`/v1/taste/profiles/${id}/edit`, { method: "POST", body: json({ instruction, source }) }),
   setPrompt: (id: string, prompt: string) =>
     request<ProfileView>(`/v1/taste/profiles/${id}/prompt`, { method: "PUT", body: json({ prompt }) }),
-  search: (id: string, query: string, sources?: Source[]) =>
+  search: (id: string, query: string, options: { sources?: Source[]; maxItemPrice?: number | null } = {}) =>
     request<{ search_id: string; status_url: string }>(`/v1/taste/profiles/${id}/searches`, {
       method: "POST",
-      body: json({ query, ...(sources && { sources }) }),
+      body: json({
+        query,
+        ...(options.sources && { sources: options.sources }),
+        ...(options.maxItemPrice && { max_item_price: options.maxItemPrice }),
+      }),
     }),
-  chat: (id: string, messages: ChatTurn[]) =>
-    request<AgentReply>(`/v1/taste/profiles/${id}/chat`, { method: "POST", body: json({ messages }) }),
+  chat: (id: string, messages: ChatTurn[], searchId?: string | null) =>
+    request<AgentReply>(`/v1/taste/profiles/${id}/chat`, {
+      method: "POST",
+      body: json({ messages, ...(searchId && { search_id: searchId }) }),
+    }),
   budget: (id: string) => request<Budget>(`/v1/taste/profiles/${id}/budget`),
   demoPurchase: (search_id: string, listing_id: string) =>
     request<{ status: string; ledger: { amount: number } }>("/v1/checkout/demo-purchase", {

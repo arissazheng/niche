@@ -131,6 +131,8 @@ export interface ChatTurn {
   role: "user" | "agent";
   text: string;
   brief?: string; // what an agent turn searched for
+  proposed?: string; // a search an agent turn offered to run
+  proposed_price?: number | null;
 }
 
 export interface Budget {
@@ -144,8 +146,9 @@ export interface Budget {
 
 export interface AgentReply {
   reply: string;
-  action: "search" | "clarify";
+  action: "reply" | "propose" | "search";
   brief: string;
+  max_item_price?: number | null;
   budget?: Omit<Budget, "linked"> | null;
   search_id?: string;
   status_url?: string;

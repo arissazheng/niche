@@ -187,7 +187,7 @@ def test_live_listing_row_carries_store_labels():
     assert row['score'] == {'none': []} and row['rank'] == {'none': []}
 
 
-def test_chat_turn_refines_and_starts_search(client):
+def test_chat_proposes_then_searches_only_after_yes(client):
     pid = client.post('/v1/taste/profiles', json={'budget_max': 80}).json()['profile']['id']
     client.post(f'/v1/taste/profiles/{pid}/images', files={'file': ('a.png', png((20, 20, 20)))}, data={'kind': 'outfit'})
     assert client.post(f'/v1/taste/profiles/{pid}/chat', json={'messages': [{'role': 'user', 'text': 'tops'}]}).status_code == 422
@@ -195,8 +195,12 @@ def test_chat_turn_refines_and_starts_search(client):
     turns = [{'role': 'user', 'text': 'i want an asymmetrical buttoned top'},
              {'role': 'agent', 'text': 'Searching.', 'brief': 'asymmetrical buttoned top'},
              {'role': 'user', 'text': 'no actually less formal'}]
-    reply = client.post(f'/v1/taste/profiles/{pid}/chat', json={'messages': turns}).json()
-    assert reply['action'] == 'search' and 'less formal' in reply['brief'] and reply['search_id']
+    proposal = client.post(f'/v1/taste/profiles/{pid}/chat', json={'messages': turns}).json()
+    assert proposal['action'] == 'propose' and 'less formal' in proposal['brief'] and 'search_id' not in proposal
+    turns += [{'role': 'agent', 'text': proposal['reply'], 'proposed': proposal['brief']},
+              {'role': 'user', 'text': 'yes please'}]
+    ran = client.post(f'/v1/taste/profiles/{pid}/chat', json={'messages': turns}).json()
+    assert ran['action'] == 'search' and ran['brief'] == proposal['brief'] and ran['search_id']
     assert client.post(f'/v1/taste/profiles/{pid}/chat', json={'messages': turns[:2]}).status_code == 422
 
 
@@ -207,12 +211,49 @@ def test_shop_agent_live_uses_claude_and_conversation(tmp_path):
     class FakeModel:
         async def call(self, system, content, job_id, stage, max_tokens, schema=None, effort=None):
             seen.update(stage=stage, effort=effort, content=content)
-            return {'reply': 'Looking for relaxed ones.', 'action': 'search',
+            return {'reply': 'Searching relaxed ones now.', 'action': 'search',
                     'brief': 'asymmetrical buttoned top, relaxed casual style', 'max_item_price': None, 'size': None}
 
     from taste.models import Profile
     agent = ShopAgent(Settings(taste_mode='live', anthropic_api_key='k'), FakeModel())
     turn = asyncio.run(agent.respond(Profile(id='p', prompt='monochrome y2k'),
         [ChatTurn(role='user', text='asymmetrical buttoned top'), ChatTurn(role='user', text='less formal')]))
-    assert turn.action == 'search' and 'relaxed' in turn.brief
+    # No proposal was accepted yet, so even a model-chosen search is turned into a question.
+    assert turn.action == 'propose' and 'relaxed' in turn.brief and turn.reply.startswith('Would you like me to search')
     assert seen['stage'] == 'chat' and seen['effort'] == 'low' and 'less formal' in seen['content']
+
+
+def test_pending_proposal_survives_a_reply_but_not_a_search():
+    from taste.chat import ChatTurn as T, pending_proposal
+    offered = [T(role='user', text='jacket'), T(role='agent', text='Search jackets?', proposed='leather jacket'),
+               T(role='user', text='can i afford it?'), T(role='agent', text='Tight, but want me to run it?')]
+    assert pending_proposal(offered + [T(role='user', text='yes')]).proposed == 'leather jacket'
+    ran = offered + [T(role='user', text='yes'), T(role='agent', text='Searching.', brief='leather jacket')]
+    assert pending_proposal(ran + [T(role='user', text='yes')]) is None
+
+
+def test_chat_sees_numbered_results_of_own_search_only(client, monkeypatch):
+    import time
+    from taste import chat as chat_module
+    seen = []
+
+    async def fake_respond(self, profile, messages, budget=None, results=None):
+        seen.append(results)
+        return chat_module.AgentTurn(reply='ok', action='reply', brief='', max_item_price=None, size=None)
+    monkeypatch.setattr(chat_module.ShopAgent, 'respond', fake_respond)
+    pid = client.post('/v1/taste/profiles', json={}).json()['profile']['id']
+    client.post(f'/v1/taste/profiles/{pid}/images', files={'file': ('a.png', png((20, 20, 20)))})
+    client.post(f'/v1/taste/profiles/{pid}/build')
+    search = client.post(f'/v1/taste/profiles/{pid}/searches', json={'query': 'skirt', 'sources': ['etsy']}).json()
+    for _ in range(40):
+        if client.get(search['status_url']).json()['status'] in ('completed', 'partial'):
+            break
+        time.sleep(.05)
+    ask = {'messages': [{'role': 'user', 'text': 'what about #2?'}], 'search_id': search['search_id']}
+    client.post(f'/v1/taste/profiles/{pid}/chat', json=ask)
+    assert seen[-1][1]['n'] == 2 and seen[-1][1]['title'] and 'price' in seen[-1][1]
+    other = client.post('/v1/taste/profiles', json={}).json()['profile']['id']
+    client.post(f'/v1/taste/profiles/{other}/images', files={'file': ('a.png', png((20, 20, 20)))})
+    client.post(f'/v1/taste/profiles/{other}/build')
+    client.post(f'/v1/taste/profiles/{other}/chat', json=ask)
+    assert seen[-1] is None  # another profile's search isn't shown to this agent
