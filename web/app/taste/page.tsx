@@ -24,6 +24,7 @@ export default function TastePage() {
   const [notesChanged, setNotesChanged] = useState(false);
   const [rebuilding, setRebuilding] = useState(false);
   const [shared, setShared] = useState(false);
+  const [friendLink, setFriendLink] = useState<string | null>(null); // shown after sharing, to open or copy
   const [token, setToken] = useState<string | null>(null); // the share link's token, when viewing a friend's board
 
   // Resolves to an error message, or null on success, so the profile panel can show inline feedback.
@@ -41,7 +42,10 @@ export default function TastePage() {
   useEffect(() => {
     // `?board=<share token>` is a friend's link: they see the board (no personal details), can rearrange it with you,
     // and can shop for you; they can't edit the profile.
-    const board = new URLSearchParams(window.location.search).get("board");
+    // Friend links are /friend/<token> (older ones /taste?board=<token>); both open the same view-only board.
+    const board =
+      window.location.pathname.match(/^\/friend\/([^/?#]+)/)?.[1] ??
+      new URLSearchParams(window.location.search).get("board");
     if (board) {
       setIsOwner(false);
       setToken(board);
@@ -103,7 +107,9 @@ export default function TastePage() {
   async function share() {
     try {
       const link = view?.profile.share_token ?? (await api.share(id)).token;
-      await navigator.clipboard.writeText(`${window.location.origin}/taste?board=${link}`);
+      const url = `${window.location.origin}/friend/${link}`;
+      setFriendLink(url);
+      await navigator.clipboard.writeText(url).catch(() => {}); // the link is also shown on the page
       if (!view?.profile.share_token) await run(() => api.getProfile(id));
       setShared(true);
       window.setTimeout(() => setShared(false), 2500);
@@ -117,6 +123,7 @@ export default function TastePage() {
       await api.unshare(id);
       return api.getProfile(id);
     });
+    setFriendLink(null);
   }
 
   return (
@@ -140,6 +147,21 @@ export default function TastePage() {
             </button>
             {view.profile.share_token && (
               <button onClick={stopSharing} className="label underline text-muted">Stop sharing</button>
+            )}
+            {(friendLink || view.profile.share_token) && (
+              <>
+                <span className="label text-muted break-all">
+                  {friendLink ?? `${window.location.origin}/friend/${view.profile.share_token}`}
+                </span>
+                <a
+                  href={friendLink ?? `/friend/${view.profile.share_token}`}
+                  target="_blank"
+                  rel="noopener"
+                  className="label underline"
+                >
+                  Open as a friend ↗
+                </a>
+              </>
             )}
           </>
         ) : null}
