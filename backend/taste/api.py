@@ -4,6 +4,7 @@ from fastapi import APIRouter, File, Form, HTTPException, UploadFile
 from PIL import UnidentifiedImageError
 from sourcing.models import SearchRequest, ShoppingRequest
 from finance.budget import Budgets
+from sourcing.prefetch import BROAD_QUERY, Prefetcher
 from sourcing.store import Store
 import json
 from .chat import ChatRequest, ShopAgent, result_cards
@@ -18,6 +19,7 @@ MAX_UPLOAD_BYTES = 15 * 1024 * 1024
 def create_router(settings, store: Store, budgets: Budgets | None = None):
     taste = TasteStore(store)
     engine = TasteEngine(settings, taste)
+    prefetcher = Prefetcher(settings, store)
     router = APIRouter(prefix='/v1/taste', tags=['taste'])
 
     def profile_or_404(ident):
@@ -72,9 +74,12 @@ def create_router(settings, store: Store, budgets: Budgets | None = None):
     @router.post('/profiles/{ident}/build')
     async def build(ident: str):
         try:
-            return view(await engine.build(profile_or_404(ident)))
+            profile = await engine.build(profile_or_404(ident))
         except ValueError as exc:
             raise HTTPException(422, str(exc))
+        # Start scraping this taste's core pieces now, so the first search has results ready to rank.
+        prefetcher.start(search_request(profile, ProfileSearch(query=BROAD_QUERY)))
+        return view(profile)
 
     @router.post('/profiles/{ident}/edit')
     async def edit(ident: str, edit: EditInstruction):
@@ -93,14 +98,16 @@ def create_router(settings, store: Store, budgets: Budgets | None = None):
             raise HTTPException(422, 'Build the taste profile first')
         return profile
 
-    def start_search(profile, search: ProfileSearch):
+    def search_request(profile, search: ProfileSearch):
         # Hand-off to the sourcing pipeline: the taste prompt becomes the SearchRequest's taste_profile.
         ob = profile.onboarding
-        request = SearchRequest(taste_profile=profile.to_sourcing(), sources=search.sources, limit=search.limit,
+        return SearchRequest(taste_profile=profile.to_sourcing(), sources=search.sources, limit=search.limit,
             profile_id=profile.id,
             request=ShoppingRequest(query=search.query, max_item_price=search.max_item_price or ob.budget_max,
                 currency=ob.currency, size=search.size))
-        job = store.create(request.model_dump(mode='json'))
+
+    def start_search(profile, search: ProfileSearch):
+        job = store.create(search_request(profile, search).model_dump(mode='json'))
         return {'search_id': job, 'status': 'queued', 'status_url': f'/v1/searches/{job}'}
 
     @router.post('/profiles/{ident}/searches', status_code=202)

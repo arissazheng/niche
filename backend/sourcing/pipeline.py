@@ -1,5 +1,6 @@
 import asyncio
 import re
+from .models import Listing
 from .sources import NICHE, ApifySources, FixtureSources
 from .claude import Claude
 from .live import Live
@@ -53,6 +54,21 @@ def eligible(items, request):
             item.warnings.append('Shipping and tax not included in item price')
         result.append(item)
     return result
+
+
+STOPWORDS = {'and', 'the', 'for', 'with', 'find', 'some', 'something', 'like', 'that', 'this', 'please', 'want',
+             'need', 'looking', 'everyday'}
+
+
+def terms(text):
+    return {w.rstrip('s') for w in re.findall(r'[a-z]+', text.lower()) if len(w) > 2 and w not in STOPWORDS}
+
+
+def matching(listings, query):
+    """Prefetched listings whose title shares a word with the search ("skirts" finds "Black wool midi skirt").
+    Loose on purpose: Claude scores unrelated garments low, and they lose their place to live results."""
+    wanted = terms(query)
+    return [x for x in listings if wanted & terms(x.title)]
 
 
 def lexical_score(item, request):
@@ -179,6 +195,19 @@ class Pipeline:
                 self.store.event(job_id,'source_failed',{'source':source,'type':type(exc).__name__})
                 result['sources'][source] = {'status':'failed','error':'Source unavailable; see server events'}
 
+        # Listings scraped and scored in the background when the profile was built (sourcing.prefetch) show at once.
+        if request.profile_id:
+            ready = [x for x in eligible(matching([Listing.model_validate(x) for x in
+                     self.store.prefetched(request.profile_id)], request.request.query), request)
+                     if x.url not in seen_urls]
+            for x in ready:
+                x.warnings = list(dict.fromkeys(x.warnings))  # eligible() re-adds warnings saved with the item
+            if ready:
+                seen_urls.update(x.url for x in ready)
+                result['prefetched'] = len(ready)
+                ranked.extend(ready)
+                methods.append('claude')
+                await publish()
         # Niche actors take every query variant in one run; single-marketplace adapters rotate through them.
         tasks = [asyncio.create_task(consume(s,queries if s in NICHE else queries[i%len(queries)]))
                  for i,s in enumerate(sources)]

@@ -360,3 +360,42 @@ def test_streamed_batches_are_ranked_as_they_arrive(request_data, store):
     result = asyncio.run(pipeline.run(request, ident))
     assert order[0] == 'ranked 2' and order[1] == 'second batch'
     assert result['sources']['secondhand']['status'] == 'succeeded' and result['ranking_method'] == 'claude'
+
+
+def test_prefetch_is_ranked_ahead_and_shown_first(request_data, store):
+    from sourcing.prefetch import Prefetcher
+    request = niche_request(request_data, sources=('secondhand',))
+    request.profile_id = 'p1'
+
+    class Model:
+        def __init__(self):
+            self.ranked = []
+
+        async def plan(self, *args):
+            return ['olive trousers']
+
+        async def rank(self, request, batch, job_id):
+            self.ranked.append([x.id for x in batch])
+            for x in batch:
+                x.score, x.match_dimensions, x.reason = 50, {}, 'ok'
+            return batch
+
+    class Slow:
+        async def fetch(self, source, query, limit, job_id, max_price=None):
+            return await FixtureSources().fetch(source, query, limit, job_id)
+
+    settings = Settings(sourcing_mode='live', apify_token='t', anthropic_api_key='k')
+    asyncio.run(Prefetcher(settings, store, sources=Slow(), model=Model()).warm(request))
+    assert store.prefetched('p1') and all(x['score'] == 50 for x in store.prefetched('p1'))  # ranked ahead of time
+
+    class Live:
+        async def stream(self, source, query, limit, job_id, max_price=None):
+            yield [], {'status': 'succeeded'}
+
+    model = Model()
+    request.request.query = 'linen trousers'  # only the trousers in the prefetch match
+    ident = store.create(request.model_dump(mode='json'))
+    result = asyncio.run(Pipeline(settings, store, sources=Live(), model=model).run(request, ident))
+    # Shown with the scores from the warm-up: no Claude call needed at search time.
+    assert result['prefetched'] > 0 and model.ranked == [] and result['ranking_method'] == 'claude'
+    assert all('trousers' in x['title'].lower() for x in result['results'])
