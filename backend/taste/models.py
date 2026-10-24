@@ -53,6 +53,7 @@ class TasteImage(StrictModel):
     profile_id: str
     kind: ImageKind
     url: str
+    source: Literal['upload', 'pinterest', 'instagram'] = 'upload'
     note: str = ''
     palette: list[str] = []  # Hex colors measured from pixels, not model output.
     analysis: ImageAnalysis | None = None
@@ -93,6 +94,10 @@ class Profile(StrictModel):
             # Visible designers in liked photos count as brand preferences alongside the ones the user named.
             preferred_brands=list(dict.fromkeys(ob.favorite_brands + self.designers))[:30],
             preferred_stores=ob.usual_shops[:30])
+
+
+class ImportRequest(StrictModel):
+    url: str = Field(min_length=4, max_length=500)
 
 
 class NoteUpdate(StrictModel):

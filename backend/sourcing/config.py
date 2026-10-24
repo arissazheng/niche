@@ -11,6 +11,11 @@ class Settings(BaseSettings):
     # NICHE_ANTHROPIC_API_KEY wins: some hosts (e.g. Claude Code cloud sessions) reserve ANTHROPIC_API_KEY.
     anthropic_api_key: str = Field(default='', validation_alias=AliasChoices(
         'NICHE_ANTHROPIC_API_KEY', 'ANTHROPIC_API_KEY', 'anthropic_api_key'))
+    # Bright Data: Pinterest/Instagram imports. NICHE_BRIGHTDATA_API_KEY wins, like the Claude key.
+    brightdata_api_key: str = Field(default='', validation_alias=AliasChoices(
+        'NICHE_BRIGHTDATA_API_KEY', 'BRIGHTDATA_API_KEY', 'brightdata_api_key'))
+    # A Web Unlocker zone (Bright Data dashboard) for Pinterest board links; blank turns board links off.
+    brightdata_unlocker_zone: str = ''
     # Not read from ANTHROPIC_BASE_URL on purpose: hosts can set that to their own gateway.
     anthropic_base_url: str = Field(default='https://api.anthropic.com', validation_alias='NICHE_ANTHROPIC_BASE_URL')
     claude_model: str = 'claude-opus-5-5'
