@@ -1,9 +1,11 @@
 import asyncio
 import base64
+import io
 import json
 import logging
 import anthropic
 import httpx
+from PIL import Image, UnidentifiedImageError
 from .sources import public_url
 
 log = logging.getLogger(__name__)
@@ -34,18 +36,35 @@ def media_type(data):
         return 'image/webp'
     return next((kind for sig,kind in SIGNATURES if data.startswith(sig)),None)
 
+RANK_IMAGE_EDGE = 512  # enough to judge colour and silhouette; far fewer tokens, so ranking returns faster
+
+def shrink(data):
+    image = Image.open(io.BytesIO(data))
+    image.thumbnail((RANK_IMAGE_EDGE, RANK_IMAGE_EDGE))
+    out = io.BytesIO()
+    image.convert('RGB').save(out, format='JPEG', quality=80)
+    return out.getvalue()
+
 async def fetch_image(client, url):
     # Photos are sent inline because Claude can't fetch some hosts by URL: Google Shopping thumbnails are
     # disallowed by robots.txt, and one unfetchable URL fails the whole request. A failed download is skipped.
     try:
-        response = await client.get(url)
-        response.raise_for_status()
+        async with client.stream('GET', url) as response:
+            response.raise_for_status()
+            data = b''
+            async for chunk in response.aiter_bytes():
+                data += chunk
+                if len(data) > MAX_IMAGE_BYTES:  # stop reading instead of buffering an oversized file
+                    return None
     except httpx.HTTPError:
         return None
-    kind = media_type(response.content)
-    if not kind or len(response.content)>MAX_IMAGE_BYTES:
+    if not media_type(data):
         return None
-    return {'type':'image','source':{'type':'base64','media_type':kind,'data':base64.b64encode(response.content).decode()}}
+    try:
+        data = await asyncio.to_thread(shrink, data)
+    except (UnidentifiedImageError, OSError, ValueError):
+        return None
+    return {'type':'image','source':{'type':'base64','media_type':'image/jpeg','data':base64.b64encode(data).decode()}}
 
 def output_schema(stage):
     if stage == 'planner':
@@ -64,7 +83,7 @@ class Claude:
         self.settings, self.store = settings, store
         self.client = client
 
-    async def call(self, system, content, job_id, stage, max_tokens, schema=None):
+    async def call(self, system, content, job_id, stage, max_tokens, schema=None, effort=None):
         # System prompt is safe to debug; private reference URLs and raw user content are not logged.
         log.info('stage=%s model=%s system_prompt=%s',stage,self.settings.claude_model,system)
         self.store.event(job_id,'prompt',{'stage':stage,'version':'1','system_prompt':system,'model':self.settings.claude_model})
@@ -74,7 +93,7 @@ class Claude:
         # Server-side fallback re-runs a safety-declined request on Anthropic's recommended model.
         response = await self.client.beta.messages.create(model=self.settings.claude_model,max_tokens=max_tokens,
             system=system,messages=[{'role':'user','content':content}],
-            output_config={'format':{'type':'json_schema','schema':schema or output_schema(stage)}},
+            output_config={'format':{'type':'json_schema','schema':schema or output_schema(stage)},**({'effort':effort} if effort else {})},
             betas=['server-side-fallback-2026-07-01'],fallbacks='default')
         self.store.event(job_id,'model_usage',{'stage':stage,'model':response.model,'usage':response.usage.model_dump(mode='json')})
         if response.stop_reason != 'end_turn':
@@ -91,7 +110,8 @@ class Claude:
 
     async def rank(self, request, listings, job_id):
         content = [{'type':'text','text':json.dumps({'taste':request.taste_profile.model_dump(mode='json',exclude={'reference_image_urls'}),
-                    'request':request.request.model_dump()})}]
+                    'request':request.request.model_dump()})},
+                   {'type':'text','text':f'Rank all {len(listings)} listings below: return exactly {len(listings)} rankings, one per id.'}]
         references = [str(url) for url in request.taste_profile.reference_image_urls if public_url(str(url))]
         urls = references+[item.image_urls[0] if item.image_urls else None for item in listings]
         async with httpx.AsyncClient(timeout=10,follow_redirects=True,headers={'User-Agent':'Mozilla/5.0 (Niche)'}) as client:
@@ -101,20 +121,24 @@ class Claude:
         for image in images[:len(references)]:
             if image:
                 content += [{'type':'text','text':'User taste reference image'}, image]
-        for item,image in zip(listings,images[len(references):]):
-            content.append({'type':'text','text':json.dumps(item.model_dump(exclude={'provenance','image_urls'}))})
+        # Short labels instead of marketplace ids: Claude mistypes long near-identical numbers (depop:96083…).
+        by_alias = {f'L{i+1}':item for i,item in enumerate(listings)}
+        for (alias,item),image in zip(by_alias.items(),images[len(references):]):
+            content.append({'type':'text','text':json.dumps({**item.model_dump(exclude={'provenance','image_urls'}),'id':alias})})
             if image:
                 content.append(image)
-        result = await self.call(RANKER,content,job_id,'ranker',16000)
+        # Low effort: ranking is a comparison against a written rubric, and latency is what the shopper feels.
+        result = await self.call(RANKER,content,job_id,'ranker',16000,effort='low')
         rows = result.get('rankings')
         if not isinstance(rows,list):
             raise ValueError('Invalid rankings')
-        by_id = {x.id:x for x in listings}
-        seen = set()
+        seen, skipped = set(), 0
         for row in rows:
-            ident = row.get('id')
-            if ident not in by_id or ident in seen:
-                raise ValueError('Unknown or duplicate ranking ID')
+            alias = row.get('id')
+            if alias not in by_alias or by_alias[alias].id in seen:
+                skipped += 1  # invented or repeated label: never becomes a listing
+                continue
+            ident = by_alias[alias].id
             seen.add(ident)
             score = row.get('score')
             dims = row.get('dimensions',{})
@@ -123,9 +147,20 @@ class Claude:
                 raise ValueError('Invalid ranking scores')
             if not isinstance(row.get('reason'),str) or not isinstance(row.get('uncertainties'),list) or any(not isinstance(x,str) for x in row['uncertainties']):
                 raise ValueError('Invalid ranking explanation')
-            item = by_id[ident]
+            item = by_alias[alias]
             item.score, item.match_dimensions, item.reason = score,dims,row['reason'][:500]
             item.warnings.extend(row['uncertainties'][:5])
-        if seen != set(by_id):
+        if skipped:
+            self.store.event(job_id,'ranker_skipped_ids',{'count':skipped})
+        if not seen:
             raise ValueError('Missing ranking IDs')
+        missing = [x for x in listings if x.id not in seen]
+        if missing:
+            # Claude sometimes skips listings it finds irrelevant. Keep its ranking for the rest instead of
+            # discarding it, and mark the skipped ones as unassessed at the bottom of the list.
+            self.store.event(job_id,'ranker_partial',{'ranked':len(seen),'missing':len(missing)})
+            for item in missing:
+                item.score, item.match_dimensions = 0, {}
+                item.reason = 'Not assessed by Claude in this ranking pass.'
+                item.warnings.append('Taste match not evaluated')
         return listings

@@ -5,6 +5,19 @@ from .claude import Claude
 from .live import Live
 
 
+# Never shown, from any source (new, mainstream or resale): Shein and its in-house labels.
+EXCLUDED_BRANDS = re.compile(r'\b(shein|romwe|dazy|motf|emery rose)\b', re.I)
+EXCLUDED_DOMAINS = ('shein.com', 'romwe.com')
+
+
+def excluded(item):
+    host = re.sub(r'^https?://', '', item.url).split('/')[0].lower()
+    if any(host == d or host.endswith('.' + d) for d in EXCLUDED_DOMAINS):
+        return True
+    fields = (item.retailer, item.seller, item.brand, item.title)
+    return any(f and EXCLUDED_BRANDS.search(f) for f in fields)
+
+
 def eligible(items, request):
     result, seen = [], set()
     r = request.request
@@ -12,6 +25,8 @@ def eligible(items, request):
         if item.id in seen or item.url in seen:
             continue
         seen.update((item.id,item.url))
+        if excluded(item):
+            continue
         if item.available is False or item.currency != r.currency or item.price > r.max_item_price:
             continue
         unknown = []
@@ -99,46 +114,69 @@ class Pipeline:
         # Niche actors take every query variant in one run; single-marketplace adapters rotate through them.
         tasks = [asyncio.create_task(fetch(s,queries if s in NICHE else queries[i%len(queries)]))
                  for i,s in enumerate(sources)]
-        collected = []
+        # Each source is filtered, shortlisted and ranked as soon as it returns, so Claude ranks the fast
+        # sources while the slow ones are still scraping; the page shows everything ranked so far.
+        per_source = max(1,24//len(sources))
+        counts = {'retrieved':0,'eligible':0}
+        seen_urls, ranked, provisional, methods, rankers = set(), [], {}, [], []
+
+        def scored_rows():
+            return [{**x.model_dump(mode='json'), 'rank': i+1} for i,x in enumerate(diversify(ranked,request.limit))]
+
+        async def publish():
+            waiting = [x for rows in provisional.values() for x in rows]
+            await self.live.listings(job_id, scored_rows()+waiting, replace=True)
+
+        async def rank_batch(source, batch):
+            if self.settings.sourcing_mode=='live':
+                try:
+                    batch = await self.model.rank(request,batch,job_id)
+                    methods.append('claude')
+                except Exception as exc:
+                    self.store.event(job_id,'ranking_failed',{'source':source,'type':type(exc).__name__,'detail':str(exc)[:200]})
+                    methods.append('lexical_fallback')
+                    lexical(batch)
+            else:
+                methods.append('fixture_lexical')
+                lexical(batch)
+            ranked.extend(batch)
+            provisional.pop(source,None)
+            await publish()
+
+        def lexical(batch):
+            for item in batch:
+                item.score = lexical_score(item,request)
+                item.match_dimensions = {}
+                item.reason = 'Text keyword overlap only; visual taste matching has not been evaluated.'
+
         try:
             for task in asyncio.as_completed(tasks):
                 source,items,status = await task
-                collected.extend(items)
-                # Provisional rows so the UI fills in per marketplace; copies keep eligible() from
-                # appending warnings to the items ranked below.
-                await self.live.listings(job_id, eligible([x.model_copy(deep=True) for x in items], request)[:8])
                 result['sources'][source] = status
+                candidates = [x for x in eligible(items,request) if x.url not in seen_urls]
+                seen_urls.update(x.url for x in candidates)
+                counts['retrieved'] += len(items)
+                counts['eligible'] += len(candidates)
+                # Cheap lexical shortlist limits image-token consumption, balanced across sources.
+                batch = sorted(candidates,key=lambda x:lexical_score(x,request),reverse=True)[:per_source]
+                if batch:
+                    provisional[source] = [x.model_dump(mode='json') for x in batch[:8]]
+                    await publish()
+                    rankers.append(asyncio.create_task(rank_batch(source,batch)))
                 self.store.update(job_id,'running',result)
+            await asyncio.gather(*rankers)
         finally:
-            for task in tasks:
+            for task in tasks+rankers:
                 if not task.done():
                     task.cancel()
-            await asyncio.gather(*tasks,return_exceptions=True)
-        candidates = eligible(collected,request)
-        result['counts'] = {'retrieved':len(collected),'eligible':len(candidates)}
-        # Cheap lexical shortlist limits image-token consumption, balanced across sources.
-        shortlist = []
-        per_source = max(1,24//len(sources))
-        for source in sources:
-            shortlist.extend(sorted((x for x in candidates if x.source==source),
-                key=lambda x:lexical_score(x,request),reverse=True)[:per_source])
-        if shortlist:
-            if self.settings.sourcing_mode=='live':
-                try:
-                    shortlist = await self.model.rank(request,shortlist,job_id)
-                    result['ranking_method'] = 'claude'
-                except Exception as exc:
-                    self.store.event(job_id,'ranking_failed',{'type':type(exc).__name__})
-                    result['warnings'].append('Claude ranking unavailable; lexical fallback used')
-                    result['ranking_method'] = 'lexical_fallback'
-            else:
-                result['ranking_method'] = 'fixture_lexical'
-            if result['ranking_method'] != 'claude':
-                for item in shortlist:
-                    item.score = lexical_score(item,request)
-                    item.match_dimensions = {}
-                    item.reason = 'Text keyword overlap only; visual taste matching has not been evaluated.'
-            result['results'] = [x.model_dump(mode='json') for x in diversify(shortlist,request.limit)]
+            await asyncio.gather(*tasks,*rankers,return_exceptions=True)
+        result['counts'] = counts
+        if methods:
+            if 'lexical_fallback' in methods:
+                result['warnings'].append('Claude ranking unavailable for some results; lexical fallback used')
+            result['ranking_method'] = ('claude' if set(methods)=={'claude'} else
+                                        'fixture_lexical' if 'fixture_lexical' in methods else 'lexical_fallback')
+            result['results'] = [x.model_dump(mode='json') for x in diversify(ranked,request.limit)]
         # Replace the provisional rows with the final ranked set (or none).
         await self.live.listings(job_id, [{**x, 'rank': i+1} for i,x in enumerate(result['results'])], replace=True)
         failures = sum(x['status']=='failed' for x in result['sources'].values())

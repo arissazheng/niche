@@ -167,10 +167,12 @@ def test_live_publishing_for_build_and_search(tmp_path):
     job = store.create(request.model_dump(mode='json'))
     asyncio.run(Pipeline(settings, store, live=live).run(request, job))
     assert live.calls[0] == ('search', 'running') and live.calls[-1] == ('search', 'completed')
-    provisional = [c for c in live.calls if c[0] == 'listings' and not c[2]]
-    final = [c for c in live.calls if c[0] == 'listings' and c[2]]
-    assert len(provisional) == 2 and all(c[1] > 0 for c in provisional)
-    assert len(final) == 1 and final[0][3] == list(range(1, final[0][1] + 1))
+    updates = [c for c in live.calls if c[0] == 'listings']
+    # Each source shows up (unranked, then ranked) before the final set; every update refreshes the whole view.
+    assert len(updates) >= 3 and all(c[2] for c in updates)
+    assert any(None in c[3] for c in updates[:-1])
+    final = updates[-1]
+    assert final[1] > 0 and final[3] == list(range(1, final[1] + 1))
     # Provisional copies must not leak duplicate warnings into the final results.
     result = store.get(job)['results'][0]
     assert len(result['warnings']) == len(set(result['warnings']))

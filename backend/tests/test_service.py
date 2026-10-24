@@ -124,10 +124,11 @@ def test_adapter_run_caps(store):
 def test_claude_rejects_hallucinated_id(request_data,store):
     from sourcing.claude import Claude
     class BadModel(Claude):
-        async def call(self,*args):
+        async def call(self,*args,**kwargs):
             return {'rankings':[{'id':'made-up','score':100}]}
     items,_=asyncio.run(FixtureSources().fetch('etsy','',1,''))
-    with pytest.raises(ValueError,match='Unknown'):
+    # Invented ids are skipped, never turned into listings; with nothing valid left the ranking fails.
+    with pytest.raises(ValueError,match='Missing'):
         asyncio.run(BadModel(Settings(),store).rank(request_data,items,'job'))
 
 
@@ -135,7 +136,9 @@ def test_claude_ranker_sends_photos_inline(monkeypatch,request_data,store):
     import httpx
     from sourcing.claude import Claude
     original=httpx.AsyncClient
-    jpeg=b'\xff\xd8\xff\xe0'+b'0'*20
+    import io
+    from PIL import Image
+    buffer=io.BytesIO(); Image.new('RGB',(1200,900),(20,20,20)).save(buffer,format='JPEG'); jpeg=buffer.getvalue()
     def handler(request):
         if 'gstatic' in request.url.host:
             return httpx.Response(200,content=jpeg,headers={'content-type':'text/html'})
@@ -143,16 +146,19 @@ def test_claude_ranker_sends_photos_inline(monkeypatch,request_data,store):
     monkeypatch.setattr(httpx,'AsyncClient',lambda **kw: original(transport=httpx.MockTransport(handler),**kw))
     sent=[]
     class Model(Claude):
-        async def call(self,system,content,*args):
+        async def call(self,system,content,*args,**kwargs):
             sent.extend(content)
-            return {'rankings':[{'id':x.id,'score':50,'dimensions':{'color':50,'silhouette':50,'aesthetic':50},
-                'reason':'ok','uncertainties':[]} for x in items]}
+            return {'rankings':[{'id':f'L{i+1}','score':50,'dimensions':{'color':50,'silhouette':50,'aesthetic':50},
+                'reason':'ok','uncertainties':[]} for i in range(len(items))]}
     items,_=asyncio.run(FixtureSources().fetch('etsy','',2,''))
     items[0].image_urls=['https://encrypted-tbn0.gstatic.com/shopping?q=tbn:abc']
     items[1].image_urls=['https://i.etsystatic.com/missing.jpg']
     asyncio.run(Model(Settings(),store).rank(request_data,items,'job'))
     images=[x for x in sent if x['type']=='image']
     assert len(images)==1 and images[0]['source']['type']=='base64' and images[0]['source']['media_type']=='image/jpeg'
+    import base64
+    shrunk=Image.open(io.BytesIO(base64.b64decode(images[0]['source']['data'])))
+    assert max(shrunk.size)==512
 
 
 def test_apify_http_contract_and_cache(monkeypatch,store):
@@ -259,3 +265,61 @@ def test_claude_key_and_base_url_from_niche_env(monkeypatch):
     assert settings.anthropic_base_url == 'https://api.anthropic.com'
     monkeypatch.delenv('NICHE_ANTHROPIC_API_KEY')
     assert Settings(_env_file=None).anthropic_api_key == 'reserved-by-host'
+
+
+def test_claude_partial_ranking_keeps_ranked_items(request_data,store):
+    from sourcing.claude import Claude
+    items,_=asyncio.run(FixtureSources().fetch('etsy','',3,''))
+    class PartialModel(Claude):
+        async def call(self,*args,**kwargs):
+            return {'rankings':[{'id':'L1','score':91,'dimensions':{'color':90,'silhouette':90,'aesthetic':90},
+                                 'reason':'Strong match','uncertainties':[]}]}
+    ranked=asyncio.run(PartialModel(Settings(),store).rank(request_data,items,'job'))
+    assert ranked[0].score==91 and ranked[0].reason=='Strong match'
+    assert all(x.score==0 and 'Taste match not evaluated' in x.warnings for x in ranked[1:])
+    class EmptyModel(Claude):
+        async def call(self,*args,**kwargs):
+            return {'rankings':[]}
+    with pytest.raises(ValueError,match='Missing'):
+        asyncio.run(EmptyModel(Settings(),store).rank(request_data,items,'job'))
+
+
+def test_shein_never_eligible(request_data):
+    from sourcing.pipeline import excluded
+    items,_=asyncio.run(FixtureSources().fetch('etsy','',4,''))
+    items[0].retailer='Shein'
+    items[1].title="DAZY Women's Bowknot Pleated Mini Skirt"
+    items[2].url='https://us.shein.com/p/123.html'
+    items[3].brand='SHEIN'
+    assert all(excluded(x) for x in items)
+    assert not eligible(items,request_data)
+    clean,_=asyncio.run(FixtureSources().fetch('etsy','',1,''))
+    clean[0].title='Sheinberg vintage wool skirt'  # word boundary: not a match
+    assert not excluded(clean[0])
+
+
+def test_fast_source_is_ranked_while_slow_source_still_fetching(request_data,store):
+    import time
+    events=[]
+    class Sources(FixtureSources):
+        async def fetch(self,source,*args,**kwargs):
+            if source=='depop':
+                await asyncio.sleep(0.3)
+                events.append(('fetched',source,time.monotonic()))
+            return await super().fetch(source,*args)
+    class Model:
+        async def plan(self,request,job_id):
+            return ['skirt']
+        async def rank(self,request,listings,job_id):
+            events.append(('rank',listings[0].source,time.monotonic()))
+            for x in listings:
+                x.score,x.reason=50,'ok'
+            return listings
+    request_data.sources=['etsy','depop']
+    settings=Settings(sourcing_mode='live',apify_token='t',anthropic_api_key='k')
+    ident=store.create(request_data.model_dump())
+    asyncio.run(Pipeline(settings,store,sources=Sources(),model=Model()).run(request_data,ident))
+    rank_etsy=next(t for kind,src,t in events if kind=='rank' and src=='etsy')
+    depop_done=next(t for kind,src,t in events if kind=='fetched')
+    assert rank_etsy < depop_done
+    assert store.get(ident)['ranking_method']=='claude'

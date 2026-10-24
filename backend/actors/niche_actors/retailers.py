@@ -118,7 +118,6 @@ RETAILERS = [
     ('Mango', 'fast_fashion', ['MANGO']),
     ('ASOS', 'fast_fashion', []),
     ('Primark', 'fast_fashion', []),
-    ('Shein', 'fast_fashion', ['SHEIN']),
     ('Fashion Nova', 'fast_fashion', []),
     ('Forever 21', 'fast_fashion', []),
     ('Princess Polly', 'fast_fashion', []),
