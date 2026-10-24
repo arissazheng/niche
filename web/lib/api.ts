@@ -50,7 +50,7 @@ export const api = {
   search: (
     id: string,
     query: string,
-    options: { sources?: Source[]; maxItemPrice?: number | null; size?: string | null; mustHave?: string[] | null; category?: string | null } = {},
+    options: { sources?: Source[]; maxItemPrice?: number | null; size?: string | null; mustHave?: string[] | null; category?: string | null; brands?: string[] | null } = {},
   ) =>
     request<{ search_id: string; status_url: string }>(`/v1/taste/profiles/${id}/searches`, {
       method: "POST",
@@ -61,6 +61,7 @@ export const api = {
         ...(options.size && { size: options.size }),
         ...(options.mustHave?.length && { must_have: options.mustHave }),
         ...(options.category && { category: options.category }),
+        ...(options.brands?.length && { brands: options.brands }),
       }),
     }),
   chat: (id: string, messages: ChatTurn[], searchId?: string | null, useBudget = false) =>

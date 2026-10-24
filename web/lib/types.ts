@@ -9,12 +9,12 @@ export type ImageKind = "outfit" | "item" | "own";
 export type Source = "mainstream" | "secondhand" | "indie" | "etsy" | "depop" | "poshmark" | "grailed";
 export type Tier =
   | "department" | "mainstream" | "athletic" | "outdoor" | "premium" | "luxury"
-  | "fast_fashion" | "off_price" | "big_box" | "marketplace" | "resale" | "small_shop";
+  | "fast_fashion" | "off_price" | "big_box" | "marketplace" | "resale" | "small_shop" | "brand";
 
 export const TIER_LABELS: Record<Tier, string> = {
   department: "Department store", mainstream: "Mainstream", athletic: "Athletic", outdoor: "Outdoor",
   premium: "Premium", luxury: "Luxury", fast_fashion: "Fast fashion", off_price: "Off-price",
-  big_box: "Big box", marketplace: "Marketplace", resale: "Secondhand", small_shop: "Small shop",
+  big_box: "Big box", marketplace: "Marketplace", resale: "Secondhand", small_shop: "Small shop", brand: "Brand store",
 };
 
 /** Optional body measurements, any or none (backend/taste/models.py Measurements). */
@@ -227,6 +227,7 @@ export interface ChatTurn {
   proposed_size?: string | null;
   proposed_must_have?: string[] | null; // visible features the offered search needs (asymmetric, button-front…)
   proposed_category?: string | null;
+  proposed_brands?: string[] | null;
   linked?: LinkedPage[]; // product links the agent read from the user's message
 }
 
@@ -254,6 +255,7 @@ export interface AgentReply {
   size?: string | null; // the user's profile size for this garment unless they named one
   must_have?: string[];
   category?: string;
+  brands?: string[];
   linked?: LinkedPage[];
   budget?: Omit<Budget, "linked"> | null;
   search_id?: string;

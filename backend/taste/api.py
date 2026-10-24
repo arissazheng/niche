@@ -183,7 +183,7 @@ def create_router(settings, store: Store, budgets: Budgets | None = None, signer
             request=ShoppingRequest(query=search.query, max_item_price=search.max_item_price or ob.budget_max,
                 currency=ob.currency, size=search.size, length=search.length, measurements=inches(ob.measurements),
                 shoe_size_system=search.shoe_size_system, size_note=search.size_note,
-                must_have=clean_features(search.must_have),
+                must_have=clean_features(search.must_have), brands=[b.strip()[:40] for b in search.brands if b.strip()][:3],
                 category=search.category if search.category not in (None, 'other') else guess_category(search.query)))
 
     def start_search(profile, search: ProfileSearch):
@@ -266,12 +266,14 @@ def create_router(settings, store: Store, budgets: Budgets | None = None, signer
                 price = min(profile.onboarding.budget_max, steer.remaining)
             out['max_item_price'] = price
             out['must_have'] = clean_features(turn.must_have)
+            out['brands'] = [b.strip()[:40] for b in turn.brands if b.strip()][:3]
         if turn.action == 'search':
             out.update(start_search(profile, ProfileSearch(query=turn.brief, max_item_price=out['max_item_price'],
                                                            size=out['size'], length=out['length'],
                                                            shoe_size_system=out['shoe_size_system'],
                                                            size_note=out['size_note'],
-                                                           must_have=out['must_have'], category=out['category'])))
+                                                           must_have=out['must_have'], category=out['category'],
+                                                           brands=out['brands'])))
         return out
 
     return router

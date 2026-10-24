@@ -18,6 +18,7 @@ TIERS = {
     'marketplace': 'Marketplace',
     'resale': 'Secondhand',
     'small_shop': 'Small shop',
+    'brand': 'Brand store',
 }
 
 # (display name, tier, other names Google Shopping may use)

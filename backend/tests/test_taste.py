@@ -264,7 +264,7 @@ def test_shop_agent_live_uses_claude_and_conversation(tmp_path):
         async def call(self, system, content, job_id, stage, max_tokens, schema=None, effort=None):
             seen.update(stage=stage, effort=effort, content=content)
             return {'reply': 'Searching relaxed ones now.', 'action': 'search',
-                    'brief': 'asymmetrical buttoned top, relaxed casual style', 'max_item_price': None, 'size': None, 'must_have': ['asymmetric', 'button-front'], 'category': 'top'}
+                    'brief': 'asymmetrical buttoned top, relaxed casual style', 'max_item_price': None, 'size': None, 'must_have': ['asymmetric', 'button-front'], 'brands': [], 'category': 'top'}
 
     from taste.models import Profile
     agent = ShopAgent(Settings(taste_mode='live', anthropic_api_key='k'), FakeModel())
@@ -291,7 +291,7 @@ def test_chat_sees_numbered_results_of_own_search_only(client, monkeypatch):
 
     async def fake_respond(self, profile, messages, budget=None, results=None, linked=None):
         seen.append(results)
-        return chat_module.AgentTurn(reply='ok', action='reply', brief='', max_item_price=None, size=None, must_have=[], category='other')
+        return chat_module.AgentTurn(reply='ok', action='reply', brief='', max_item_price=None, size=None, must_have=[], brands=[], category='other')
     monkeypatch.setattr(chat_module.ShopAgent, 'respond', fake_respond)
     pid = client.post('/v1/taste/profiles', json={'data_consent': True}).json()['profile']['id']
     client.post(f'/v1/taste/profiles/{pid}/images', files={'file': ('a.png', png((20, 20, 20)))})

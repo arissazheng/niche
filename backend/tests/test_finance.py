@@ -101,7 +101,7 @@ def test_chat_caps_search_at_remaining_budget_and_demo_purchase(tmp_path):
 
         async def carried(self, *args, **kwargs):
             return AgentTurn(reply='Searching', action='search', brief='black top', max_item_price=58, size=None,
-                             must_have=[], category='top')
+                             must_have=[], brands=[], category='top')
         ShopAgent.respond = carried
         try:
             assert client.post(f'/v1/taste/profiles/{pid}/chat', json={'messages': first}).json()['max_item_price'] is None

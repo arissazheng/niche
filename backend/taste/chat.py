@@ -42,7 +42,8 @@ Skirts count as category dress (dresses & skirts share a size). Their size chart
 
 If no bank snapshot is provided, the user has "Keep to budget" off: never cap a search at, or mention, their monthly
 budget or what is left of it, even if earlier replies in the conversation did; use only a price they name.
-Keep brands and regional styles the user names in the brief ("like Lewkin", "Korean", "Japanese"); never swap
+Set brands to the brands the user names in this request ("like Lewkin" -> ["Lewkin"]); empty otherwise. Keep brands
+and regional styles the user names in the brief ("like Lewkin", "Korean", "Japanese"); never swap
 "Asian" for something vaguer, and prefer the specific country when they give one.
 If a bank snapshot is provided (the user's own account, shared with Niche), keep them inside their monthly clothing
 budget: unless the user names a price, set max_item_price to what is left this month, and say so in a few words
@@ -90,6 +91,7 @@ class ChatTurn(BaseModel):
     proposed_size: str | None = Field(default=None, max_length=30)
     proposed_must_have: list[str] | None = Field(default=None, max_length=8)
     proposed_category: str | None = Field(default=None, max_length=20)
+    proposed_brands: list[str] | None = Field(default=None, max_length=3)
     linked: list[LinkedPage] | None = Field(default=None, max_length=2)
 
 
@@ -108,6 +110,7 @@ class AgentTurn(BaseModel):
     max_item_price: float | None
     size: str | None
     must_have: list[Literal[tuple(FEATURES)]]  # type: ignore[valid-type]
+    brands: list[str]  # brands the user named and wants ("like Lewkin"), not ones from their taste profile
     category: Literal['top', 'bottom', 'outerwear', 'dress', 'shoes', 'bra', 'accessory', 'other']
 
 
@@ -135,21 +138,22 @@ class ShopAgent:
             if proposal and YES.match(messages[-1].text):
                 return AgentTurn(reply='Searching now.', action='search', brief=proposal.proposed,
                                  max_item_price=proposal.proposed_price, size=proposal.proposed_size,
-                                 must_have=proposal.proposed_must_have or [], category='other')
+                                 must_have=proposal.proposed_must_have or [], brands=proposal.proposed_brands or [],
+                                 category='other')
             if linked:
                 readable = [item for item in linked if item.readable and item.title]
                 if not readable:
                     return AgentTurn(reply="I couldn't open that link. Could you describe the piece or upload a screenshot?",
-                                     action='reply', brief='', max_item_price=None, size=None, must_have=[], category='other')
+                                     action='reply', brief='', max_item_price=None, size=None, must_have=[], brands=[], category='other')
                 brief = '; '.join(f'similar to {item.title}' for item in readable)[:500]
                 return AgentTurn(reply=f'Would you like me to search for pieces {brief}?', action='propose',
-                                 brief=brief, max_item_price=None, size=None, must_have=[], category='other')
+                                 brief=brief, max_item_price=None, size=None, must_have=[], brands=[], category='other')
             brief = '; '.join(m.text for m in messages if m.role == 'user' and not YES.match(m.text))[-500:]
             if messages[-1].text.rstrip().endswith('?'):
                 return AgentTurn(reply=f'Would you like me to search for: {brief}', action='propose', brief=brief,
-                                 max_item_price=None, size=None, must_have=[], category='other')
+                                 max_item_price=None, size=None, must_have=[], brands=[], category='other')
             return AgentTurn(reply=f'Searching for: {brief}.', action='search', brief=brief,
-                             max_item_price=None, size=None, must_have=[], category='other')
+                             max_item_price=None, size=None, must_have=[], brands=[], category='other')
         content = json.dumps({
             'taste_profile': (profile.prompt or profile.summary)[:1500],
             'profile_sizes': summary(profile.onboarding.sizing),

@@ -40,3 +40,12 @@ def test_identical_listings_collapse_to_one_with_a_warning():
     shown = flag(diversify(belts + [item('coat', 90)], 20))
     assert [x.id for x in shown] == ['b0', 'coat']
     assert 'appears 6 times' in shown[0].risks[0] and shown[1].risks == []
+
+
+def test_named_brand_store_is_kept_even_off_the_retailer_list():
+    from actors.niche_actors import normalize
+    row = {'store_name': 'lewkin', 'product_id': '1', 'product_title': 'Faux Leather Twist Belt',
+           'product_page_url': 'https://lewkin.com/p/1', 'price': '$10.40'}
+    assert normalize.google_shopping(row) is None  # not a store we know
+    kept = normalize.google_shopping(row, brands=['Lewkin'])
+    assert kept['retailer'] == 'lewkin' and kept['tier'] == 'brand'

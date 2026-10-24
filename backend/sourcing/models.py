@@ -31,6 +31,7 @@ class ShoppingRequest(StrictModel):
     measurements: dict[str, float] = Field(default_factory=dict)
     # Visible features the request can't do without (sourcing/features.py), e.g. asymmetric + button-front.
     must_have: list[str] = Field(default_factory=list, max_length=8)
+    brands: list[str] = Field(default_factory=list, max_length=3)  # brands the shopper named ("like Lewkin")
     # What kind of item this is (top, dress, outerwear...), from the chat agent; decides which pre-loaded listings fit.
     category: str | None = Field(default=None, max_length=20)
     ship_to_country: str = Field(default='US', pattern=r'^[A-Z]{2}$')

@@ -111,7 +111,7 @@ class ApifySources:
     def __init__(self, settings, store):
         self.settings, self.store = settings, store
 
-    def actor_input(self, source, query, limit, max_price=None):
+    def actor_input(self, source, query, limit, max_price=None, brands=()):
         if source in NICHE:
             queries = query if isinstance(query, list) else [query]
             if source == 'mainstream':
@@ -121,7 +121,8 @@ class ApifySources:
                 actor, per_query = self.settings.indie_actor, max(5, limit // len(queries))
             else:
                 actor, per_query = self.settings.secondhand_actor, max(5, limit // len(queries))
-            return actor, {'queries': queries, 'itemsPerQuery': per_query, **({'maxPrice': int(max_price)} if max_price else {})}
+            return actor, {'queries': queries, 'itemsPerQuery': per_query, **({'maxPrice': int(max_price)} if max_price else {}),
+                           **({'brands': list(brands)} if brands and source == 'mainstream' else {})}
         if source == 'etsy':
             return self.settings.etsy_actor, {'searchTerms': [query], 'maxItems': max(10,limit), 'maxRunSeconds': max(5,self.settings.actor_timeout_seconds-10)}
         if source == 'grailed':
@@ -130,18 +131,18 @@ class ApifySources:
             availableOnly=True, includeSellerProfile=False, includeSellerListings=False, maxItems=limit,
             autoEscalateOnBlock=False)
 
-    async def fetch(self, source, query, limit, job_id, max_price=None):
+    async def fetch(self, source, query, limit, job_id, max_price=None, brands=()):
         listings, status = [], None
-        async for batch, status in self.stream(source, query, limit, job_id, max_price):
+        async for batch, status in self.stream(source, query, limit, job_id, max_price, brands):
             listings.extend(batch)
         return listings, status
 
-    async def stream(self, source, query, limit, job_id, max_price=None):
+    async def stream(self, source, query, limit, job_id, max_price=None, brands=()):
         """Yields (listings, status) as rows land; the last status is final.
 
         Niche actors push each marketplace's rows as soon as it finishes, so their dataset is read during the run:
         Depop, Poshmark and Vinted show up while Etsy is still scraping. Other actors are read once, at the end."""
-        actor, payload = self.actor_input(source, query, limit, max_price)
+        actor, payload = self.actor_input(source, query, limit, max_price, brands)
         key = hashlib.sha256(json.dumps([actor,payload],sort_keys=True).encode()).hexdigest()
         cached = self.store.cached(key)
         if cached:

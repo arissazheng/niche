@@ -4,6 +4,7 @@ Every function returns a dict or None. None means the row is unusable (no https 
 never a guess. Field names match backend/sourcing/models.py Listing so the backend can validate rows as-is.
 """
 import hashlib
+import re
 from urllib.parse import urlsplit, urlunsplit
 
 from . import retailers
@@ -54,6 +55,10 @@ def listing(marketplace, ident, *, title, url, price, currency, retailer, tier, 
     }
 
 
+def squash(text):
+    return re.sub(r'[^a-z0-9]', '', str(text or '').lower())
+
+
 def stars(value):
     value = money(value)
     return value if value is not None and value <= 5 else None
@@ -64,13 +69,15 @@ def count(value):
     return int(value) if value is not None else None
 
 
-def google_shopping(row, include_unlisted=False):
-    """burbn/google-shopping-scraper. Keeps only stores in the retailer bank unless include_unlisted."""
+def google_shopping(row, include_unlisted=False, brands=()):
+    """burbn/google-shopping-scraper. Keeps only stores in the retailer bank unless include_unlisted, plus a brand's own
+    store when the shopper named that brand ("like Lewkin" keeps lewkin's listings)."""
     store = row.get('store_name')
     known = retailers.lookup(store)
-    if not known and not include_unlisted:
+    asked = any(b and b in squash(store) for b in map(squash, brands))
+    if not known and not include_unlisted and not asked:
         return None
-    name, tier = known or (store, 'small_shop')
+    name, tier = known or (store, 'brand' if asked else 'small_shop')
     photos = row.get('product_photos') or []
     return listing('google_shopping', row.get('product_id'), title=row.get('product_title'),
         url=https_url(row.get('product_page_url')), price=money(row.get('price')), currency='USD',

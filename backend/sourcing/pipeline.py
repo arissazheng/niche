@@ -209,11 +209,12 @@ class Pipeline:
             sources = [s for s in sources if s != 'secondhand']
         async def batches(source, query):
             args = (source,query,request.candidates_per_source,job_id,request.request.max_item_price)
+            named = {'brands': request.request.brands} if request.request.brands else {}  # older test doubles lack it
             if hasattr(self.sources,'stream'):
-                async for batch in self.sources.stream(*args):
+                async for batch in self.sources.stream(*args, **named):
                     yield batch
             else:
-                yield await self.sources.fetch(*args)
+                yield await self.sources.fetch(*args, **named)
 
         # Each batch is filtered, shortlisted and ranked as soon as it arrives, so Claude ranks the fast
         # sources (and the fast marketplaces inside the secondhand actor) while the slow ones are still scraping.

@@ -149,6 +149,7 @@ export default function ShopPage() {
         agentTurn.proposed_size = reply.size ?? null;
         agentTurn.proposed_must_have = reply.must_have?.length ? reply.must_have : null;
         agentTurn.proposed_category = reply.category ?? null;
+        agentTurn.proposed_brands = reply.brands?.length ? reply.brands : null;
       }
       const withReply: ChatTurn[] = [...next, agentTurn];
       setMessages(withReply);
@@ -181,6 +182,7 @@ export default function ShopPage() {
         size: proposal.proposed_size,
         mustHave: proposal.proposed_must_have,
         category: proposal.proposed_category,
+        brands: proposal.proposed_brands,
       });
       saveThread(profileId, { messages: next, searchId: search_id });
       follow(search_id);
