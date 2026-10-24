@@ -1,15 +1,18 @@
 import type { Metadata } from "next";
-import { Cedarville_Cursive, Cormorant_Garamond, Inter_Tight, Reenie_Beanie } from "next/font/google";
+// Fonts are bundled from npm (@fontsource) rather than fetched from Google Fonts on every dev compile,
+// which stalls page loads for minutes on slow networks.
+import "@fontsource/inter-tight/400.css";
+import "@fontsource/inter-tight/500.css";
+import "@fontsource/cormorant-garamond/400.css";
+import "@fontsource/cormorant-garamond/400-italic.css";
+import "@fontsource/cormorant-garamond/500.css";
+import "@fontsource/cormorant-garamond/500-italic.css";
+import "@fontsource/cedarville-cursive/400.css";
+import "@fontsource/reenie-beanie/400.css";
 import { SiteFooter, SiteHeader } from "@/components/chrome";
 import { LiveProvider } from "@/components/live-provider";
 import { APP_NAME } from "@/lib/session";
 import "./globals.css";
-
-const grotesk = Inter_Tight({ variable: "--font-grotesk", subsets: ["latin"] });
-// Moodboard book only: serif for vellum notes, script for headings, handwriting for labels.
-const serif = Cormorant_Garamond({ variable: "--font-book-serif", subsets: ["latin"], weight: ["400", "500"], style: ["normal", "italic"] });
-const script = Cedarville_Cursive({ variable: "--font-book-script", subsets: ["latin"], weight: "400" });
-const hand = Reenie_Beanie({ variable: "--font-book-hand", subsets: ["latin"], weight: "400" });
 
 export const metadata: Metadata = {
   title: APP_NAME,
@@ -20,7 +23,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
   return (
     // Browser extensions inject attributes on <html> before hydration; ignore those (this element only).
     <html lang="en" suppressHydrationWarning>
-      <body className={`${grotesk.variable} ${serif.variable} ${script.variable} ${hand.variable} antialiased min-h-dvh flex flex-col`}>
+      <body className="antialiased min-h-dvh flex flex-col">
         <LiveProvider>
           <SiteHeader />
           <main className="flex-1">{children}</main>

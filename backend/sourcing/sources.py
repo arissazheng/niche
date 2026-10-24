@@ -118,11 +118,23 @@ class ApifySources:
             autoEscalateOnBlock=False)
 
     async def fetch(self, source, query, limit, job_id, max_price=None):
+        listings, status = [], None
+        async for batch, status in self.stream(source, query, limit, job_id, max_price):
+            listings.extend(batch)
+        return listings, status
+
+    async def stream(self, source, query, limit, job_id, max_price=None):
+        """Yields (listings, status) as rows land; the last status is final.
+
+        Niche actors push each marketplace's rows as soon as it finishes, so their dataset is read during the run:
+        Depop, Poshmark and Vinted show up while Etsy is still scraping. Other actors are read once, at the end."""
         actor, payload = self.actor_input(source, query, limit, max_price)
         key = hashlib.sha256(json.dumps([actor,payload],sort_keys=True).encode()).hexdigest()
         cached = self.store.cached(key)
         if cached:
-            return [Listing.model_validate(x) for x in cached], {'status':'cached', 'count':len(cached)}
+            yield [Listing.model_validate(x) for x in cached], {'status':'cached', 'count':len(cached)}
+            return
+        read_limit = limit * (3 if source in NICHE else 1)
         async with httpx.AsyncClient(base_url='https://api.apify.com/v2/',
                 headers={'Authorization':f'Bearer {self.settings.apify_token}'}, timeout=30) as client:
             # Never retry a run-start POST: a lost response could otherwise create duplicate charges.
@@ -131,9 +143,39 @@ class ApifySources:
             response.raise_for_status()
             run = response.json()['data']
             self.store.event(job_id, 'actor_started', {'source':source,'actor':actor,'run_id':run['id']})
+            provenance = {'actor_id':actor,'run_id':run['id'],'dataset_id':run['defaultDatasetId']}
+            listings, received, dropped = [], 0, 0
+
+            async def read_new():
+                nonlocal received, dropped
+                response = await client.get(f'datasets/{run["defaultDatasetId"]}/items',
+                    params={'clean':'true','offset':received,'limit':read_limit-received,'format':'json'})
+                response.raise_for_status()
+                rows = response.json()
+                received += len(rows)
+                batch = []
+                for row in rows:
+                    try:
+                        item = normalize(source,row,provenance)
+                    except (ValueError,TypeError,AttributeError):
+                        item = None
+                    if item:
+                        batch.append(item)
+                    else:
+                        dropped += 1
+                return batch
+
             try:
                 async with asyncio.timeout(self.settings.actor_timeout_seconds + 30):
-                    while run['status'] not in ('SUCCEEDED','FAILED','TIMED-OUT','ABORTED'):
+                    while True:
+                        finished = run['status'] in ('SUCCEEDED','FAILED','TIMED-OUT','ABORTED')
+                        if (finished or source in NICHE) and received < read_limit:
+                            batch = await read_new()
+                            if batch:
+                                listings.extend(batch)
+                                yield batch, dict(status='running',count=len(listings),**provenance)
+                        if finished:
+                            break
                         await asyncio.sleep(2)
                         response = await client.get(f'actor-runs/{run["id"]}')
                         response.raise_for_status()
@@ -143,29 +185,14 @@ class ApifySources:
                     await client.post(f'actor-runs/{run["id"]}/abort')
                 finally:
                     raise
-            if run['status'] != 'SUCCEEDED':
-                raise RuntimeError('Actor finished with ' + run['status'])
-            response = await client.get(f'datasets/{run["defaultDatasetId"]}/items',
-                params={'clean':'true','limit':limit * (3 if source in NICHE else 1),'format':'json'})
-            response.raise_for_status()
-            rows = response.json()
-        provenance = {'actor_id':actor,'run_id':run['id'],'dataset_id':run['defaultDatasetId']}
-        listings = []
-        dropped = 0
-        for row in rows:
-            try:
-                item = normalize(source,row,provenance)
-            except (ValueError,TypeError,AttributeError):
-                item = None
-            if item:
-                listings.append(item)
-            else:
-                dropped += 1
-        if rows and not listings:
+        # A timed-out run keeps what it scraped.
+        if run['status'] not in ('SUCCEEDED', 'TIMED-OUT'):
+            raise RuntimeError('Actor finished with ' + run['status'])
+        if received and not listings:
             raise RuntimeError('Actor output did not contain usable listings; inspect schema')
-        self.store.event(job_id,'source_normalized',dict(source=source,received=len(rows),dropped=dropped,**provenance))
+        self.store.event(job_id,'source_normalized',dict(source=source,received=received,dropped=dropped,**provenance))
         self.store.cache(key,[x.model_dump(mode='json') for x in listings])
-        return listings, dict(status='succeeded',count=len(listings),dropped=dropped,**provenance)
+        yield [], dict(status='succeeded',count=len(listings),dropped=dropped,**provenance)
 
 
 class FixtureSources:

@@ -18,6 +18,7 @@ class Store:
             CREATE TABLE IF NOT EXISTS events (job_id TEXT, at TEXT, kind TEXT, payload TEXT);
             CREATE TABLE IF NOT EXISTS feedback (job_id TEXT, at TEXT, payload TEXT);
             CREATE TABLE IF NOT EXISTS cache (key TEXT PRIMARY KEY, expires REAL, payload TEXT);
+            CREATE TABLE IF NOT EXISTS prefetch (profile_id TEXT PRIMARY KEY, expires REAL, payload TEXT);
             ''')
 
     def connect(self):
@@ -65,3 +66,14 @@ class Store:
         import time
         with self.connect() as db:
             db.execute('INSERT OR REPLACE INTO cache VALUES (?,?,?)', (key,time.time()+ttl,json.dumps(payload)))
+
+    def save_prefetch(self, profile_id, listings, ttl=6*3600):
+        import time
+        with self.connect() as db:
+            db.execute('INSERT OR REPLACE INTO prefetch VALUES (?,?,?)', (profile_id,time.time()+ttl,json.dumps(listings)))
+
+    def prefetched(self, profile_id):
+        import time
+        with self.connect() as db:
+            row = db.execute('SELECT payload FROM prefetch WHERE profile_id=? AND expires>?', (profile_id,time.time())).fetchone()
+        return json.loads(row[0]) if row else []

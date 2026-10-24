@@ -67,6 +67,12 @@ Feedback is persisted for future evaluation; it does not automatically retrain o
 
 ## Pipeline and tradeoffs
 
+Speed: building a taste profile starts a background warm-up (`sourcing/prefetch.py`) that scrapes and ranks the
+profile's core pieces (about 50 s, one extra search's cost). A later search shows matching warm-up items within a few
+seconds, then adds live results: each secondhand marketplace is ranked as soon as it finishes, with Etsy (the slowest,
+~45 s per page) last. On the free Apify plan (5 runs at once) a search started while the warm-up is still running waits
+for free slots.
+
 1. Claude proposes up to three concrete queries. MVP executes one query per source, rotating variants; it does not exhaustively search every query everywhere.
 2. Marketplace workers run concurrently. Each run has a timeout and spending setting. Run-start POSTs are not retried because a lost response could otherwise create duplicate paid runs.
 3. Normalize, validate marketplace URL, deduplicate IDs/URLs, and apply budget/currency/size/condition/availability rules. Cross-site duplicates are not inferred.

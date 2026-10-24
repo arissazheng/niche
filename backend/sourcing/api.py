@@ -19,17 +19,26 @@ def create_app(settings=None):
     store = Store(settings.database_path)
     pipeline = Pipeline(settings,store)
 
+    async def run(ident, payload):
+        try:
+            await pipeline.run(SearchRequest.model_validate_json(payload),ident)
+        except asyncio.CancelledError:
+            store.update(ident,'interrupted',{'warnings':['Service stopped; submit a new search']})
+            raise
+        except Exception as exc:
+            store.event(ident,'job_failed',{'type':type(exc).__name__})
+            store.update(ident,'failed',{'warnings':['Pipeline failed; see server events']})
+
+    running = set()
+
     async def worker():
+        # Searches run side by side: one person's slow search must not hold up anyone else's.
         while True:
             for ident,payload in store.pending():
-                try:
-                    await pipeline.run(SearchRequest.model_validate_json(payload),ident)
-                except asyncio.CancelledError:
-                    store.update(ident,'interrupted',{'warnings':['Service stopped; submit a new search']})
-                    raise
-                except Exception as exc:
-                    store.event(ident,'job_failed',{'type':type(exc).__name__})
-                    store.update(ident,'failed',{'warnings':['Pipeline failed; see server events']})
+                store.update(ident,'running',{})  # claimed, so the next poll doesn't start it twice
+                task = asyncio.create_task(run(ident,payload))
+                running.add(task)
+                task.add_done_callback(running.discard)
             await asyncio.sleep(.25)
 
     @asynccontextmanager
@@ -37,8 +46,9 @@ def create_app(settings=None):
         store.recover()
         task = asyncio.create_task(worker())
         yield
-        task.cancel()
-        await asyncio.gather(task,return_exceptions=True)
+        for t in (task,*running):
+            t.cancel()
+        await asyncio.gather(task,*running,return_exceptions=True)
 
     app = FastAPI(title='Taste Sourcing API',version='0.1.0',lifespan=lifespan)
     app.add_middleware(CORSMiddleware,allow_origins=settings.cors_origins,

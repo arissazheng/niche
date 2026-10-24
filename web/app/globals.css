@@ -1,12 +1,13 @@
 @import "tailwindcss";
 
 /* Archival / gallery system: white paper, black ink, grey plinths, 1px rules, one typeface. */
-/* inline: next/font defines these variables on <body>, so utilities must reference them directly. */
-@theme inline {
-  --font-sans: var(--font-grotesk), "Helvetica Neue", Helvetica, Arial, sans-serif;
-  --font-serif: var(--font-book-serif), Georgia, serif;
-  --font-script: var(--font-book-script), cursive;
-  --font-hand: var(--font-book-hand), cursive;
+/* Font files come from @fontsource (imported in app/layout.tsx). Moodboard book only: serif for vellum notes,
+   script for headings, handwriting for labels. */
+@theme {
+  --font-sans: "Inter Tight", "Helvetica Neue", Helvetica, Arial, sans-serif;
+  --font-serif: "Cormorant Garamond", Georgia, serif;
+  --font-script: "Cedarville Cursive", cursive;
+  --font-hand: "Reenie Beanie", cursive;
 }
 
 @theme {

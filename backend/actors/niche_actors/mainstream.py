@@ -7,7 +7,7 @@ from .core import collect
 from .platform import run
 
 
-async def handle(data):
+async def handle(data, push=None):
     rows, sources = await collect(['google_shopping'], data.get('queries') or [], data.get('itemsPerQuery', 20),
         data.get('maxPrice'), parse_options={'google_shopping': {'include_unlisted': bool(data.get('includeUnlisted'))}},
         max_concurrent_runs=data.get('maxConcurrentRuns', 2))
