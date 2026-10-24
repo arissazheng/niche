@@ -11,7 +11,7 @@ from .sources import ApifySources
 
 RANKED_PER_SOURCE = 24  # two Claude pages per source
 
-BROAD_QUERY = 'the core wardrobe pieces this taste profile is built around'
+BROAD_QUERY = 'the core wardrobe pieces and accessories this taste profile is built around'
 
 
 class Prefetcher:

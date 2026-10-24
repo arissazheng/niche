@@ -14,6 +14,9 @@ const SIZES: SizeLabel[] = ["XS", "S", "M", "L", "XL", "XXL"];
 // US numbered sizes for pants and skirts, 00 through 40 (misses through plus).
 const NUMBERED = ["00", "0", ...Array.from({ length: 20 }, (_, i) => String((i + 1) * 2))];
 const LENGTHS: [Length, string][] = [["short", "Short (petite)"], ["regular", "Regular"], ["long", "Long (tall)"]];
+// For pants and skirts when someone doesn't know their number.
+const BOTTOM_LETTERS = ["XXS", ...SIZES];
+const SHOE_SYSTEMS: ["womens" | "mens", string][] = [["womens", "Women's"], ["mens", "Men's"]];
 const SHOPS = ["Depop", "Etsy", "Poshmark", "Grailed", "Thrift stores", "Vintage shops", "Local boutiques", "Big retailers"];
 type SizeSlot = "top" | "bottom" | "outerwear";
 
@@ -31,6 +34,8 @@ export default function OnboardPage() {
     usual_shops: [],
   });
   const [busy, setBusy] = useState(false);
+  // Pants and skirts default to numbered sizes; letters are the fallback for people who don't know theirs.
+  const [bottomLetters, setBottomLetters] = useState(false);
   const [error, setError] = useState<string | null>(null);
   // An existing profile is edited in place; creating a new one would detach its photos and moodboard.
   const [existing, setExisting] = useState<{ id: string; built: boolean } | null>(null);
@@ -41,6 +46,7 @@ export default function OnboardPage() {
     api.getProfile(id).then(
       ({ profile }) => {
         setForm(profile.onboarding);
+        setBottomLetters(BOTTOM_LETTERS.includes(profile.onboarding.sizes.bottom ?? ""));
         setExisting({ id, built: profile.version > 0 });
       },
       () => {},
@@ -49,6 +55,8 @@ export default function OnboardPage() {
 
   const setSize = (slot: SizeSlot, size: string) =>
     setForm((f) => ({ ...f, sizes: { ...f.sizes, [slot]: f.sizes[slot] === size ? null : size } }));
+  const setShoeSystem = (system: "womens" | "mens") =>
+    setForm((f) => ({ ...f, sizes: { ...f.sizes, shoe_system: f.sizes.shoe_system === system ? null : system } }));
   const setLength = (length: Length) =>
     setForm((f) => ({ ...f, sizes: { ...f.sizes, bottom_length: f.sizes.bottom_length === length ? null : length } }));
   const toggleShop = (shop: string) =>
@@ -112,54 +120,60 @@ export default function OnboardPage() {
 
         <section>
           <SectionTitle aside="02">Sizes</SectionTitle>
-          {(["top", "bottom", "outerwear"] as SizeSlot[]).map((slot) => (
-            <div key={slot} className="flex flex-wrap items-center gap-2 py-1">
-              <span className="label w-24">{slot === "bottom" ? "Pants & skirts" : slot}</span>
-              {SIZES.map((size) => (
-                <button type="button" key={size} onClick={() => setSize(slot, size)} aria-pressed={form.sizes[slot] === size}>
-                  <HandCircle selected={form.sizes[slot] === size}>{size}</HandCircle>
-                </button>
-              ))}
-              {slot === "bottom" && (
-                <>
-                  <span className="label w-full sm:w-auto sm:pl-4 text-muted">or your number</span>
-                  <div className="flex flex-wrap gap-1 w-full pl-0 sm:pl-24">
-                    {NUMBERED.map((size) => (
-                      <button type="button" key={size} onClick={() => setSize("bottom", size)} aria-pressed={form.sizes.bottom === size}>
-                        <HandCircle selected={form.sizes.bottom === size}>{size}</HandCircle>
-                      </button>
-                    ))}
-                  </div>
-                  <div className="flex flex-wrap items-center gap-2 w-full sm:pl-24">
-                    <span className="label text-muted">Length</span>
-                    {LENGTHS.map(([length, label]) => (
-                      <button type="button" key={length} onClick={() => setLength(length)} aria-pressed={form.sizes.bottom_length === length}>
-                        <HandCircle selected={form.sizes.bottom_length === length}>{label}</HandCircle>
-                      </button>
-                    ))}
-                  </div>
-                </>
-              )}
-            </div>
-          ))}
-          <div className="flex items-center gap-2 py-1">
-            <span className="label w-24">Shoe</span>
+          <SizeRow label="Tops">
+            {SIZES.map((size) => (
+              <Pick key={size} on={form.sizes.top === size} onClick={() => setSize("top", size)}>{size}</Pick>
+            ))}
+          </SizeRow>
+          <SizeRow label="Pants & skirts">
+            {(bottomLetters ? BOTTOM_LETTERS : NUMBERED).map((size) => (
+              <Pick key={size} on={form.sizes.bottom === size} onClick={() => setSize("bottom", size)}>{size}</Pick>
+            ))}
+            <button
+              type="button"
+              onClick={() => {
+                setBottomLetters(!bottomLetters);
+                setForm((f) => ({ ...f, sizes: { ...f.sizes, bottom: null } }));
+              }}
+              className="text-sm text-muted underline underline-offset-2 hover:text-ink basis-full text-left mt-1"
+            >
+              {bottomLetters ? "Use my numbered size instead" : "I don't know my numerical size"}
+            </button>
+          </SizeRow>
+          <SizeRow label="Length (optional)">
+            {LENGTHS.map(([length, label]) => (
+              <Pick key={length} on={form.sizes.bottom_length === length} onClick={() => setLength(length)}>{label}</Pick>
+            ))}
+          </SizeRow>
+          <SizeRow label="Outerwear">
+            {SIZES.map((size) => (
+              <Pick key={size} on={form.sizes.outerwear === size} onClick={() => setSize("outerwear", size)}>{size}</Pick>
+            ))}
+          </SizeRow>
+          <SizeRow label="Shoes">
+            {SHOE_SYSTEMS.map(([system, label]) => (
+              <Pick key={system} on={form.sizes.shoe_system === system} onClick={() => setShoeSystem(system)}>{label}</Pick>
+            ))}
             <input
-              className="input w-20"
+              className="input w-20 ml-2"
+              inputMode="decimal"
+              placeholder="8.5"
+              aria-label="Shoe size"
               value={form.sizes.shoe ?? ""}
               onChange={(e) => setForm({ ...form, sizes: { ...form.sizes, shoe: e.target.value || null } })}
             />
-          </div>
+          </SizeRow>
           <MeasurementsPanel
             key={existing?.id ?? "new"} // remount once a saved profile loads, to show its measurements
             value={form.measurements ?? { unit: "in" }}
             onChange={(measurements) => setForm((f) => ({ ...f, measurements }))}
-            onUseSizes={(suggested) =>
+            onUseSizes={(suggested) => {
+              if (suggested.bottom) setBottomLetters(false); // measurements always give a numbered size
               setForm((f) => ({
                 ...f,
                 sizes: { ...f.sizes, ...Object.fromEntries(Object.entries(suggested).filter(([, v]) => v != null)) },
-              }))
-            }
+              }));
+            }}
           />
         </section>
 
@@ -206,5 +220,22 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
       <span className="label">{label}</span>
       {children}
     </label>
+  );
+}
+
+function SizeRow({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div className="flex flex-col sm:flex-row sm:items-start gap-1 sm:gap-2 py-1.5">
+      <span className="label sm:w-36 shrink-0 pt-1.5">{label}</span>
+      <div className="flex flex-wrap items-center gap-x-1 gap-y-0.5">{children}</div>
+    </div>
+  );
+}
+
+function Pick({ on, onClick, children }: { on: boolean; onClick: () => void; children: React.ReactNode }) {
+  return (
+    <button type="button" onClick={onClick} aria-pressed={on}>
+      <HandCircle selected={on}>{children}</HandCircle>
+    </button>
   );
 }

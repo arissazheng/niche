@@ -35,6 +35,7 @@ export interface Sizes {
   bottom_length?: Length | null;
   outerwear: SizeLabel | null;
   shoe: string | null;
+  shoe_system?: "womens" | "mens" | null;
 }
 
 export interface Onboarding {

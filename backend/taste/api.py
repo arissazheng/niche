@@ -148,7 +148,8 @@ def create_router(settings, store: Store, budgets: Budgets | None = None):
         return SearchRequest(taste_profile=profile.to_sourcing(), sources=search.sources, limit=search.limit,
             profile_id=profile.id,
             request=ShoppingRequest(query=search.query, max_item_price=search.max_item_price or ob.budget_max,
-                currency=ob.currency, size=search.size, length=search.length, measurements=inches(ob.measurements)))
+                currency=ob.currency, size=search.size, length=search.length, measurements=inches(ob.measurements),
+                shoe_size_system=search.shoe_size_system))
 
     def start_search(profile, search: ProfileSearch):
         job = store.create(search_request(profile, search).model_dump(mode='json'))
@@ -197,6 +198,7 @@ def create_router(settings, store: Store, budgets: Budgets | None = None):
             ob = profile.onboarding
             out['length'] = effective_sizes(ob.sizes, ob.measurements).bottom_length if category == 'bottom' else None
             out['category'] = category
+            out['shoe_size_system'] = ob.sizes.shoe_system if category == 'shoes' and out['size'] else None
             price = turn.max_item_price
             if price is None and budget and budget.remaining >= 1:
                 # The agent should set a cap itself; if it didn't, keep the search inside what's left this month.
@@ -204,7 +206,8 @@ def create_router(settings, store: Store, budgets: Budgets | None = None):
             out['max_item_price'] = price
         if turn.action == 'search':
             out.update(start_search(profile, ProfileSearch(query=turn.brief, max_item_price=out['max_item_price'],
-                                                           size=out['size'], length=out['length'])))
+                                                           size=out['size'], length=out['length'],
+                                                           shoe_size_system=out['shoe_size_system'])))
         return out
 
     return router

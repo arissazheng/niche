@@ -21,12 +21,13 @@ class Sizes(StrictModel):
     bottom_length: Length | None = None
     outerwear: SizeLabel | None = None
     shoe: str | None = Field(default=None, max_length=10)
+    shoe_system: Literal['womens', 'mens'] | None = None
 
     @field_validator('bottom')
     @classmethod
     def letter_or_number(cls, size):
-        if size is not None and size not in ('XS', 'S', 'M', 'L', 'XL', 'XXL', *NUMBERED_SIZES):
-            raise ValueError('bottom size must be XS-XXL or a numbered size from 00 to 40')
+        if size is not None and size not in ('XXS', 'XS', 'S', 'M', 'L', 'XL', 'XXL', *NUMBERED_SIZES):
+            raise ValueError('bottom size must be a numbered size from 00 to 40, or XXS-XXL')
         return size
 
 
@@ -160,6 +161,7 @@ class ProfileSearch(StrictModel):
     max_item_price: float | None = Field(default=None, gt=0, le=100000)
     size: str | None = Field(default=None, max_length=30)
     length: Length | None = None
+    shoe_size_system: Literal['womens', 'mens'] | None = None
     sources: list[Literal['mainstream', 'secondhand', 'etsy', 'depop', 'poshmark', 'grailed']] = ['mainstream', 'secondhand']
     limit: int = Field(default=20, ge=1, le=24)
 
