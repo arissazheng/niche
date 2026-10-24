@@ -149,9 +149,6 @@ export default function LookbookPage() {
           <button onClick={build} disabled={importing || uploading > 0} className="rule-t rule-b text-display py-2 w-full disabled:text-muted">
             {importing ? "Waiting for your import…" : profile.version ? "Rebuild my taste profile" : "Build my taste profile"}
           </button>
-          {profile.version > 0 && (
-            <Link href="/taste" className="label underline block text-right mt-2">Open your moodboard →</Link>
-          )}
         </section>
       )}
 
