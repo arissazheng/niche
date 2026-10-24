@@ -516,6 +516,14 @@ function ListingDetail({
         <p className="text-display">{listing.title}</p>
         <p className="text-display">{storeLabel(listing)}</p>
       </div>
+      {!!listing.risks?.length && (
+        <div role="alert" className="border-2 border-ink p-3 grid gap-1">
+          <span className="label">⚠ Before you buy</span>
+          {listing.risks.map((risk) => (
+            <p key={risk} className="text-sm">{risk}</p>
+          ))}
+        </div>
+      )}
       <div className="grid gap-1">
         <span className="label">Why this matches</span>
         <p className="text-sm">{listing.reason}</p>

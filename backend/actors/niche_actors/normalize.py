@@ -37,7 +37,8 @@ def money(value):
 
 
 def listing(marketplace, ident, *, title, url, price, currency, retailer, tier, image_urls=(), sizes=(),
-            condition=None, brand=None, seller=None, available=None, is_ad=None, shipping_cost=None, description=''):
+            condition=None, brand=None, seller=None, available=None, is_ad=None, shipping_cost=None, description='',
+            seller_rating=None, seller_reviews=None):
     if not (url and title and price is not None and isinstance(currency, str) and len(currency) == 3):
         return None
     if ident is None:
@@ -48,7 +49,19 @@ def listing(marketplace, ident, *, title, url, price, currency, retailer, tier, 
         'image_urls': [x for x in map(https_url, image_urls) if x][:4], 'sizes': [str(x) for x in sizes if x],
         'condition': condition, 'brand': brand or None, 'seller': seller or None, 'available': available,
         'is_ad': is_ad, 'shipping_cost': shipping_cost, 'description': str(description or '')[:2500],
+        # Seller's average review (0-5) and review count, where the marketplace gives them (Etsy shops; Depop sometimes).
+        'seller_rating': stars(seller_rating), 'seller_reviews': count(seller_reviews),
     }
+
+
+def stars(value):
+    value = money(value)
+    return value if value is not None and value <= 5 else None
+
+
+def count(value):
+    value = money(value)
+    return int(value) if value is not None else None
 
 
 def google_shopping(row, include_unlisted=False):
@@ -75,7 +88,8 @@ def depop(row):
         retailer='Depop', tier='resale', image_urls=row.get('pictures') or [row.get('mainPicture')], sizes=sizes,
         condition=row.get('conditionName'), brand=row.get('brandName'), seller=row.get('sellerUsername'),
         available=True, is_ad=bool(row.get('isBoosted')), shipping_cost=money(row.get('shippingCost')),
-        description=row.get('description'))
+        description=row.get('description'), seller_rating=row.get('sellerReviewsRating'),
+        seller_reviews=row.get('sellerReviewsTotal'))
 
 
 def poshmark(row):
@@ -105,7 +119,8 @@ def etsy(row):
     """one_dollar_store/etsy-listings-scraper."""
     return listing('etsy', row.get('listingId'), title=row.get('title'), url=https_url(row.get('url'), DOMAINS['etsy']),
         price=money(row.get('price')), currency=row.get('currency'), retailer='Etsy', tier='small_shop',
-        image_urls=[row.get('imageUrl')], seller=row.get('shopName'), is_ad=row.get('isAd'))
+        image_urls=[row.get('imageUrl')], seller=row.get('shopName'), is_ad=row.get('isAd'),
+        seller_rating=row.get('shopRating'), seller_reviews=row.get('shopReviewCount'))
 
 
 def grailed(row):

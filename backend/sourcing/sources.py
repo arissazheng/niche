@@ -46,7 +46,18 @@ def normalize_niche(source, row, provenance):
         sizes=[str(x) for x in row.get('sizes') or []], condition=row.get('condition'), available=row.get('available'),
         is_ad=row.get('is_ad'), seller=row.get('seller'), shipping_cost=row.get('shipping_cost'),
         marketplace=row.get('marketplace'), retailer=row.get('retailer'), tier=row.get('tier'), brand=row.get('brand'),
+        seller_rating=number(row.get('seller_rating'), 5), seller_reviews=number(row.get('seller_reviews')),
         scraped_at=now(), provenance=provenance)
+
+
+def number(value, most=None):
+    try:
+        value = float(value)
+    except (TypeError, ValueError):
+        return None
+    if value < 0 or (most is not None and value > most):
+        return None
+    return value if most is not None else int(value)
 
 
 def normalize(source, row, provenance):

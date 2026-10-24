@@ -22,6 +22,12 @@ const STEPS = [
   ["Variety", "At most two pieces from the same seller, and when both have good matches, at least a quarter of results each from stores and from secondhand and small shops. Stores and brands you said you like can add up to 10 of 100 points, and only to something that already fits."],
 ];
 
+const SCAM_CHECKS = [
+  "Priced far below the other results for the same search",
+  "The listing asks you to pay outside the marketplace (Venmo, Zelle, \u201cDM to buy\u201d), which loses buyer and card protection",
+  "The seller has no reviews yet, or a rating under 4 out of 5 (where the marketplace shares ratings: Etsy shops, sometimes Depop)",
+];
+
 const CANT_CHECK = [
   "Sizes and condition come from the seller's own listing.",
   "Prices don't include shipping or tax, and we don't verify shipping to you.",
@@ -76,6 +82,16 @@ export default function HowItWorks() {
           ))}
         </ul>
         <p className="text-sm mt-3 text-muted">These show up as caveats on each result, under &ldquo;Why this matches&rdquo;.</p>
+        <p className="label mt-6 mb-2">What we warn you about</p>
+        <ul className="grid gap-1 text-sm">
+          {SCAM_CHECKS.map((line) => (
+            <li key={line}>— {line}</li>
+          ))}
+        </ul>
+        <p className="text-sm mt-3 text-muted">
+          Shown as &ldquo;Before you buy&rdquo; when you open a listing. A warning isn&apos;t proof of a scam, and no
+          warning isn&apos;t a guarantee.
+        </p>
       </section>
 
       <section id="data">

@@ -131,6 +131,10 @@ export interface Listing {
   condition: string | null;
   sizes: string[];
   warnings: string[];
+  /** Scam / buyer-protection warnings (low price for the search, off-platform payment, poorly reviewed seller). */
+  risks?: string[];
+  seller_rating?: number | null;
+  seller_reviews?: number | null;
   score: number | null;
   reason: string;
   is_fixture: boolean;

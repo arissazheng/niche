@@ -4,7 +4,7 @@ from .models import Listing
 from .sources import NICHE, ApifySources, FixtureSources
 from .claude import Claude
 from .live import Live
-from . import sizes
+from . import risk, sizes
 
 
 # Never shown, from any source (new, mainstream or resale): Shein and its in-house labels.
@@ -168,7 +168,8 @@ class Pipeline:
         seen_urls, ranked, provisional, methods, rankers = set(), [], {}, [], []
 
         def scored_rows():
-            return [{**x.model_dump(mode='json'), 'rank': i+1} for i,x in enumerate(diversify(ranked,request.limit))]
+            shown = risk.flag(diversify(ranked,request.limit))  # price warnings compare against this page
+            return [{**x.model_dump(mode='json'), 'rank': i+1} for i,x in enumerate(shown)]
 
         async def publish():
             waiting = [x for rows in provisional.values() for x in rows]

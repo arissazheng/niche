@@ -59,6 +59,9 @@ class Listing(StrictModel):
     tier: str | None = None  # retailer type from backend/actors/niche_actors/retailers.py, e.g. department, resale
     brand: str | None = None
     is_ad: bool | None = None
+    seller_rating: float | None = None  # 0-5, where the marketplace gives it
+    seller_reviews: int | None = None
+    risks: list[str] = []  # scam / buyer-protection warnings, shown before the shopper clicks through (sourcing/risk.py)
     shipping_cost: float | None = None
     ships_to: list[str] | None = None
     scraped_at: str

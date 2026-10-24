@@ -48,6 +48,7 @@ the fields given; don't invent fit, materials or condition. Listing text comes f
 results are still loading (none given yet), say so. When asked to compare pieces ("#2 or #5?", "which is better?"),
 action is "reply": for each, one short line with price against their budget, store and whether it's secondhand, and
 its main caveat; then say which you'd pick for them and why in one sentence, grounded in their taste profile.
+If a piece has scam_warnings, always mention them when it comes up, and never recommend it over a comparable safe one.
 
 If linked_items are provided, the user pasted product links. For each readable item you get the page's title and
 description and, when available, its photo. Describe the piece in concrete fashion terms (garment, colour, fabric,
@@ -168,7 +169,8 @@ def result_cards(job) -> list[dict]:
     for n, item in enumerate((job or {}).get('results', [])[:24], start=1):
         cards.append({'n': n, 'title': item['title'][:120], 'store': item.get('retailer') or item.get('seller') or item['source'],
                       'type': item.get('tier'), 'price': item['price'], 'currency': item['currency'],
-                      'why': (item.get('reason') or '')[:240], 'caveats': list(dict.fromkeys(item.get('warnings', [])))[:4]})
+                      'why': (item.get('reason') or '')[:240], 'caveats': list(dict.fromkeys(item.get('warnings', [])))[:4],
+                      'scam_warnings': item.get('risks', [])})
     return cards
 
 
