@@ -43,8 +43,9 @@ SCRAPERS = {
     'vinted': Scraper('epicscrapers/vinted-search-scraper',
         lambda q, n, p: [{'keywords': q, 'country': 'us', 'maxProducts': n, **price_cap(p)}],
         normalize.vinted),
+    # Etsy is the slowest marketplace (25-50 s): it starts first and stops at 25 s, keeping what it has.
     'etsy': Scraper('one_dollar_store/etsy-listings-scraper',
-        lambda q, n, p: [{'searchTerms': q, 'maxItems': max(10, 2 * n * len(q)), 'maxRunSeconds': 60,
+        lambda q, n, p: [{'searchTerms': q, 'maxItems': max(10, 2 * n * len(q)), 'maxRunSeconds': 25,
                           **price_cap(p)}],
         normalize.etsy, overfetch=2),
     # $0.20 per run start fee: opt-in only.
@@ -102,13 +103,19 @@ async def finish_run(http, scraper: Scraper, run, limit, timeout):
     return response.json()
 
 
+# Started first so the slow ones overlap the fast ones instead of queueing behind them.
+SLOWEST_FIRST = ['etsy', 'grailed']
+
+
 async def collect(marketplaces, queries, items_per_query=10, max_price=None, timeout=120, parse_options=None,
-                  max_concurrent_runs=2):
+                  max_concurrent_runs=2, on_rows=None):
+    """on_rows(rows), if given, receives each marketplace's cleaned rows as soon as that marketplace finishes."""
     queries = [q.strip() for q in queries if q and q.strip()][:3]
     if not queries:
         raise ValueError('At least one query is required')
     parse_options = parse_options or {}
-    sources, rows = {}, []
+    sources, rows, seen = {}, [], set()
+    marketplaces = sorted(marketplaces, key=lambda m: m not in SLOWEST_FIRST)
     # Both Niche actors share the account's concurrent-run limit; 2 each plus the 2 parents fits the free plan's 5.
     slots = asyncio.Semaphore(max(1, max_concurrent_runs))
 
@@ -142,16 +149,18 @@ async def collect(marketplaces, queries, items_per_query=10, max_price=None, tim
             if item:
                 parsed.append(item)
         sources[name] = {'status': 'succeeded', 'received': len(raw), 'kept': len(parsed), 'actor': scraper.actor}
-        return parsed
+        fresh = clean(parsed, max_price, seen)
+        rows.extend(fresh)
+        if on_rows and fresh:
+            await on_rows(fresh)
 
-    for batch in await asyncio.gather(*(one(m) for m in marketplaces)):
-        rows.extend(batch)
-    return clean(rows, max_price), sources
+    await asyncio.gather(*(one(m) for m in marketplaces))
+    return rows, sources
 
 
-def clean(rows, max_price=None):
-    """Drop ads, over-budget items and duplicates (same id or same link)."""
-    seen, result = set(), []
+def clean(rows, max_price=None, seen=None):
+    """Drop ads, over-budget items and duplicates (same id or same link, including ones in `seen`)."""
+    seen, result = set() if seen is None else seen, []
     for row in rows:
         if row['is_ad'] or (max_price and row['price'] > max_price):
             continue

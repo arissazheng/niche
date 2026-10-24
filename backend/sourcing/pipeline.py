@@ -103,19 +103,16 @@ class Pipeline:
         if not request.request.allow_secondhand and len(sources) > 1:
             # New-only requests skip the resale actor's paid runs; condition filtering still applies below.
             sources = [s for s in sources if s != 'secondhand']
-        async def fetch(source, query):
-            try:
-                items,status = await self.sources.fetch(source,query,request.candidates_per_source,job_id,
-                                                        request.request.max_item_price)
-                return source,items,status
-            except Exception as exc:
-                self.store.event(job_id,'source_failed',{'source':source,'type':type(exc).__name__})
-                return source,[],{'status':'failed','error':'Source unavailable; see server events'}
-        # Niche actors take every query variant in one run; single-marketplace adapters rotate through them.
-        tasks = [asyncio.create_task(fetch(s,queries if s in NICHE else queries[i%len(queries)]))
-                 for i,s in enumerate(sources)]
-        # Each source is filtered, shortlisted and ranked as soon as it returns, so Claude ranks the fast
-        # sources while the slow ones are still scraping; the page shows everything ranked so far.
+        async def batches(source, query):
+            args = (source,query,request.candidates_per_source,job_id,request.request.max_item_price)
+            if hasattr(self.sources,'stream'):
+                async for batch in self.sources.stream(*args):
+                    yield batch
+            else:
+                yield await self.sources.fetch(*args)
+
+        # Each batch is filtered, shortlisted and ranked as soon as it arrives, so Claude ranks the fast
+        # sources (and the fast marketplaces inside the secondhand actor) while the slow ones are still scraping.
         # Each source can fill the whole page on its own: mainstream often keeps only a handful of results.
         per_source = max(request.limit,24//len(sources))
         counts = {'retrieved':0,'eligible':0}
@@ -126,9 +123,13 @@ class Pipeline:
 
         async def publish():
             waiting = [x for rows in provisional.values() for x in rows]
-            await self.live.listings(job_id, scored_rows()+waiting, replace=True)
+            # Also saved on the job, so a page polling without SpacetimeDB sees results as they're ranked.
+            result['results'] = scored_rows()+waiting
+            self.store.update(job_id,'running',result)
+            await self.live.listings(job_id, result['results'], replace=True)
 
-        async def rank_batch(source, batch):
+        async def rank_batch(key, batch):
+            source = key[0]
             if self.settings.sourcing_mode=='live':
                 try:
                     batch = await self.model.rank(request,batch,job_id)
@@ -141,7 +142,7 @@ class Pipeline:
                 methods.append('fixture_lexical')
                 lexical(batch)
             ranked.extend(batch)
-            provisional.pop(source,None)
+            provisional.pop(key,None)
             await publish()
 
         def lexical(batch):
@@ -150,21 +151,39 @@ class Pipeline:
                 item.match_dimensions = {}
                 item.reason = 'Text keyword overlap only; visual taste matching has not been evaluated.'
 
+        shortlisted = set()
+
+        async def take(source, items):
+            candidates = [x for x in eligible(items,request) if x.url not in seen_urls]
+            seen_urls.update(x.url for x in candidates)
+            counts['retrieved'] += len(items)
+            counts['eligible'] += len(candidates)
+            # Cheap lexical shortlist limits image-token consumption. A source's later batches (each marketplace in
+            # the secondhand actor, e.g. Etsy arriving last) get half a page each, so late arrivals are still ranked.
+            room = per_source if source not in shortlisted else max(6, per_source//2)
+            batch = sorted(candidates,key=lambda x:lexical_score(x,request),reverse=True)[:room]
+            if batch:
+                shortlisted.add(source)
+                key = (source, len(rankers))
+                provisional[key] = [x.model_dump(mode='json') for x in batch[:8]]
+                await publish()
+                rankers.append(asyncio.create_task(rank_batch(key,batch)))
+
+        async def consume(source, query):
+            try:
+                async for items, status in batches(source, query):
+                    result['sources'][source] = status
+                    await take(source, items)
+                    self.store.update(job_id,'running',result)
+            except Exception as exc:
+                self.store.event(job_id,'source_failed',{'source':source,'type':type(exc).__name__})
+                result['sources'][source] = {'status':'failed','error':'Source unavailable; see server events'}
+
+        # Niche actors take every query variant in one run; single-marketplace adapters rotate through them.
+        tasks = [asyncio.create_task(consume(s,queries if s in NICHE else queries[i%len(queries)]))
+                 for i,s in enumerate(sources)]
         try:
-            for task in asyncio.as_completed(tasks):
-                source,items,status = await task
-                result['sources'][source] = status
-                candidates = [x for x in eligible(items,request) if x.url not in seen_urls]
-                seen_urls.update(x.url for x in candidates)
-                counts['retrieved'] += len(items)
-                counts['eligible'] += len(candidates)
-                # Cheap lexical shortlist limits image-token consumption, balanced across sources.
-                batch = sorted(candidates,key=lambda x:lexical_score(x,request),reverse=True)[:per_source]
-                if batch:
-                    provisional[source] = [x.model_dump(mode='json') for x in batch[:8]]
-                    await publish()
-                    rankers.append(asyncio.create_task(rank_batch(source,batch)))
-                self.store.update(job_id,'running',result)
+            await asyncio.gather(*tasks)
             await asyncio.gather(*rankers)
         finally:
             for task in tasks+rankers:
