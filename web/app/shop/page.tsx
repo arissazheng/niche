@@ -190,7 +190,6 @@ export default function ShopPage() {
   const results = kind === "all" ? allResults : allResults.filter((item) => kindOf(item) === kind);
   const status = finished ? job.status : liveSearch[0]?.status ?? job?.status;
   const ranked = finished || liveRows.some((r) => r.rank !== undefined);
-  const brief = [...messages].reverse().find((m) => m.brief)?.brief;
 
   return (
     <div className="px-4 mt-6 grid gap-6 lg:grid-cols-[minmax(0,1fr)_380px] items-start">
@@ -206,7 +205,6 @@ export default function ShopPage() {
         ) : (
           <>
             <SectionTitle aside={job?.ranking_method}>{matchCount(results.length, !finished)}</SectionTitle>
-            {brief && <p className="label -mt-1 mb-2 text-muted">For: {brief}</p>}
             <p className="label mb-3">
               No sponsored results · ranked by fit to your taste, size and budget ·{" "}
               <Link href="/how-it-works" className="underline">How ranking works</Link>
@@ -453,7 +451,6 @@ function Impact({ counts, results }: { counts: SearchCounts; results: Listing[] 
     out.wrong_size && `${out.wrong_size} in the wrong size`,
     out.over_price && `${out.over_price} over ${cap ? money(cap) : "your cap"}`,
     out.sold && `${out.sold} already sold`,
-    out.excluded_brand && `${out.excluded_brand} from Shein labels`,
   ].filter(Boolean) as string[];
   const average = results.length ? results.reduce((sum, item) => sum + item.price, 0) / results.length : 0;
   const parts = [
