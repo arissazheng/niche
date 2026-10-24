@@ -156,7 +156,7 @@ export function Letter({ onClose }: { onClose: () => void }) {
           <article
             ref={card}
             onPointerDown={startPull}
-            className={`absolute left-[3.5%] top-[7%] w-[93%] h-[88%] overflow-hidden bg-[#f8f5ee] text-ink px-[5%] py-[3.5%] shadow-[0_2px_14px_rgba(0,0,0,.25)] select-none touch-none ${stage === "closed" ? "" : ""} ${drag ? "" : "transition-transform duration-700 ease-[cubic-bezier(.2,.8,.2,1)]"}`}
+            className={`absolute left-[3.5%] top-[7%] w-[93%] h-[88%] overflow-hidden bg-[#f8f5ee] text-ink px-[5%] py-[3.5%] shadow-[0_2px_14px_rgba(0,0,0,.25)] select-none touch-none ${drag ? "" : "transition-transform duration-700 ease-[cubic-bezier(.2,.8,.2,1)]"}`}
             style={{
               backgroundImage: LETTER_GRAIN,
               transform: `translateY(calc(${resting} + ${drag}px))`,
