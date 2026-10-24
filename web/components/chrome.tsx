@@ -31,11 +31,7 @@ export function SiteFooter() {
     <footer className="bg-ink text-paper mt-16 px-4 pt-6 pb-4">
       <a href="#" className="label block text-center">Back to top ↑</a>
       <p className="text-wordmark font-medium tracking-tight text-center my-12">{APP_NAME}</p>
-      <div className="label flex flex-wrap justify-between gap-3">
-        <span>About</span>
-        <Link href="/how-it-works">Ranking &amp; privacy</Link>
-        <span>Sellers ↗</span>
-      </div>
+      <Link href="/how-it-works" className="label block text-center">Ranking &amp; privacy</Link>
     </footer>
   );
 }
