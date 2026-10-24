@@ -7,9 +7,9 @@ from .live import Live
 from . import risk, sizes
 
 
-# Never shown, from any source (new, mainstream or resale): Shein and its in-house labels.
-EXCLUDED_BRANDS = re.compile(r'\b(shein|romwe|dazy|motf|emery rose)\b', re.I)
-EXCLUDED_DOMAINS = ('shein.com', 'romwe.com')
+# Never shown, from any source (new, mainstream or resale): Shein and its in-house labels, and Fashion Nova.
+EXCLUDED_BRANDS = re.compile(r'\b(shein|romwe|dazy|motf|emery rose|fashion ?nova)\b', re.I)
+EXCLUDED_DOMAINS = ('shein.com', 'romwe.com', 'fashionnova.com')
 
 
 def excluded(item):
@@ -95,6 +95,16 @@ COLOURS = {'black', 'white', 'grey', 'gray', 'charcoal', 'navy', 'blue', 'red', 
            'pink', 'purple', 'yellow', 'orange', 'silver', 'gold', 'tan', 'olive', 'ivory', 'burgundy'}
 
 
+# The chat agent's categories, as item types above.
+CATEGORY_TYPES = {'top': {'top', 'knit'}, 'outerwear': {'outerwear', 'knit'}, 'dress': {'dress'}, 'bottom': {'bottom'},
+                  'shoes': {'shoes'}, 'accessory': {'bag', 'accessory'}}
+
+
+def requested_types(request):
+    """Item types the search is for: the agent's category when it gave one, else the item words in the query."""
+    return CATEGORY_TYPES.get(request.category or '') or item_types(request.query)
+
+
 def item_types(text):
     return {kind for kind, words in ITEM_TYPES.items() if re.search(rf'\b({words})\b', text, re.I)}
 
@@ -109,10 +119,10 @@ def has_features(listing, must_have):
     return not must_have or bool(set(listing.features) & set(must_have))
 
 
-def matching(listings, query):
+def matching(listings, query, wanted_types=None):
     """Prefetched listings for this search: the requested item type ("jacket" lets in coats and parkas, not corsets),
     or with no type named, a shared word other than a colour ("black" alone isn't a match)."""
-    wanted_types = item_types(query)
+    wanted_types = wanted_types if wanted_types is not None else item_types(query)
     if wanted_types:
         return [x for x in listings if same_item(x, wanted_types)]
     wanted = terms(query) - COLOURS
@@ -267,7 +277,8 @@ class Pipeline:
         # Listings scraped and scored in the background when the profile was built (sourcing.prefetch) show at once.
         if request.profile_id:
             ready = [x for x in eligible(matching([Listing.model_validate(x) for x in
-                     self.store.prefetched(request.profile_id)], request.request.query), request)
+                     self.store.prefetched(request.profile_id)], request.request.query,
+                     requested_types(request.request)), request)
                      if x.url not in seen_urls]
             for x in ready:
                 x.warnings = list(dict.fromkeys(x.warnings))  # eligible() re-adds warnings saved with the item
@@ -278,9 +289,11 @@ class Pipeline:
                 # they show straight away as unranked and are re-ranked against the actual search.
                 batch = sorted(ready,key=lambda x:lexical_score(x,request),reverse=True)[:per_source]
                 key = ('prefetched', len(rankers))
-                # Shown before ranking only when the photo labels from the warm-up match the request's must-haves.
+                # Shown before ranking only when the request named must-have features and the warm-up's photo labels
+                # include one; otherwise these wait for ranking like everything else (no guessing from colours).
                 must_have = request.request.must_have
-                provisional[key] = [x.model_dump(mode='json') for x in batch if has_features(x, must_have)][:8]
+                provisional[key] = [x.model_dump(mode='json') for x in batch
+                                    if must_have and has_features(x, must_have)][:8]
                 await publish()
                 rankers.append(asyncio.create_task(rank_batch(key,batch)))
         # Niche actors take every query variant in one run; single-marketplace adapters rotate through them.

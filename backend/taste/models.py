@@ -160,6 +160,7 @@ class ProfileSearch(StrictModel):
     length: Length | None = None
     shoe_size_system: Literal['womens', 'mens'] | None = None
     must_have: list[str] = Field(default_factory=list, max_length=8)  # from sourcing/features.py
+    category: str | None = Field(default=None, max_length=20)
     size_note: str = Field(default='', max_length=500)
     sources: list[Literal['mainstream', 'secondhand', 'etsy', 'depop', 'poshmark', 'grailed']] = ['mainstream', 'secondhand']
     limit: int = Field(default=20, ge=1, le=24)

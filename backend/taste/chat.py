@@ -85,6 +85,7 @@ class ChatTurn(BaseModel):
     proposed_price: float | None = None
     proposed_size: str | None = Field(default=None, max_length=30)
     proposed_must_have: list[str] | None = Field(default=None, max_length=8)
+    proposed_category: str | None = Field(default=None, max_length=20)
     linked: list[LinkedPage] | None = Field(default=None, max_length=2)
 
 

@@ -178,7 +178,8 @@ def create_router(settings, store: Store, budgets: Budgets | None = None, signer
             request=ShoppingRequest(query=search.query, max_item_price=search.max_item_price or ob.budget_max,
                 currency=ob.currency, size=search.size, length=search.length, measurements=inches(ob.measurements),
                 shoe_size_system=search.shoe_size_system, size_note=search.size_note,
-                must_have=clean_features(search.must_have)))
+                must_have=clean_features(search.must_have),
+                category=search.category if search.category not in (None, 'other') else guess_category(search.query)))
 
     def start_search(profile, search: ProfileSearch):
         job = store.create(search_request(profile, search).model_dump(mode='json'))
@@ -238,7 +239,7 @@ def create_router(settings, store: Store, budgets: Budgets | None = None, signer
                                                            size=out['size'], length=out['length'],
                                                            shoe_size_system=out['shoe_size_system'],
                                                            size_note=out['size_note'],
-                                                           must_have=out['must_have'])))
+                                                           must_have=out['must_have'], category=out['category'])))
         return out
 
     return router

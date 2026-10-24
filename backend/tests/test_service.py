@@ -464,3 +464,19 @@ def test_ranker_schema_tags_features_only_for_preloads():
     entry = lambda tag: output_schema('ranker', tag)['properties']['rankings']['items']
     assert 'features' not in entry(False)['properties']
     assert 'features' in entry(True)['required'] and 'button-front' in entry(True)['properties']['features']['items']['enum']
+
+
+def test_fashion_nova_never_eligible(request_data):
+    items, _ = asyncio.run(FixtureSources().fetch('mainstream', '', 2, ''))
+    items[0].brand, items[1].url = 'Fashion Nova', 'https://www.fashionnova.com/products/x'
+    assert not eligible(items, request_data)
+
+
+def test_preloads_use_the_agents_category_not_words_in_the_brief(request_data):
+    from sourcing.pipeline import matching, requested_types
+    items, _ = asyncio.run(FixtureSources().fetch('secondhand', '', 2, ''))
+    items[0].title, items[1].title = 'Black satin strapless corset bustier', 'Black velvet strapless gown'
+    request_data.request.query = 'formal gown with a strapless corset bodice'
+    request_data.request.category = 'dress'
+    assert [x.title for x in matching(items, request_data.request.query, requested_types(request_data.request))] == \
+        ['Black velvet strapless gown']

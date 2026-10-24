@@ -209,6 +209,7 @@ export interface ChatTurn {
   proposed_price?: number | null;
   proposed_size?: string | null;
   proposed_must_have?: string[] | null; // visible features the offered search needs (asymmetric, button-front…)
+  proposed_category?: string | null;
   linked?: LinkedPage[]; // product links the agent read from the user's message
 }
 
@@ -235,6 +236,7 @@ export interface AgentReply {
   max_item_price?: number | null;
   size?: string | null; // the user's profile size for this garment unless they named one
   must_have?: string[];
+  category?: string;
   linked?: LinkedPage[];
   budget?: Omit<Budget, "linked"> | null;
   search_id?: string;

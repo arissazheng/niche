@@ -48,7 +48,7 @@ export const api = {
   search: (
     id: string,
     query: string,
-    options: { sources?: Source[]; maxItemPrice?: number | null; size?: string | null; mustHave?: string[] | null } = {},
+    options: { sources?: Source[]; maxItemPrice?: number | null; size?: string | null; mustHave?: string[] | null; category?: string | null } = {},
   ) =>
     request<{ search_id: string; status_url: string }>(`/v1/taste/profiles/${id}/searches`, {
       method: "POST",
@@ -58,6 +58,7 @@ export const api = {
         ...(options.maxItemPrice && { max_item_price: options.maxItemPrice }),
         ...(options.size && { size: options.size }),
         ...(options.mustHave?.length && { must_have: options.mustHave }),
+        ...(options.category && { category: options.category }),
       }),
     }),
   chat: (id: string, messages: ChatTurn[], searchId?: string | null) =>
