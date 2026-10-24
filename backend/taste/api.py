@@ -13,6 +13,7 @@ from sourcing.prefetch import BROAD_QUERY, Prefetcher
 from sourcing.features import clean as clean_features
 from sourcing.store import Store
 from sourcing.webshops import WebShops
+from actors.niche_actors.indie_shops import SHOPS as INDIE_SHOPS
 import json
 from .chat import ChatRequest, ShopAgent, find_cards, guess_category, result_cards, search_sizes
 from .finds import Finds
@@ -23,7 +24,7 @@ from .nearby import Nearby, NearbyError
 from .links import extract_urls, read_link
 from .engine import TasteEngine, fingerprint
 from .models import EditInstruction, ImageFromUrl, ImageKind, ImportRequest, Measurements, LookbookNotes, NoteUpdate, Onboarding, PhotoReaction, ProfileSearch, PromptUpdate, ShopRequest
-from . import shops
+from . import brands, shops
 from .signing import Signer
 from .store import TasteStore
 
@@ -210,7 +211,8 @@ def create_router(settings, store: Store, budgets: Budgets | None = None, signer
         names = names[:LOOKUPS_PER_BUILD]
         if not names or len(profile.indie_shops) >= MAX_SHOPS:
             return profile
-        for shop in await shops.find_many(names):
+        found = [x for x in await shops.find_many(names) if x.domain not in have]
+        for shop in await asyncio.gather(*(brands.verify(x) for x in found)):
             if shop.domain not in have and len(profile.indie_shops) < MAX_SHOPS:
                 have.add(shop.domain)
                 profile.indie_shops.append(shop)
@@ -228,9 +230,26 @@ def create_router(settings, store: Store, budgets: Budgets | None = None, signer
                                      "website" + ("." if web.enabled else
                                      " (Niche can read shops built on Shopify, which most small labels use)."))
         if all(x.domain != shop.domain for x in profile.indie_shops):
-            profile.indie_shops.append(shop)
+            profile.indie_shops.append(await brands.verify(shop))
             profile = await engine.save(profile)
         return view(profile)
+
+    discovered = {}  # (profile id, version, its shops) -> suggestions, so reopening the page doesn't ask again
+
+    @router.get('/profiles/{ident}/brands/suggestions')
+    async def brand_suggestions(ident: str):
+        # Independent labels close to this taste; only ones that pass every check in taste/brands.py are listed.
+        profile = built_profile(ident)
+        key = (profile.id, profile.version, tuple(sorted(x.domain for x in profile.indie_shops)))
+        if key not in discovered:
+            if settings.taste_mode == 'live':
+                found = await brands.discover(engine.model, profile, profile.id)
+            else:  # no Claude: Niche's own seed list of labels, checked the same way
+                have = {x.domain for x in profile.indie_shops}
+                found = await brands.verified_only([(x['domain'], "From Niche's list of independent labels")
+                                                    for x in INDIE_SHOPS[:brands.SUGGESTIONS]], have)
+            discovered[key] = [{'shop': shop.model_dump(mode='json'), 'reason': reason} for shop, reason in found]
+        return {'suggestions': discovered[key]}
 
     @router.delete('/profiles/{ident}/shops/{domain}')
     async def remove_shop(ident: str, domain: str):
