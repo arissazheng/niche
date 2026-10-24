@@ -34,6 +34,8 @@ export interface Onboarding {
   currency: string;
   usual_shops: string[];
   favorite_brands?: string[];
+  /** Agreed that photos and notes are sent to Claude to build the taste profile. */
+  data_consent?: boolean;
 }
 
 export interface Garment {
@@ -126,6 +128,15 @@ export interface SearchJob {
   warnings?: string[];
   queries?: string[];
   ranking_method?: string;
+  counts?: SearchCounts;
+}
+
+/** What the search looked through and why listings were left out (set when it finishes). */
+export interface SearchCounts {
+  retrieved: number;
+  eligible: number;
+  left_out?: Partial<Record<"wrong_size" | "over_price" | "sold" | "excluded_brand", number>>;
+  max_item_price?: number;
 }
 
 

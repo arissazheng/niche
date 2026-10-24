@@ -1,6 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { useEffect, useState } from "react";
 import { SectionTitle } from "@/components/chrome";
 import { HandCircle } from "@/components/hand-circle";
@@ -177,6 +178,20 @@ export default function OnboardPage() {
             ))}
           </div>
         </section>
+
+        <label className="flex items-start gap-3 text-sm">
+          <input
+            type="checkbox"
+            required
+            className="mt-1 accent-ink"
+            checked={!!form.data_consent}
+            onChange={(e) => setForm({ ...form, data_consent: e.target.checked })}
+          />
+          <span>
+            I agree that my photos and notes are sent to Claude (Anthropic) to build my taste profile. My name, email
+            and age never are. <Link href="/how-it-works#data" className="underline">What Niche keeps</Link>
+          </span>
+        </label>
 
         {error && <p className="text-sm">{error}</p>}
         <button disabled={busy} className="rule-t rule-b text-display py-2 w-full disabled:text-muted">

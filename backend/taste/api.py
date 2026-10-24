@@ -97,8 +97,11 @@ def create_router(settings, store: Store, budgets: Budgets | None = None):
 
     @router.post('/profiles/{ident}/build')
     async def build(ident: str):
+        profile = profile_or_404(ident)
+        if not profile.onboarding.data_consent:
+            raise HTTPException(403, 'Agree to send your photos to Claude on your Profile page first')
         try:
-            profile = await engine.build(profile_or_404(ident))
+            profile = await engine.build(profile)
         except ValueError as exc:
             raise HTTPException(422, str(exc))
         # Start scraping this taste's core pieces now, so the first search has results ready to rank.

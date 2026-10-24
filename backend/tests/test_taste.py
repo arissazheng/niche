@@ -27,7 +27,7 @@ def client(tmp_path):
 
 
 def test_fixture_flow_profile_to_checkout(client):
-    profile = client.post('/v1/taste/profiles', json={'name': 'Ari', 'budget_max': 80}).json()['profile']
+    profile = client.post('/v1/taste/profiles', json={'data_consent': True, 'name': 'Ari', 'budget_max': 80}).json()['profile']
     pid = profile['id']
     upload = client.post(f'/v1/taste/profiles/{pid}/images', files={'file': ('a.png', png((120, 130, 60)))},
         data={'kind': 'outfit'})
@@ -59,11 +59,18 @@ def test_fixture_flow_profile_to_checkout(client):
 
 
 def test_rejects_bad_uploads_and_empty_builds(client):
-    pid = client.post('/v1/taste/profiles', json={}).json()['profile']['id']
+    pid = client.post('/v1/taste/profiles', json={'data_consent': True}).json()['profile']['id']
     assert client.post(f'/v1/taste/profiles/{pid}/build').status_code == 422
     assert client.post(f'/v1/taste/profiles/{pid}/searches', json={'query': 'x'}).status_code == 422
     bad = client.post(f'/v1/taste/profiles/{pid}/images', files={'file': ('a.png', b'not an image')})
     assert bad.status_code == 422
+
+
+def test_build_needs_consent(client):
+    pid = client.post('/v1/taste/profiles', json={}).json()['profile']['id']
+    assert client.post(f'/v1/taste/profiles/{pid}/build').status_code == 403
+    client.put(f'/v1/taste/profiles/{pid}/onboarding', json={'data_consent': True})
+    assert client.post(f'/v1/taste/profiles/{pid}/build').status_code == 422  # consented, but no photos yet
 
 
 def test_live_build_drops_invented_image_ids(tmp_path):
@@ -193,7 +200,7 @@ def test_live_listing_row_carries_store_labels():
 
 
 def test_chat_proposes_then_searches_only_after_yes(client):
-    pid = client.post('/v1/taste/profiles', json={'budget_max': 80}).json()['profile']['id']
+    pid = client.post('/v1/taste/profiles', json={'data_consent': True, 'budget_max': 80}).json()['profile']['id']
     client.post(f'/v1/taste/profiles/{pid}/images', files={'file': ('a.png', png((20, 20, 20)))}, data={'kind': 'outfit'})
     assert client.post(f'/v1/taste/profiles/{pid}/chat', json={'messages': [{'role': 'user', 'text': 'tops'}]}).status_code == 422
     client.post(f'/v1/taste/profiles/{pid}/build')
@@ -246,7 +253,7 @@ def test_chat_sees_numbered_results_of_own_search_only(client, monkeypatch):
         seen.append(results)
         return chat_module.AgentTurn(reply='ok', action='reply', brief='', max_item_price=None, size=None, category='other')
     monkeypatch.setattr(chat_module.ShopAgent, 'respond', fake_respond)
-    pid = client.post('/v1/taste/profiles', json={}).json()['profile']['id']
+    pid = client.post('/v1/taste/profiles', json={'data_consent': True}).json()['profile']['id']
     client.post(f'/v1/taste/profiles/{pid}/images', files={'file': ('a.png', png((20, 20, 20)))})
     client.post(f'/v1/taste/profiles/{pid}/build')
     search = client.post(f'/v1/taste/profiles/{pid}/searches', json={'query': 'skirt', 'sources': ['etsy']}).json()
@@ -257,7 +264,7 @@ def test_chat_sees_numbered_results_of_own_search_only(client, monkeypatch):
     ask = {'messages': [{'role': 'user', 'text': 'what about #2?'}], 'search_id': search['search_id']}
     client.post(f'/v1/taste/profiles/{pid}/chat', json=ask)
     assert seen[-1][1]['n'] == 2 and seen[-1][1]['title'] and 'price' in seen[-1][1]
-    other = client.post('/v1/taste/profiles', json={}).json()['profile']['id']
+    other = client.post('/v1/taste/profiles', json={'data_consent': True}).json()['profile']['id']
     client.post(f'/v1/taste/profiles/{other}/images', files={'file': ('a.png', png((20, 20, 20)))})
     client.post(f'/v1/taste/profiles/{other}/build')
     client.post(f'/v1/taste/profiles/{other}/chat', json=ask)
@@ -282,14 +289,16 @@ def test_pipeline_drops_other_sizes_and_flags_unknown():
     for item, labels in zip(items, (['Small'], ['L'], [], ['US 6'])):
         item.sizes = labels
     request_data.request.size = 'S'
-    kept = {x.sizes[0] if x.sizes else None for x in eligible(items, request_data)}
+    left_out = {}
+    kept = {x.sizes[0] if x.sizes else None for x in eligible(items, request_data, left_out)}
     assert 'L' not in kept and 'Small' in kept
+    assert left_out == {'wrong_size': 1}  # shown to the shopper as "1 in the wrong size"
     flagged = [x for x in eligible([items[3]], request_data)]
     assert any(w.startswith('Size unverified (listed as US 6') for w in flagged[0].warnings)
 
 
 def test_chat_defaults_to_profile_size_for_the_garment(client):
-    pid = client.post('/v1/taste/profiles', json={'sizes': {'top': 'S', 'bottom': 'M'}}).json()['profile']['id']
+    pid = client.post('/v1/taste/profiles', json={'data_consent': True, 'sizes': {'top': 'S', 'bottom': 'M'}}).json()['profile']['id']
     client.post(f'/v1/taste/profiles/{pid}/images', files={'file': ('a.png', png((20, 20, 20)))})
     client.post(f'/v1/taste/profiles/{pid}/build')
     top = client.post(f'/v1/taste/profiles/{pid}/chat', json={'messages': [{'role': 'user', 'text': 'black halter top'}]}).json()
@@ -299,7 +308,7 @@ def test_chat_defaults_to_profile_size_for_the_garment(client):
 
 
 def test_chat_accepts_history_with_linked_pages(client):
-    pid = client.post('/v1/taste/profiles', json={}).json()['profile']['id']
+    pid = client.post('/v1/taste/profiles', json={'data_consent': True}).json()['profile']['id']
     client.post(f'/v1/taste/profiles/{pid}/images', files={'file': ('a.png', png((20, 20, 20)))})
     client.post(f'/v1/taste/profiles/{pid}/build')
     history = [{'role': 'user', 'text': 'like this?'},
@@ -310,7 +319,7 @@ def test_chat_accepts_history_with_linked_pages(client):
 
 
 def test_notes_only_lookbook_builds_and_own_fits_upload(client):
-    pid = client.post('/v1/taste/profiles', json={'name': 'Ari'}).json()['profile']['id']
+    pid = client.post('/v1/taste/profiles', json={'data_consent': True, 'name': 'Ari'}).json()['profile']['id']
     assert client.post(f'/v1/taste/profiles/{pid}/build').status_code == 422  # nothing yet
     saved = client.put(f'/v1/taste/profiles/{pid}/notes', json={'notes': [' cropped brown leather jacket ', '', 'cropped brown leather jacket']})
     assert saved.json()['profile']['lookbook_notes'] == ['cropped brown leather jacket']
@@ -321,9 +330,9 @@ def test_notes_only_lookbook_builds_and_own_fits_upload(client):
 
 
 def test_numbered_bottom_size_and_length_reach_the_search(client):
-    bad = client.post('/v1/taste/profiles', json={'sizes': {'bottom': '7'}})
+    bad = client.post('/v1/taste/profiles', json={'data_consent': True, 'sizes': {'bottom': '7'}})
     assert bad.status_code == 422
-    pid = client.post('/v1/taste/profiles', json={'sizes': {'top': 'S', 'bottom': '00', 'bottom_length': 'long'}}).json()['profile']['id']
+    pid = client.post('/v1/taste/profiles', json={'data_consent': True, 'sizes': {'top': 'S', 'bottom': '00', 'bottom_length': 'long'}}).json()['profile']['id']
     client.post(f'/v1/taste/profiles/{pid}/images', files={'file': ('a.png', png((20, 20, 20)))})
     client.post(f'/v1/taste/profiles/{pid}/build')
     skirt = client.post(f'/v1/taste/profiles/{pid}/chat', json={'messages': [{'role': 'user', 'text': 'pleated midi skirt'}]}).json()

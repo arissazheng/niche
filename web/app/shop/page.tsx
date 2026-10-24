@@ -10,7 +10,7 @@ import { VoiceButton } from "@/components/voice";
 import { api } from "@/lib/api";
 import { getProfileId } from "@/lib/session";
 import { tables } from "@/lib/spacetime";
-import { TIER_LABELS, type Budget, type ChatTurn, type Listing, type SearchJob } from "@/lib/types";
+import { TIER_LABELS, type Budget, type ChatTurn, type Listing, type SearchCounts, type SearchJob } from "@/lib/types";
 
 const DONE = new Set(["completed", "partial", "failed", "interrupted"]);
 const EXAMPLES = ["an asymmetrical buttoned top", "black knee-high boots under $120", "a vintage leather jacket"];
@@ -216,6 +216,7 @@ export default function ShopPage() {
               No sponsored results · ranked by fit to your taste, size and budget ·{" "}
               <Link href="/how-it-works" className="underline">How ranking works</Link>
             </p>
+            {finished && job.counts && <Impact counts={job.counts} results={allResults} />}
             <MixFilter results={allResults} kind={kind} onChange={setKind} />
             {status && !DONE.has(status) && (
               <p className="label mb-3 animate-pulse">
@@ -426,6 +427,25 @@ function BudgetStrip({ budget }: { budget: Budget }) {
       </p>
     </div>
   );
+}
+
+// "Looked through 214 listings · left out 31 in the wrong size and 18 over $60 · average $38, $22 under your cap".
+function Impact({ counts, results }: { counts: SearchCounts; results: Listing[] }) {
+  const out = counts.left_out ?? {};
+  const cap = counts.max_item_price;
+  const reasons = [
+    out.wrong_size && `${out.wrong_size} in the wrong size`,
+    out.over_price && `${out.over_price} over ${cap ? money(cap) : "your cap"}`,
+    out.sold && `${out.sold} already sold`,
+    out.excluded_brand && `${out.excluded_brand} from Shein labels`,
+  ].filter(Boolean) as string[];
+  const average = results.length ? results.reduce((sum, item) => sum + item.price, 0) / results.length : 0;
+  const parts = [
+    `Looked through ${counts.retrieved.toLocaleString()} listings`,
+    reasons.length > 0 && `left out ${reasons.length > 1 ? `${reasons.slice(0, -1).join(", ")} and ${reasons.at(-1)}` : reasons[0]}`,
+    results.length > 0 && `average ${money(average)}${cap && cap > average ? `, ${money(cap - average)} under your cap` : ""}`,
+  ].filter(Boolean);
+  return <p className="label mb-3">{parts.join(" · ")}</p>;
 }
 
 // "Loading matches" → "3 matches so far" → "20 matches".

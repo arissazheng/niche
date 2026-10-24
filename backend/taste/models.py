@@ -41,6 +41,7 @@ class Onboarding(StrictModel):
     currency: str = Field(default='USD', pattern=r'^[A-Z]{3}$')
     usual_shops: list[str] = Field(default_factory=list, max_length=20)
     favorite_brands: list[str] = Field(default_factory=list, max_length=30)
+    data_consent: bool = False  # agreed that photos and notes go to Claude to build the taste profile
 
 
 class Garment(StrictModel):
