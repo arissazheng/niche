@@ -4,6 +4,7 @@ from fastapi import APIRouter, File, Form, HTTPException, UploadFile
 from PIL import UnidentifiedImageError
 from sourcing.models import SearchRequest, ShoppingRequest
 from finance.budget import Budgets
+from sourcing import safe_fetch
 from sourcing.prefetch import BROAD_QUERY, Prefetcher
 from sourcing.store import Store
 import json
@@ -11,7 +12,7 @@ from .chat import ChatRequest, ShopAgent, guess_category, profile_size, result_c
 from .imports import Importer, LinkError
 from .links import extract_urls, read_link
 from .engine import TasteEngine
-from .models import EditInstruction, ImageKind, ImportRequest, LookbookNotes, NoteUpdate, Onboarding, ProfileSearch, PromptUpdate
+from .models import EditInstruction, ImageFromUrl, ImageKind, ImportRequest, LookbookNotes, NoteUpdate, Onboarding, ProfileSearch, PromptUpdate
 from .store import TasteStore
 
 MAX_UPLOAD_BYTES = 15 * 1024 * 1024
@@ -81,6 +82,19 @@ def create_router(settings, store: Store, budgets: Budgets | None = None):
     def imports(ident: str):
         profile_or_404(ident)
         return [x.model_dump(mode='json') for x in importer.jobs(ident)]
+
+    @router.post('/profiles/{ident}/images/from-url', status_code=201)
+    async def image_from_url(ident: str, body: ImageFromUrl):
+        # A pasted or dragged web image that arrived as an address rather than a file ("Copy image" on some sites).
+        profile_or_404(ident)
+        async with safe_fetch.client() as http:
+            fetched = await safe_fetch.fetch(http, body.url, MAX_UPLOAD_BYTES)
+        if not fetched:
+            raise HTTPException(422, "Couldn't load that image. Try saving it and adding it from your computer.")
+        try:
+            return engine.add_image(ident, fetched[0], body.kind).model_dump(mode='json')
+        except (UnidentifiedImageError, OSError):
+            raise HTTPException(422, "That link isn't an image. Copy the image itself, or paste a page link above.")
 
     @router.put('/images/{ident}/note')
     def note(ident: str, update: NoteUpdate):
