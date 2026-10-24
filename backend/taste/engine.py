@@ -129,7 +129,10 @@ class TasteEngine:
                 content += [{'type': 'text', 'text': json.dumps({'image_id': image.id, 'kind': image.kind,
                     'user_note': image.note, 'measured_palette': image.palette,
                     'extraction': image.analysis.model_dump()})}, px.claude_block(self.jpeg(image))]
-            content.append({'type': 'text', 'text': json.dumps({'onboarding': profile.onboarding.model_dump()})})
+            # Only what shapes taste: no name, email or age leaves Niche (see /how-it-works).
+            preferences = profile.onboarding.model_dump(include={'sizes', 'budget_min', 'budget_max', 'currency',
+                                                                 'usual_shops', 'favorite_brands'})
+            content.append({'type': 'text', 'text': json.dumps({'onboarding': preferences})})
             result = Synthesis.model_validate(
                 await self.model.call(SYNTHESIZER, content, profile.id, 'synthesize', 16000, schema(Synthesis)))
         else:

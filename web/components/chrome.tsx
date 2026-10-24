@@ -33,8 +33,8 @@ export function SiteFooter() {
       <p className="text-wordmark font-medium tracking-tight text-center my-12">{APP_NAME}</p>
       <div className="label flex flex-wrap justify-between gap-3">
         <span>About</span>
-        <span>How ranking works</span>
-        <span>Privacy</span>
+        <Link href="/how-it-works">How ranking works</Link>
+        <Link href="/how-it-works#data">Privacy</Link>
         <span>Sellers ↗</span>
       </div>
     </footer>

@@ -210,6 +210,10 @@ export default function ShopPage() {
           <>
             <SectionTitle aside={job?.ranking_method}>{matchCount(results.length, !finished)}</SectionTitle>
             {brief && <p className="label -mt-1 mb-2 text-muted">For: {brief}</p>}
+            <p className="label mb-3">
+              No sponsored results · ranked by fit to your taste, size and budget ·{" "}
+              <Link href="/how-it-works" className="underline">How ranking works</Link>
+            </p>
             {status && !DONE.has(status) && (
               <p className="label mb-3 animate-pulse">
                 {results.length

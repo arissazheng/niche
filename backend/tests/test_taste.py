@@ -1,4 +1,5 @@
 import asyncio
+import json
 import io
 import time
 import pytest
@@ -80,12 +81,14 @@ def test_live_build_drops_invented_image_ids(tmp_path):
                         'confidence_notes': []}
             ids = [x['source'] for x in content if x['type'] == 'image']
             assert ids
+            sent = json.dumps([x.get('text', '') for x in content if x['type'] == 'text'])
+            assert 'ari@example.com' not in sent and 'Ari Z' not in sent  # no name/email sent to Claude
             return {'summary': 's', 'clusters': [{'name': 'c', 'description': 'd', 'image_ids': [image.id, 'made-up'],
                     'colors': [], 'silhouettes': [], 'patterns': []}], 'colors': ['olive'], 'silhouettes': [],
                     'patterns': [], 'materials': [], 'designers': [], 'aesthetics': [], 'avoid': ['frills'], 'prompt': 'p'}
 
     engine = TasteEngine(settings, taste, model=FakeModel())
-    profile = taste.create_profile(Onboarding())
+    profile = taste.create_profile(Onboarding(name='Ari Z', email='ari@example.com'))
     image = engine.add_image(profile.id, png((10, 20, 30)), 'outfit')
     built = asyncio.run(engine.build(profile))
     assert stages == ['extract', 'synthesize']
