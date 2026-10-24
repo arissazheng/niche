@@ -1,0 +1,154 @@
+import asyncio
+import hashlib
+import json
+from urllib.parse import urlsplit, urlunsplit
+import httpx
+from .models import Listing
+from .store import now
+
+DOMAINS = {'etsy': 'etsy.com', 'depop': 'depop.com', 'poshmark': 'poshmark.com', 'grailed': 'grailed.com'}
+
+
+def public_url(value, domain=None):
+    if not isinstance(value, str):
+        return None
+    p = urlsplit(value)
+    host = (p.hostname or '').lower()
+    if p.scheme != 'https' or not host or p.username or p.password:
+        return None
+    if domain and not (host == domain or host.endswith('.' + domain)):
+        return None
+    return urlunsplit((p.scheme, p.netloc, p.path, p.query, ''))
+
+
+def first(row, *keys):
+    for key in keys:
+        if row.get(key) is not None:
+            return row[key]
+    return None
+
+
+def normalize(source, row, provenance):
+    if row.get('recordType', 'listing') != 'listing':
+        return None
+    url = public_url(first(row, 'url', 'listingUrl', 'productUrl', 'listing_url', 'link'), DOMAINS[source])
+    title = first(row, 'title', 'name', 'productName')
+    price = first(row, 'price', 'salePrice', 'currentPrice')
+    currency = first(row, 'currency', 'currencyCode')
+    if isinstance(price, dict):
+        currency = currency or price.get('currency')
+        price = price.get('amount')
+    try:
+        price = float(price)
+        if not (0 <= price < 10000000):
+            return None
+    except (ValueError, TypeError):
+        return None
+    if not url or not title or not isinstance(currency, str) or len(currency) != 3:
+        return None
+    images = first(row, 'imageUrls', 'images', 'photos') or [first(row, 'coverImageUrl', 'imageUrl', 'image', 'image_url')]
+    if isinstance(images, str):
+        images = [images]
+    images = [public_url(x.get('url') if isinstance(x,dict) else x) for x in images]
+    seller = first(row, 'seller', 'shopName', 'shop_name', 'seller_username')
+    if isinstance(seller, dict):
+        seller = first(seller, 'username', 'displayName', 'id')
+    sizes = first(row, 'sizes', 'size') or []
+    if not isinstance(sizes, list):
+        sizes = [sizes]
+    status = str(row.get('status', '')).lower()
+    available = first(row, 'available', 'inStock')
+    available = available if isinstance(available, bool) else None
+    if status in ('sold', 'sold_out', 'unavailable'):
+        available = False
+    elif status in ('on_sale', 'active', 'published', 'in_stock') and available is None:
+        available = True
+    ident = first(row, 'id', 'listingId', 'listing_id')
+    canonical = urlunsplit((*urlsplit(url)[:3], '', ''))
+    ident = str(ident) if ident is not None else hashlib.sha256(canonical.encode()).hexdigest()[:20]
+    return Listing(id=f'{source}:{ident}', source=source, title=str(title)[:500], url=canonical,
+        image_urls=[x for x in images if x][:4], description=str(first(row,'fullDescription','description') or '')[:2500],
+        price=price, currency=currency.upper(), sizes=[str(x) for x in sizes],
+        condition=str(row['condition']) if row.get('condition') else None,
+        available=available, is_ad=row.get('isAd') if isinstance(row.get('isAd'),bool) else None, seller=str(seller) if seller else None, scraped_at=now(), provenance=provenance)
+
+
+class ApifySources:
+    def __init__(self, settings, store):
+        self.settings, self.store = settings, store
+
+    def actor_input(self, source, query, limit):
+        if source == 'etsy':
+            return self.settings.etsy_actor, {'searchTerms': [query], 'maxItems': max(10,limit), 'maxRunSeconds': max(5,self.settings.actor_timeout_seconds-10)}
+        if source == 'grailed':
+            return self.settings.grailed_actor, {'queries': [query], 'maxPagesPerQuery': 1}
+        return self.settings.resale_actor, dict(platform=source, mode='searchListings', query=query,
+            availableOnly=True, includeSellerProfile=False, includeSellerListings=False, maxItems=limit,
+            autoEscalateOnBlock=False)
+
+    async def fetch(self, source, query, limit, job_id):
+        actor, payload = self.actor_input(source, query, limit)
+        key = hashlib.sha256(json.dumps([actor,payload],sort_keys=True).encode()).hexdigest()
+        cached = self.store.cached(key)
+        if cached:
+            return [Listing.model_validate(x) for x in cached], {'status':'cached', 'count':len(cached)}
+        async with httpx.AsyncClient(base_url='https://api.apify.com/v2/',
+                headers={'Authorization':f'Bearer {self.settings.apify_token}'}, timeout=30) as client:
+            # Never retry a run-start POST: a lost response could otherwise create duplicate charges.
+            response = await client.post(f'acts/{actor.replace("/", "~")}/runs', json=payload,
+                params={'timeout': self.settings.actor_timeout_seconds, 'maxTotalChargeUsd': self.settings.max_actor_charge_usd})
+            response.raise_for_status()
+            run = response.json()['data']
+            self.store.event(job_id, 'actor_started', {'source':source,'actor':actor,'run_id':run['id']})
+            try:
+                async with asyncio.timeout(self.settings.actor_timeout_seconds + 30):
+                    while run['status'] not in ('SUCCEEDED','FAILED','TIMED-OUT','ABORTED'):
+                        await asyncio.sleep(2)
+                        response = await client.get(f'actor-runs/{run["id"]}')
+                        response.raise_for_status()
+                        run = response.json()['data']
+            except (Exception, asyncio.CancelledError):
+                try:
+                    await client.post(f'actor-runs/{run["id"]}/abort')
+                finally:
+                    raise
+            if run['status'] != 'SUCCEEDED':
+                raise RuntimeError('Actor finished with ' + run['status'])
+            response = await client.get(f'datasets/{run["defaultDatasetId"]}/items',
+                params={'clean':'true','limit':limit,'format':'json'})
+            response.raise_for_status()
+            rows = response.json()
+        provenance = {'actor_id':actor,'run_id':run['id'],'dataset_id':run['defaultDatasetId']}
+        listings = []
+        dropped = 0
+        for row in rows:
+            try:
+                item = normalize(source,row,provenance)
+            except (ValueError,TypeError,AttributeError):
+                item = None
+            if item:
+                listings.append(item)
+            else:
+                dropped += 1
+        if rows and not listings:
+            raise RuntimeError('Actor output did not contain usable listings; inspect schema')
+        self.store.event(job_id,'source_normalized',dict(source=source,received=len(rows),dropped=dropped,**provenance))
+        self.store.cache(key,[x.model_dump(mode='json') for x in listings])
+        return listings, dict(status='succeeded',count=len(listings),dropped=dropped,**provenance)
+
+
+class FixtureSources:
+    async def fetch(self, source, query, limit, job_id):
+        # Deliberately synthetic; never presented as purchasable inventory.
+        styles = [('Olive linen wide-leg trousers','olive relaxed linen vintage',48),
+                  ('Cream cotton boxy shirt','cream boxy cotton minimal',35),
+                  ('Black fitted satin trousers','black fitted satin sleek',65),
+                  ('Brown cotton pleated trousers','brown relaxed cotton vintage',55),
+                  ('Pink logo skinny trousers','pink skinny logo polyester',120),
+                  ('Olive sold trousers','olive relaxed linen',40)]
+        rows = [Listing(id=f'{source}:fixture-{i}', source=source,title=title,
+            url=f'https://example.invalid/{source}/{i}',description=desc,price=price,currency='USD',
+            sizes=['8'],condition='used',available=i!=5,seller=f'Demo seller {i%3}',
+            scraped_at=now(),is_fixture=True,provenance={'mode':'fixture'},
+            warnings=['Synthetic demo item; not for purchase']) for i,(title,desc,price) in enumerate(styles)]
+        return rows[:limit], {'status':'fixture','count':len(rows[:limit])}

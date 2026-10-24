@@ -1,0 +1,8 @@
+{
+  "actorSpecification": 1,
+  "name": "taste-sourcing",
+  "title": "Taste-based fashion sourcing",
+  "description": "Search marketplace Actors and rank clothing with Claude",
+  "version": "0.1",
+  "dockerfile": "../Dockerfile"
+}

@@ -1,0 +1,179 @@
+import asyncio
+import json
+from pathlib import Path
+import pytest
+from fastapi.testclient import TestClient
+from sourcing.api import create_app
+from sourcing.config import Settings
+from sourcing.models import SearchRequest
+from sourcing.pipeline import Pipeline, eligible
+from sourcing.sources import FixtureSources, normalize, ApifySources
+from sourcing.store import Store
+
+@pytest.fixture
+def request_data():
+    return SearchRequest.model_validate_json(Path('examples/search.json').read_text())
+
+@pytest.fixture
+def store(tmp_path):
+    return Store(str(tmp_path/'test.sqlite'))
+
+
+def test_pipeline_end_to_end(request_data, store):
+    ident = store.create(request_data.model_dump())
+    asyncio.run(Pipeline(Settings(),store).run(request_data,ident))
+    result = store.get(ident)
+    assert result['status']=='completed'
+    assert len(result['sources'])==4
+    assert len(result['results'])==12
+    assert all(x['is_fixture'] and x['price']<=80 and x['available'] for x in result['results'])
+    assert all('Shipping destination unverified' in x['warnings'] for x in result['results'])
+
+
+def test_filters_unknown_and_sold(request_data):
+    items,_ = asyncio.run(FixtureSources().fetch('etsy','',50,''))
+    request_data.request.unknown_policy='exclude'
+    assert not eligible(items,request_data)
+    request_data.request.unknown_policy='include_with_warning'
+    items[0].currency='EUR'
+    items[1].sizes=['12']
+    filtered = eligible(items,request_data)
+    assert {x.id for x in filtered}=={'etsy:fixture-2','etsy:fixture-3'}
+
+
+def test_no_used_when_new_required(request_data):
+    items,_ = asyncio.run(FixtureSources().fetch('etsy','',50,''))
+    request_data.request.allow_secondhand=False
+    assert eligible(items,request_data)==[]
+
+
+def test_normalization_does_not_invent_currency_or_stock():
+    row = {'id':1,'title':'Trousers','url':'https://www.etsy.com/listing/1?tracking=x','price':25,'currency':'USD','available':'false'}
+    item = normalize('etsy',row,{})
+    assert item.available is None
+    assert item.url=='https://www.etsy.com/listing/1'
+    assert item.seller_type=='unknown'
+    assert normalize('etsy',{**row,'currency':None},{}) is None
+    assert normalize('etsy',{**row,'url':'https://evil.test/listing/1'},{}) is None
+    assert normalize('etsy',{**row,'price':float('nan')},{}) is None
+
+
+def test_partial_source_failure(request_data,store):
+    class Sources(FixtureSources):
+        async def fetch(self,source,*args):
+            if source=='etsy':
+                raise TimeoutError()
+            return await super().fetch(source,*args)
+    ident = store.create(request_data.model_dump())
+    asyncio.run(Pipeline(Settings(),store,sources=Sources()).run(request_data,ident))
+    result = store.get(ident)
+    assert result['status']=='partial'
+    assert result['sources']['etsy']['status']=='failed'
+    assert result['results']
+
+
+def test_all_source_failure(request_data,store):
+    class Sources:
+        async def fetch(self,*args):
+            raise RuntimeError()
+    ident = store.create(request_data.model_dump())
+    asyncio.run(Pipeline(Settings(),store,sources=Sources()).run(request_data,ident))
+    assert store.get(ident)['status']=='failed'
+
+
+def test_restart_does_not_repeat_chargeable_job(request_data,store):
+    ident = store.create(request_data.model_dump())
+    store.update(ident,'running',{})
+    store.recover()
+    assert store.get(ident)['status']=='interrupted'
+    assert not store.pending()
+
+
+def test_api_auth_validation_feedback(tmp_path,request_data):
+    import time
+    app = create_app(Settings(database_path=str(tmp_path/'api.sqlite'),sourcing_api_key='test'))
+    headers={'X-API-Key':'test'}
+    with TestClient(app) as client:
+        assert client.post('/v1/searches',json=request_data.model_dump()).status_code==401
+        assert client.post('/v1/searches',headers=headers,json={}).status_code==422
+        response=client.post('/v1/searches',headers=headers,json=request_data.model_dump())
+        assert response.status_code==202
+        url=response.json()['status_url']
+        for _ in range(40):
+            result=client.get(url,headers=headers).json()
+            if result['status']=='completed':
+                break
+            time.sleep(.05)
+        assert result['status']=='completed'
+        assert client.post(url+'/feedback',headers=headers,json={'listing_id':'fake','liked':True}).status_code==422
+        assert client.post(url+'/feedback',headers=headers,json={'listing_id':result['results'][0]['id'],'liked':True}).status_code==201
+
+
+def test_live_requires_credentials():
+    with pytest.raises(ValueError):
+        Settings(sourcing_mode='live',apify_token='',anthropic_api_key='').validate_live()
+
+
+def test_adapter_run_caps(store):
+    sources=ApifySources(Settings(),store)
+    _,payload=sources.actor_input('depop','linen trousers',30)
+    assert payload['maxItems']==30
+    assert payload['includeSellerListings'] is False
+
+
+def test_claude_rejects_hallucinated_id(request_data,store):
+    from sourcing.claude import Claude
+    class BadModel(Claude):
+        async def call(self,*args):
+            return {'rankings':[{'id':'made-up','score':100}]}
+    items,_=asyncio.run(FixtureSources().fetch('etsy','',1,''))
+    with pytest.raises(ValueError,match='Unknown'):
+        asyncio.run(BadModel(Settings(),store).rank(request_data,items,'job'))
+
+
+def test_apify_http_contract_and_cache(monkeypatch,store):
+    import httpx
+    original=httpx.AsyncClient
+    calls=[]
+    def handler(request):
+        calls.append(request)
+        if request.method=='POST':
+            assert request.url.params['maxTotalChargeUsd']=='0.5'
+            assert json.loads(request.content)['maxItems']==30
+            return httpx.Response(201,json={'data':{'id':'run1','status':'SUCCEEDED','defaultDatasetId':'ds1'}})
+        return httpx.Response(200,json=[{'id':'1','title':'Trousers','url':'https://www.depop.com/products/1',
+            'price':40,'currency':'USD','available':True}])
+    monkeypatch.setattr(httpx,'AsyncClient',lambda **kw: original(transport=httpx.MockTransport(handler),**kw))
+    sources=ApifySources(Settings(apify_token='test'),store)
+    items,status=asyncio.run(sources.fetch('depop','trousers',30,'job'))
+    assert items[0].provenance['dataset_id']=='ds1'
+    _,status=asyncio.run(sources.fetch('depop','trousers',30,'job'))
+    assert status['status']=='cached'
+    assert len(calls)==2
+
+
+def test_claude_http_contract(store):
+    import anthropic
+    import httpx2
+    from sourcing.claude import Claude,PLANNER
+    def handler(request):
+        payload=json.loads(request.content)
+        assert payload['output_config']['format']['type']=='json_schema'
+        assert payload['fallbacks']=='default'
+        assert 'server-side-fallback-2026-07-01' in request.headers['anthropic-beta']
+        assert request.headers['authorization']=='Bearer test'
+        return httpx2.Response(200,json={'id':'msg_1','type':'message','role':'assistant','model':payload['model'],
+            'stop_reason':'end_turn','content':[{'type':'text','text':'{"queries":["olive linen trousers"]}'}],
+            'usage':{'input_tokens':100,'output_tokens':10}})
+    client=anthropic.AsyncAnthropic(api_key='test',http_client=httpx2.AsyncClient(transport=httpx2.MockTransport(handler)))
+    result=asyncio.run(Claude(Settings(anthropic_api_key='test'),store,client=client).call(PLANNER,'test','job','planner',500))
+    assert result['queries']==['olive linen trousers']
+
+
+def test_grailed_documented_shape_and_inputs(store):
+    row={'listing_id':'1','listing_url':'https://www.grailed.com/listings/1','title':'Jacket',
+         'price':'40.00','currency':'USD','seller_username':'archive','image_url':'https://media.grailed.com/1.jpg'}
+    item=normalize('grailed',row,{})
+    assert item.id=='grailed:1' and item.seller=='archive'
+    _,payload=ApifySources(Settings(),store).actor_input('grailed','jacket',30)
+    assert payload=={'queries':['jacket'],'maxPagesPerQuery':1}

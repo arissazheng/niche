@@ -1,0 +1,68 @@
+@import "tailwindcss";
+
+/* Archival / gallery system: white paper, black ink, grey plinths, 1px rules, one typeface. */
+/* inline: next/font defines these variables on <body>, so utilities must reference them directly. */
+@theme inline {
+  --font-sans: var(--font-grotesk), "Helvetica Neue", Helvetica, Arial, sans-serif;
+  --font-serif: var(--font-book-serif), Georgia, serif;
+  --font-script: var(--font-book-script), cursive;
+  --font-hand: var(--font-book-hand), cursive;
+}
+
+@theme {
+  --color-paper: #ffffff;
+  --color-ink: #000000;
+  --color-plinth: #e9e9eb;
+  --color-muted: #8a8a8f;
+  --color-hint: #a7b4c8;
+  --text-micro: 0.625rem;
+  --text-micro--line-height: 1.2;
+  --text-display: 1.75rem;
+  --text-display--line-height: 1.1;
+  --text-wordmark: clamp(3rem, 12vw, 9rem);
+  --text-wordmark--line-height: 0.9;
+}
+
+:root {
+  color-scheme: light;
+}
+
+body {
+  background: var(--color-paper);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+  letter-spacing: -0.01em;
+}
+
+/* Small uppercase labels used for nav, captions and index numbers. */
+.label {
+  font-size: var(--text-micro);
+  line-height: var(--text-micro--line-height);
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+
+.rule-t {
+  border-top: 1px solid var(--color-ink);
+}
+
+.rule-b {
+  border-bottom: 1px solid var(--color-ink);
+}
+
+::selection {
+  background: var(--color-ink);
+  color: var(--color-paper);
+}
+
+.input {
+  border-bottom: 1px solid var(--color-ink);
+  background: transparent;
+  padding: 0.25rem 0;
+  outline: none;
+  font-size: 0.875rem;
+}
+
+.input:focus-visible {
+  border-bottom-width: 2px;
+}

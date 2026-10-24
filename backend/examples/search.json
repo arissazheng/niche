@@ -1,0 +1,22 @@
+{
+  "profile_version": "1",
+  "taste_profile": {
+    "summary": "Earthy vintage clothes with relaxed shapes",
+    "colors": ["olive", "cream", "brown"],
+    "silhouettes": ["wide-leg", "boxy"],
+    "materials": ["linen", "cotton"],
+    "avoid": ["logo"],
+    "reference_image_urls": []
+  },
+  "request": {
+    "query": "relaxed trousers",
+    "max_item_price": 80,
+    "currency": "USD",
+    "size": "8",
+    "ship_to_country": "US",
+    "allow_secondhand": true,
+    "unknown_policy": "include_with_warning"
+  },
+  "sources": ["etsy", "depop", "poshmark", "grailed"],
+  "limit": 12
+}

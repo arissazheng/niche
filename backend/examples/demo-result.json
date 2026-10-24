@@ -1,0 +1,431 @@
+{
+  "search_id": "b082b72f-50db-484c-bf0a-fc2acf827bad",
+  "status": "completed",
+  "mode": "fixture",
+  "sources": {
+    "etsy": {
+      "status": "fixture",
+      "count": 6
+    },
+    "depop": {
+      "status": "fixture",
+      "count": 6
+    },
+    "poshmark": {
+      "status": "fixture",
+      "count": 6
+    },
+    "grailed": {
+      "status": "fixture",
+      "count": 6
+    }
+  },
+  "results": [
+    {
+      "id": "etsy:fixture-0",
+      "source": "etsy",
+      "title": "Olive linen wide-leg trousers",
+      "url": "https://example.invalid/etsy/0",
+      "image_urls": [],
+      "description": "olive relaxed linen vintage",
+      "price": 48.0,
+      "currency": "USD",
+      "sizes": [
+        "8"
+      ],
+      "condition": "used",
+      "available": true,
+      "seller": "Demo seller 0",
+      "seller_type": "unknown",
+      "is_ad": null,
+      "shipping_cost": null,
+      "ships_to": null,
+      "scraped_at": "2026-10-21T17:29:55.048983+00:00",
+      "provenance": {
+        "mode": "fixture"
+      },
+      "warnings": [
+        "Synthetic demo item; not for purchase",
+        "Shipping destination unverified",
+        "Shipping and tax not included in item price"
+      ],
+      "score": 80.0,
+      "match_dimensions": {},
+      "reason": "Text keyword overlap only; visual taste matching has not been evaluated.",
+      "is_fixture": true
+    },
+    {
+      "id": "depop:fixture-0",
+      "source": "depop",
+      "title": "Olive linen wide-leg trousers",
+      "url": "https://example.invalid/depop/0",
+      "image_urls": [],
+      "description": "olive relaxed linen vintage",
+      "price": 48.0,
+      "currency": "USD",
+      "sizes": [
+        "8"
+      ],
+      "condition": "used",
+      "available": true,
+      "seller": "Demo seller 0",
+      "seller_type": "unknown",
+      "is_ad": null,
+      "shipping_cost": null,
+      "ships_to": null,
+      "scraped_at": "2026-10-21T17:29:55.049040+00:00",
+      "provenance": {
+        "mode": "fixture"
+      },
+      "warnings": [
+        "Synthetic demo item; not for purchase",
+        "Shipping destination unverified",
+        "Shipping and tax not included in item price"
+      ],
+      "score": 80.0,
+      "match_dimensions": {},
+      "reason": "Text keyword overlap only; visual taste matching has not been evaluated.",
+      "is_fixture": true
+    },
+    {
+      "id": "poshmark:fixture-0",
+      "source": "poshmark",
+      "title": "Olive linen wide-leg trousers",
+      "url": "https://example.invalid/poshmark/0",
+      "image_urls": [],
+      "description": "olive relaxed linen vintage",
+      "price": 48.0,
+      "currency": "USD",
+      "sizes": [
+        "8"
+      ],
+      "condition": "used",
+      "available": true,
+      "seller": "Demo seller 0",
+      "seller_type": "unknown",
+      "is_ad": null,
+      "shipping_cost": null,
+      "ships_to": null,
+      "scraped_at": "2026-10-21T17:29:55.049067+00:00",
+      "provenance": {
+        "mode": "fixture"
+      },
+      "warnings": [
+        "Synthetic demo item; not for purchase",
+        "Shipping destination unverified",
+        "Shipping and tax not included in item price"
+      ],
+      "score": 80.0,
+      "match_dimensions": {},
+      "reason": "Text keyword overlap only; visual taste matching has not been evaluated.",
+      "is_fixture": true
+    },
+    {
+      "id": "grailed:fixture-0",
+      "source": "grailed",
+      "title": "Olive linen wide-leg trousers",
+      "url": "https://example.invalid/grailed/0",
+      "image_urls": [],
+      "description": "olive relaxed linen vintage",
+      "price": 48.0,
+      "currency": "USD",
+      "sizes": [
+        "8"
+      ],
+      "condition": "used",
+      "available": true,
+      "seller": "Demo seller 0",
+      "seller_type": "unknown",
+      "is_ad": null,
+      "shipping_cost": null,
+      "ships_to": null,
+      "scraped_at": "2026-10-21T17:29:55.049094+00:00",
+      "provenance": {
+        "mode": "fixture"
+      },
+      "warnings": [
+        "Synthetic demo item; not for purchase",
+        "Shipping destination unverified",
+        "Shipping and tax not included in item price"
+      ],
+      "score": 80.0,
+      "match_dimensions": {},
+      "reason": "Text keyword overlap only; visual taste matching has not been evaluated.",
+      "is_fixture": true
+    },
+    {
+      "id": "etsy:fixture-3",
+      "source": "etsy",
+      "title": "Brown cotton pleated trousers",
+      "url": "https://example.invalid/etsy/3",
+      "image_urls": [],
+      "description": "brown relaxed cotton vintage",
+      "price": 55.0,
+      "currency": "USD",
+      "sizes": [
+        "8"
+      ],
+      "condition": "used",
+      "available": true,
+      "seller": "Demo seller 0",
+      "seller_type": "unknown",
+      "is_ad": null,
+      "shipping_cost": null,
+      "ships_to": null,
+      "scraped_at": "2026-10-21T17:29:55.049019+00:00",
+      "provenance": {
+        "mode": "fixture"
+      },
+      "warnings": [
+        "Synthetic demo item; not for purchase",
+        "Shipping destination unverified",
+        "Shipping and tax not included in item price"
+      ],
+      "score": 70.0,
+      "match_dimensions": {},
+      "reason": "Text keyword overlap only; visual taste matching has not been evaluated.",
+      "is_fixture": true
+    },
+    {
+      "id": "depop:fixture-3",
+      "source": "depop",
+      "title": "Brown cotton pleated trousers",
+      "url": "https://example.invalid/depop/3",
+      "image_urls": [],
+      "description": "brown relaxed cotton vintage",
+      "price": 55.0,
+      "currency": "USD",
+      "sizes": [
+        "8"
+      ],
+      "condition": "used",
+      "available": true,
+      "seller": "Demo seller 0",
+      "seller_type": "unknown",
+      "is_ad": null,
+      "shipping_cost": null,
+      "ships_to": null,
+      "scraped_at": "2026-10-21T17:29:55.049053+00:00",
+      "provenance": {
+        "mode": "fixture"
+      },
+      "warnings": [
+        "Synthetic demo item; not for purchase",
+        "Shipping destination unverified",
+        "Shipping and tax not included in item price"
+      ],
+      "score": 70.0,
+      "match_dimensions": {},
+      "reason": "Text keyword overlap only; visual taste matching has not been evaluated.",
+      "is_fixture": true
+    },
+    {
+      "id": "poshmark:fixture-3",
+      "source": "poshmark",
+      "title": "Brown cotton pleated trousers",
+      "url": "https://example.invalid/poshmark/3",
+      "image_urls": [],
+      "description": "brown relaxed cotton vintage",
+      "price": 55.0,
+      "currency": "USD",
+      "sizes": [
+        "8"
+      ],
+      "condition": "used",
+      "available": true,
+      "seller": "Demo seller 0",
+      "seller_type": "unknown",
+      "is_ad": null,
+      "shipping_cost": null,
+      "ships_to": null,
+      "scraped_at": "2026-10-21T17:29:55.049080+00:00",
+      "provenance": {
+        "mode": "fixture"
+      },
+      "warnings": [
+        "Synthetic demo item; not for purchase",
+        "Shipping destination unverified",
+        "Shipping and tax not included in item price"
+      ],
+      "score": 70.0,
+      "match_dimensions": {},
+      "reason": "Text keyword overlap only; visual taste matching has not been evaluated.",
+      "is_fixture": true
+    },
+    {
+      "id": "grailed:fixture-3",
+      "source": "grailed",
+      "title": "Brown cotton pleated trousers",
+      "url": "https://example.invalid/grailed/3",
+      "image_urls": [],
+      "description": "brown relaxed cotton vintage",
+      "price": 55.0,
+      "currency": "USD",
+      "sizes": [
+        "8"
+      ],
+      "condition": "used",
+      "available": true,
+      "seller": "Demo seller 0",
+      "seller_type": "unknown",
+      "is_ad": null,
+      "shipping_cost": null,
+      "ships_to": null,
+      "scraped_at": "2026-10-21T17:29:55.049105+00:00",
+      "provenance": {
+        "mode": "fixture"
+      },
+      "warnings": [
+        "Synthetic demo item; not for purchase",
+        "Shipping destination unverified",
+        "Shipping and tax not included in item price"
+      ],
+      "score": 70.0,
+      "match_dimensions": {},
+      "reason": "Text keyword overlap only; visual taste matching has not been evaluated.",
+      "is_fixture": true
+    },
+    {
+      "id": "etsy:fixture-1",
+      "source": "etsy",
+      "title": "Cream cotton boxy shirt",
+      "url": "https://example.invalid/etsy/1",
+      "image_urls": [],
+      "description": "cream boxy cotton minimal",
+      "price": 35.0,
+      "currency": "USD",
+      "sizes": [
+        "8"
+      ],
+      "condition": "used",
+      "available": true,
+      "seller": "Demo seller 1",
+      "seller_type": "unknown",
+      "is_ad": null,
+      "shipping_cost": null,
+      "ships_to": null,
+      "scraped_at": "2026-10-21T17:29:55.049008+00:00",
+      "provenance": {
+        "mode": "fixture"
+      },
+      "warnings": [
+        "Synthetic demo item; not for purchase",
+        "Shipping destination unverified",
+        "Shipping and tax not included in item price"
+      ],
+      "score": 50.0,
+      "match_dimensions": {},
+      "reason": "Text keyword overlap only; visual taste matching has not been evaluated.",
+      "is_fixture": true
+    },
+    {
+      "id": "depop:fixture-1",
+      "source": "depop",
+      "title": "Cream cotton boxy shirt",
+      "url": "https://example.invalid/depop/1",
+      "image_urls": [],
+      "description": "cream boxy cotton minimal",
+      "price": 35.0,
+      "currency": "USD",
+      "sizes": [
+        "8"
+      ],
+      "condition": "used",
+      "available": true,
+      "seller": "Demo seller 1",
+      "seller_type": "unknown",
+      "is_ad": null,
+      "shipping_cost": null,
+      "ships_to": null,
+      "scraped_at": "2026-10-21T17:29:55.049046+00:00",
+      "provenance": {
+        "mode": "fixture"
+      },
+      "warnings": [
+        "Synthetic demo item; not for purchase",
+        "Shipping destination unverified",
+        "Shipping and tax not included in item price"
+      ],
+      "score": 50.0,
+      "match_dimensions": {},
+      "reason": "Text keyword overlap only; visual taste matching has not been evaluated.",
+      "is_fixture": true
+    },
+    {
+      "id": "poshmark:fixture-1",
+      "source": "poshmark",
+      "title": "Cream cotton boxy shirt",
+      "url": "https://example.invalid/poshmark/1",
+      "image_urls": [],
+      "description": "cream boxy cotton minimal",
+      "price": 35.0,
+      "currency": "USD",
+      "sizes": [
+        "8"
+      ],
+      "condition": "used",
+      "available": true,
+      "seller": "Demo seller 1",
+      "seller_type": "unknown",
+      "is_ad": null,
+      "shipping_cost": null,
+      "ships_to": null,
+      "scraped_at": "2026-10-21T17:29:55.049071+00:00",
+      "provenance": {
+        "mode": "fixture"
+      },
+      "warnings": [
+        "Synthetic demo item; not for purchase",
+        "Shipping destination unverified",
+        "Shipping and tax not included in item price"
+      ],
+      "score": 50.0,
+      "match_dimensions": {},
+      "reason": "Text keyword overlap only; visual taste matching has not been evaluated.",
+      "is_fixture": true
+    },
+    {
+      "id": "grailed:fixture-1",
+      "source": "grailed",
+      "title": "Cream cotton boxy shirt",
+      "url": "https://example.invalid/grailed/1",
+      "image_urls": [],
+      "description": "cream boxy cotton minimal",
+      "price": 35.0,
+      "currency": "USD",
+      "sizes": [
+        "8"
+      ],
+      "condition": "used",
+      "available": true,
+      "seller": "Demo seller 1",
+      "seller_type": "unknown",
+      "is_ad": null,
+      "shipping_cost": null,
+      "ships_to": null,
+      "scraped_at": "2026-10-21T17:29:55.049098+00:00",
+      "provenance": {
+        "mode": "fixture"
+      },
+      "warnings": [
+        "Synthetic demo item; not for purchase",
+        "Shipping destination unverified",
+        "Shipping and tax not included in item price"
+      ],
+      "score": 50.0,
+      "match_dimensions": {},
+      "reason": "Text keyword overlap only; visual taste matching has not been evaluated.",
+      "is_fixture": true
+    }
+  ],
+  "warnings": [],
+  "queries": [
+    "relaxed trousers"
+  ],
+  "counts": {
+    "retrieved": 24,
+    "eligible": 16
+  },
+  "ranking_method": "fixture_lexical",
+  "created_at": "2026-10-21T17:29:55.048192+00:00"
+}
