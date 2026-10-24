@@ -15,7 +15,15 @@ const appearance = {
 };
 
 /** In-page checkout (Stripe Payment Element with Link) — no redirect or separate tab. */
-export function Checkout({ searchId, listing }: { searchId: string; listing: Listing }) {
+export function Checkout({
+  searchId,
+  listing,
+  onPurchased,
+}: {
+  searchId: string;
+  listing: Listing;
+  onPurchased?: () => void;
+}) {
   const [intent, setIntent] = useState<CheckoutIntent | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -29,11 +37,7 @@ export function Checkout({ searchId, listing }: { searchId: string; listing: Lis
   const total = `${(intent.amount / 100).toFixed(2)} ${intent.currency}`;
   if (intent.mode === "fixture" || !intent.client_secret || !stripePromise) {
     return (
-      <div className="grid gap-2">
-        <p className="text-display">{total}</p>
-        <p className="text-sm">Checkout is in fixture mode: set STRIPE_SECRET_KEY on the API and NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY here.</p>
-        <button disabled className="rule-t rule-b text-display py-2 text-muted">Buy with Link</button>
-      </div>
+      <DemoPurchase total={total} searchId={searchId} listing={listing} onPurchased={onPurchased} />
     );
   }
   return (
@@ -73,5 +77,50 @@ function PayForm({ total }: { total: string }) {
         {state === "paying" ? "Paying…" : state === "done" ? "Done" : "Buy now"}
       </button>
     </form>
+  );
+}
+
+/** No Stripe keys: record a clearly labelled demo purchase in the shopper's mock bank (Capital One Nessie). */
+function DemoPurchase({
+  total,
+  searchId,
+  listing,
+  onPurchased,
+}: {
+  total: string;
+  searchId: string;
+  listing: Listing;
+  onPurchased?: () => void;
+}) {
+  const [state, setState] = useState<"idle" | "buying" | "done">("idle");
+  const [message, setMessage] = useState<string | null>(null);
+
+  async function buy() {
+    setState("buying");
+    setMessage(null);
+    try {
+      const result = await api.demoPurchase(searchId, listing.id);
+      setMessage(`Recorded $${result.ledger.amount} in your Capital One (Nessie) demo account.`);
+      setState("done");
+      onPurchased?.();
+    } catch (err) {
+      setMessage((err as Error).message);
+      setState("idle");
+    }
+  }
+
+  return (
+    <div className="grid gap-2">
+      <p className="text-display">{total}</p>
+      <p className="label text-muted">Demo mode · no real payment</p>
+      {message && <p className="text-sm">{message}</p>}
+      <button
+        onClick={buy}
+        disabled={state !== "idle"}
+        className="rule-t rule-b text-display py-2 disabled:text-muted"
+      >
+        {state === "buying" ? "Recording…" : state === "done" ? "Bought (demo)" : "Buy (demo)"}
+      </button>
+    </div>
   );
 }

@@ -273,9 +273,10 @@ def test_claude_partial_ranking_keeps_ranked_items(request_data,store):
     class PartialModel(Claude):
         async def call(self,*args,**kwargs):
             return {'rankings':[{'id':'L1','score':91,'dimensions':{'color':90,'silhouette':90,'aesthetic':90},
-                                 'reason':'Strong match','uncertainties':[]}]}
+                                 'reason':'Strong match','uncertainties':['Synthetic demo item; not for purchase','Fit unclear']}]}
     ranked=asyncio.run(PartialModel(Settings(),store).rank(request_data,items,'job'))
     assert ranked[0].score==91 and ranked[0].reason=='Strong match'
+    assert ranked[0].warnings.count('Synthetic demo item; not for purchase')==1 and 'Fit unclear' in ranked[0].warnings
     assert all(x.score==0 and 'Taste match not evaluated' in x.warnings for x in ranked[1:])
     class EmptyModel(Claude):
         async def call(self,*args,**kwargs):

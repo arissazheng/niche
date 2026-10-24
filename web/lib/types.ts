@@ -133,10 +133,20 @@ export interface ChatTurn {
   brief?: string; // what an agent turn searched for
 }
 
+export interface Budget {
+  linked: boolean;
+  balance?: number;
+  monthly_budget?: number;
+  month_spent?: number;
+  remaining?: number;
+  upcoming_bills?: { payee: string; amount: number; due: string }[];
+}
+
 export interface AgentReply {
   reply: string;
   action: "search" | "clarify";
   brief: string;
+  budget?: Omit<Budget, "linked"> | null;
   search_id?: string;
   status_url?: string;
 }

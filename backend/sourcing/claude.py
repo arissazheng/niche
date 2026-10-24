@@ -149,7 +149,8 @@ class Claude:
                 raise ValueError('Invalid ranking explanation')
             item = by_alias[alias]
             item.score, item.match_dimensions, item.reason = score,dims,row['reason'][:500]
-            item.warnings.extend(row['uncertainties'][:5])
+            # Claude sees each listing's existing warnings and often repeats them as uncertainties.
+            item.warnings.extend(u for u in row['uncertainties'][:5] if u not in item.warnings)
         if skipped:
             self.store.event(job_id,'ranker_skipped_ids',{'count':skipped})
         if not seen:

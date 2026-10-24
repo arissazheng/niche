@@ -5,5 +5,6 @@ COPY app.py ./
 COPY sourcing ./sourcing
 COPY taste ./taste
 COPY checkout ./checkout
+COPY finance ./finance
 RUN pip install --no-cache-dir .
 CMD ["python", "-m", "sourcing.actor"]

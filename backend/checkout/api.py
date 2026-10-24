@@ -1,13 +1,14 @@
 import logging
-from datetime import date
 import httpx
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, ConfigDict
+import json
+from finance.budget import Budgets
+from finance.nessie import NessieError
 from sourcing.store import Store
 
 log = logging.getLogger(__name__)
 STRIPE = 'https://api.stripe.com/v1/'
-NESSIE = 'http://api.nessieisreal.com/'
 
 
 class IntentRequest(BaseModel):
@@ -21,7 +22,7 @@ class ConfirmRequest(BaseModel):
     payment_intent_id: str
 
 
-def create_router(settings, store: Store):
+def create_router(settings, store: Store, budgets: Budgets):
     router = APIRouter(prefix='/v1/checkout', tags=['checkout'])
 
     def stripe():
@@ -67,24 +68,36 @@ def create_router(settings, store: Store):
             return {'status': data['status'], 'ledger': None}
         store.event(data['metadata'].get('search_id', ''), 'purchase',
             {'payment_intent_id': data['id'], 'listing_id': data['metadata'].get('listing_id'), 'amount': data['amount']})
-        return {'status': 'succeeded', 'ledger': await mirror_to_nessie(data)}
+        item = listing(data['metadata'].get('search_id', ''), data['metadata'].get('listing_id', ''))
+        return {'status': 'succeeded', 'ledger': await record(data['metadata'].get('search_id', ''), item)}
 
-    async def mirror_to_nessie(intent):
-        # Agentic-finance demo: record the purchase against a Capital One Nessie mock account.
-        # TODO(checkout owner): verify request shape against the live Nessie docs before the demo.
-        if not (settings.nessie_api_key and settings.nessie_account_id and settings.nessie_merchant_id):
+    def profile_for(search_id):
+        with store.connect() as db:
+            row = db.execute('SELECT request FROM jobs WHERE id=?', (search_id,)).fetchone()
+        return json.loads(row[0]).get('profile_id') if row else None
+
+    async def record(search_id, item):
+        # Agentic-finance: mirror the purchase into the shopper's (mock) bank so the agent's budget updates.
+        profile_id = profile_for(search_id)
+        if not profile_id:
             return None
+        store_name = item.get('retailer') or item.get('seller') or item['source']
         try:
-            async with httpx.AsyncClient(base_url=NESSIE, timeout=10) as client:
-                response = await client.post(f'accounts/{settings.nessie_account_id}/purchases',
-                    params={'key': settings.nessie_api_key},
-                    json={'merchant_id': settings.nessie_merchant_id, 'medium': 'balance',
-                          'purchase_date': date.today().isoformat(), 'amount': intent['amount'] / 100,
-                          'description': f"listing {intent['metadata'].get('listing_id', '')}"[:100]})
-                response.raise_for_status()
-                return {'provider': 'nessie', 'response': response.json()}
-        except httpx.HTTPError as exc:
-            log.warning('nessie mirror failed: %s', type(exc).__name__)
+            return await budgets.record_purchase(profile_id, store_name, item['price'], item['title'][:80])
+        except (NessieError, OSError) as exc:
+            log.warning('nessie purchase failed: %s', exc)
             return {'provider': 'nessie', 'error': type(exc).__name__}
+
+    @router.post('/demo-purchase')
+    async def demo_purchase(body: IntentRequest):
+        # Without Stripe there is no real payment; record a clearly labelled demo purchase in the mock bank so
+        # the budget-aware agent can be shown reacting to it.
+        if settings.stripe_secret_key:
+            raise HTTPException(409, 'Stripe is configured; use the real checkout')
+        item = listing(body.search_id, body.listing_id)
+        ledger = await record(body.search_id, item)
+        if not ledger or 'error' in ledger:
+            raise HTTPException(409, 'No linked bank account for this profile (run python -m finance.seed)')
+        return {'status': 'demo', 'ledger': ledger}
 
     return router

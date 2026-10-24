@@ -2,6 +2,7 @@ from typing import Annotated
 from fastapi import APIRouter, File, Form, HTTPException, UploadFile
 from PIL import UnidentifiedImageError
 from sourcing.models import SearchRequest, ShoppingRequest
+from finance.budget import Budgets
 from sourcing.store import Store
 from .chat import ChatRequest, ShopAgent
 from .engine import TasteEngine
@@ -11,7 +12,7 @@ from .store import TasteStore
 MAX_UPLOAD_BYTES = 15 * 1024 * 1024
 
 
-def create_router(settings, store: Store):
+def create_router(settings, store: Store, budgets: Budgets | None = None):
     taste = TasteStore(store)
     engine = TasteEngine(settings, taste)
     router = APIRouter(prefix='/v1/taste', tags=['taste'])
@@ -105,17 +106,29 @@ def create_router(settings, store: Store):
 
     agent = ShopAgent(settings, engine.model)
 
+    @router.get('/profiles/{ident}/budget')
+    async def budget(ident: str):
+        profile_or_404(ident)
+        snap = await budgets.snapshot(ident) if budgets else None
+        return {'linked': snap is not None, **(snap.model_dump() if snap else {})}
+
     @router.post('/profiles/{ident}/chat')
     async def chat(ident: str, chat: ChatRequest):
         # One conversational turn: a clarifying question, or a refined search over the whole conversation.
         if chat.messages[-1].role != 'user':
             raise HTTPException(422, 'The last message must be from the user')
         profile = built_profile(ident)
-        turn = await agent.respond(profile, chat.messages)
-        out = {'reply': turn.reply, 'action': turn.action, 'brief': turn.brief}
+        budget = await budgets.snapshot(ident) if budgets else None
+        turn = await agent.respond(profile, chat.messages, budget)
+        out = {'reply': turn.reply, 'action': turn.action, 'brief': turn.brief,
+               'budget': budget.model_dump() if budget else None}
         if turn.action == 'search':
-            out.update(start_search(profile, ProfileSearch(query=turn.brief, max_item_price=turn.max_item_price,
-                                                           size=turn.size)))
+            price = turn.max_item_price
+            if price is None and budget and budget.remaining >= 1:
+                # The agent should set a cap itself; if it didn't, keep the search inside what's left this month.
+                price = min(profile.onboarding.budget_max, budget.remaining)
+            out['max_item_price'] = price
+            out.update(start_search(profile, ProfileSearch(query=turn.brief, max_item_price=price, size=turn.size)))
         return out
 
     return router

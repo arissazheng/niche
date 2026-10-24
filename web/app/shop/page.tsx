@@ -10,7 +10,7 @@ import { VoiceButton } from "@/components/voice";
 import { api } from "@/lib/api";
 import { getProfileId } from "@/lib/session";
 import { tables } from "@/lib/spacetime";
-import { TIER_LABELS, type ChatTurn, type Listing, type SearchJob } from "@/lib/types";
+import { TIER_LABELS, type Budget, type ChatTurn, type Listing, type SearchJob } from "@/lib/types";
 
 const DONE = new Set(["completed", "partial", "failed", "interrupted"]);
 const EXAMPLES = ["an asymmetrical buttoned top", "black knee-high boots under $120", "a vintage leather jacket"];
@@ -47,7 +47,13 @@ export default function ShopPage() {
   const [selected, setSelected] = useState<Listing | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [searchId, setSearchId] = useState<string | null>(null);
+  const [budget, setBudget] = useState<Budget | null>(null);
   const pollToken = useRef(0);
+
+  // The shopper's mock bank (Capital One Nessie): shown above the chat, and read by the agent every turn.
+  function refreshBudget(id = profileId) {
+    if (id) api.budget(id).then(setBudget, () => setBudget(null));
+  }
 
   // Listings stream in from SpacetimeDB as each marketplace returns; ranking then reorders them in place.
   const { isActive } = useSpacetimeDB();
@@ -98,6 +104,7 @@ export default function ShopPage() {
     const id = getProfileId();
     setProfileIdState(id);
     if (!id) return;
+    refreshBudget(id);
     const thread = loadThread(id);
     setMessages(thread.messages);
     if (thread.searchId) follow(thread.searchId);
@@ -117,6 +124,7 @@ export default function ShopPage() {
         { role: "agent", text: reply.reply, ...(reply.action === "search" && { brief: reply.brief }) },
       ];
       setMessages(withReply);
+      if (reply.budget) setBudget({ linked: true, ...reply.budget });
       saveThread(profileId, { messages: withReply, searchId: reply.search_id ?? searchId });
       if (reply.search_id) follow(reply.search_id);
     } catch (err) {
@@ -206,6 +214,7 @@ export default function ShopPage() {
       </section>
 
       <ChatPanel
+        budget={budget}
         messages={messages}
         thinking={thinking}
         error={error}
@@ -215,13 +224,16 @@ export default function ShopPage() {
       />
 
       <Drawer open={!!selected} onClose={() => setSelected(null)}>
-        {selected && searchId && <ListingDetail listing={selected} searchId={searchId} />}
+        {selected && searchId && (
+          <ListingDetail listing={selected} searchId={searchId} onPurchased={() => refreshBudget()} />
+        )}
       </Drawer>
     </div>
   );
 }
 
 function ChatPanel({
+  budget,
   messages,
   thinking,
   error,
@@ -229,6 +241,7 @@ function ChatPanel({
   onReset,
   className,
 }: {
+  budget: Budget | null;
   messages: ChatTurn[];
   thinking: boolean;
   error: string | null;
@@ -259,6 +272,7 @@ function ChatPanel({
           <button onClick={onReset} className="label underline">New search</button>
         )}
       </div>
+      {budget?.linked && <BudgetStrip budget={budget} />}
       <div className="flex-1 overflow-y-auto px-3 py-3 grid gap-3 content-start">
         {messages.length === 0 && (
           <p className="text-sm text-muted">What are you shopping for? Describe it like you would to a friend.</p>
@@ -313,6 +327,35 @@ function ChatPanel({
   );
 }
 
+const money = (n = 0) => `$${Math.round(n).toLocaleString()}`;
+const shortDate = (iso: string) =>
+  new Date(`${iso}T12:00:00`).toLocaleDateString(undefined, { month: "short", day: "numeric" });
+
+/** "$95 of $150 clothing this month · $55 left" plus the next bill, from the shopper's mock bank. */
+function BudgetStrip({ budget }: { budget: Budget }) {
+  const spent = budget.month_spent ?? 0;
+  const limit = budget.monthly_budget ?? 0;
+  const used = limit ? Math.min(100, (spent / limit) * 100) : 0;
+  const bill = budget.upcoming_bills?.[0];
+  return (
+    <div className="rule-b px-3 py-2 grid gap-1" title="From your linked Capital One (Nessie) demo account">
+      <div className="flex justify-between label">
+        <span>
+          {money(spent)} of {money(limit)} clothing this month
+        </span>
+        <span>{money(budget.remaining)} left</span>
+      </div>
+      <div className="h-1 bg-plinth">
+        <div className="h-full bg-ink" style={{ width: `${used}%` }} />
+      </div>
+      <p className="label text-muted">
+        Balance {money(budget.balance)}
+        {bill && ` · ${bill.payee} ${money(bill.amount)} due ${shortDate(bill.due)}`}
+      </p>
+    </div>
+  );
+}
+
 // "Loading matches" → "3 matches so far" → "20 matches".
 function matchCount(count: number, loading: boolean) {
   if (loading && count === 0) return "Loading matches";
@@ -326,7 +369,15 @@ function storeLabel(listing: Listing) {
   return listing.tier ? `${listing.retailer} · ${TIER_LABELS[listing.tier]}` : listing.retailer;
 }
 
-function ListingDetail({ listing, searchId }: { listing: Listing; searchId: string }) {
+function ListingDetail({
+  listing,
+  searchId,
+  onPurchased,
+}: {
+  listing: Listing;
+  searchId: string;
+  onPurchased?: () => void;
+}) {
   return (
     <div className="grid gap-4">
       <div>
@@ -337,7 +388,7 @@ function ListingDetail({ listing, searchId }: { listing: Listing; searchId: stri
       <div className="grid gap-1">
         <span className="label">Why this matches</span>
         <p className="text-sm">{listing.reason}</p>
-        {listing.warnings.map((w) => (
+        {[...new Set(listing.warnings)].map((w) => (
           <p key={w} className="text-xs text-muted">— {w}</p>
         ))}
         {listing.is_fixture ? (
@@ -347,7 +398,7 @@ function ListingDetail({ listing, searchId }: { listing: Listing; searchId: stri
         )}
       </div>
       <div className="rule-t pt-3">
-        <Checkout searchId={searchId} listing={listing} />
+        <Checkout searchId={searchId} listing={listing} onPurchased={onPurchased} />
       </div>
     </div>
   );

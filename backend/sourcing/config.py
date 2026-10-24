@@ -32,8 +32,6 @@ class Settings(BaseSettings):
     public_api_url: str = 'http://127.0.0.1:8000'
     stripe_secret_key: str = ''
     nessie_api_key: str = ''
-    nessie_account_id: str = ''
-    nessie_merchant_id: str = ''
     # SpacetimeDB live state (blank URL disables publishing; the app still works by polling).
     spacetime_url: str = ''
     spacetime_db: str = 'niche'

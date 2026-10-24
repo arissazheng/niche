@@ -8,6 +8,7 @@ from sourcing.config import Settings
 from sourcing.store import Store
 from taste.api import create_router as taste_router
 from checkout.api import create_router as checkout_router
+from finance.budget import Budgets
 
 
 def create_app(settings=None):
@@ -19,8 +20,10 @@ def create_app(settings=None):
         if settings.sourcing_api_key and not hmac.compare_digest(x_api_key or '', settings.sourcing_api_key):
             raise HTTPException(401, 'Invalid API key')
 
-    app.include_router(taste_router(settings, store), dependencies=[Depends(authorize)])
-    app.include_router(checkout_router(settings, store), dependencies=[Depends(authorize)])
+    budgets = Budgets(settings, store)  # the shopper's mock bank (Capital One Nessie)
+    app.state.budgets = budgets
+    app.include_router(taste_router(settings, store, budgets), dependencies=[Depends(authorize)])
+    app.include_router(checkout_router(settings, store, budgets), dependencies=[Depends(authorize)])
     Path(settings.upload_dir).mkdir(parents=True, exist_ok=True)
     app.mount('/uploads', StaticFiles(directory=settings.upload_dir), name='uploads')
     return app
