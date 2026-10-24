@@ -5,6 +5,7 @@ from collections import Counter
 from pathlib import Path
 from pydantic import BaseModel, ConfigDict
 from sourcing.claude import Claude
+from sourcing.live import Live
 from sourcing.store import now
 from . import palette as px
 from .models import ImageAnalysis, Profile, StyleCluster, TasteImage
@@ -56,9 +57,10 @@ def schema(model):
 
 
 class TasteEngine:
-    def __init__(self, settings, taste: TasteStore, model: Claude | None = None):
+    def __init__(self, settings, taste: TasteStore, model: Claude | None = None, publish: Live | None = None):
         self.settings, self.taste = settings, taste
         self.model = model or Claude(settings, taste.store)
+        self.publish = publish or Live(settings)  # SpacetimeDB: build progress + profile versions
         self.uploads = Path(settings.upload_dir)
         self.uploads.mkdir(parents=True, exist_ok=True)
 
@@ -88,6 +90,13 @@ class TasteEngine:
         return self.taste.save_image(image)
 
     async def build(self, profile: Profile):
+        try:
+            return await self._build(profile)
+        except Exception as exc:
+            await self.publish.build_progress(profile.id, 'failed', 0, 0, str(exc))
+            raise
+
+    async def _build(self, profile: Profile):
         images = self.taste.images(profile.id)
         if not images:
             raise ValueError('Upload at least one image first')
@@ -100,13 +109,20 @@ class TasteEngine:
         # In live mode, also redo analyses saved while running in fixture mode.
         pending = [x for x in images if x.analysis is None or (self.live and FIXTURE_NOTE in x.analysis.confidence_notes)]
         limit = asyncio.Semaphore(4)
+        finished = 0
+        await self.publish.build_progress(profile.id, 'extracting', 0, len(pending), 'Reading your images')
 
         async def bounded(image):
+            nonlocal finished
             async with limit:
-                return await self.analyze(image)
+                analyzed = await self.analyze(image)
+            finished += 1
+            await self.publish.build_progress(profile.id, 'extracting', finished, len(pending), 'Reading your images')
+            return analyzed
         if pending:
             done = {x.id: x for x in await asyncio.gather(*map(bounded, pending))}
             images = [done.get(x.id, x) for x in images]
+        await self.publish.build_progress(profile.id, 'clustering', len(pending), len(pending), 'Finding your clusters')
         if self.live:
             content = []
             for image in images:
@@ -118,7 +134,9 @@ class TasteEngine:
                 await self.model.call(SYNTHESIZER, content, profile.id, 'synthesize', 16000, schema(Synthesis)))
         else:
             result = fixture_synthesis(images)
-        return self.apply(profile, result, 'claude' if self.live else 'fixture', images)
+        profile = await self.apply(profile, result, 'claude' if self.live else 'fixture', images)
+        await self.publish.build_progress(profile.id, 'done', len(pending), len(pending), '')
+        return profile
 
     async def edit(self, profile: Profile, instruction, source):
         self.taste.event(profile.id, 'profile_edit', {'source': source, 'instruction': instruction})
@@ -130,17 +148,23 @@ class TasteEngine:
         else:
             result = Synthesis.model_validate(profile.model_dump(include=set(Synthesis.model_fields)))
             result.prompt = f'{result.prompt}\n\nAdjustment: {instruction}'.strip()
-        return self.apply(profile, result, profile.mode if profile.mode != 'empty' else 'fixture',
+        return await self.apply(profile, result, profile.mode if profile.mode != 'empty' else 'fixture',
             self.taste.images(profile.id))
 
-    def apply(self, profile: Profile, result: Synthesis, mode, images):
+    async def apply(self, profile: Profile, result: Synthesis, mode, images):
         known = {x.id for x in images}
         for cluster in result.clusters:
             # Drop image ids the model invented rather than trusting them.
             cluster.image_ids = [x for x in cluster.image_ids if x in known]
         fields = {k: getattr(result, k) for k in Synthesis.model_fields}
         profile = profile.model_copy(update={**fields, 'mode': mode, 'version': profile.version + 1})
-        return self.taste.save_profile(profile)
+        return await self.save(profile)
+
+    async def save(self, profile: Profile):
+        """Persist, then tell live subscribers (other tabs, collaborators, the voice agent) to refetch."""
+        profile = self.taste.save_profile(profile)
+        await self.publish.profile_version(profile.id, profile.version)
+        return profile
 
 
 def fixture_synthesis(images: list[TasteImage]) -> Synthesis:

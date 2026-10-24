@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
+import { BuildProgress } from "@/components/build-progress";
 import { SectionTitle } from "@/components/chrome";
 import { Drawer } from "@/components/drawer";
 import { ImageTile } from "@/components/image-tile";
@@ -69,7 +70,7 @@ export default function UploadPage() {
   if (building) {
     return (
       <div className="px-4 min-h-[60vh] flex items-center justify-center">
-        <p className="text-display animate-pulse">Curating your profile…</p>
+        <p className="text-display animate-pulse"><BuildProgress profileId={id} /></p>
       </div>
     );
   }

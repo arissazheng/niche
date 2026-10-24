@@ -1,11 +1,13 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { useSpacetimeDB, useTable } from "spacetimedb/react";
+import { tables, type DbConnection } from "@/lib/spacetime";
 import type { ProfileView, StyleCluster, TasteImage } from "@/lib/types";
 
 // One open, ring-bound spread that fills the screen. Every cluster is a loose, overlapping collage
 // (prints, an embossed heading slip, a vellum note, handwritten labels, color dots). Every piece can be
-// dragged; the arrangement is remembered in this browser per profile version.
+// dragged. Positions and cursors live in SpacetimeDB, so everyone with the board link sees moves live.
 
 type PieceKind = "image" | "slip" | "note" | "dots" | "label" | "title";
 
@@ -36,34 +38,51 @@ const PAPER_INSET_X = 1; // % of spread width between the screen edge and the pa
 const PAPER_INSET_Y = 1.5; // % of spread height
 
 const CLICK_SLOP_PX = 4; // less movement than this between press and release counts as a click
+const SEND_EVERY_MS = 60; // live drag updates; the drop always sends the final position
+const CURSOR_EVERY_MS = 80;
+const CURSOR_STALE_MS = 30_000;
 
-export function Binder({ view, onOpenImage }: { view: ProfileView; onOpenImage?: (image: TasteImage) => void }) {
+export function Binder({
+  view,
+  viewerName,
+  onOpenImage,
+}: {
+  view: ProfileView;
+  viewerName: string;
+  onOpenImage?: (image: TasteImage) => void;
+}) {
   const spreadRef = useRef<HTMLDivElement>(null);
   const pieces = layout(view);
-  const storageKey = `moodboard:${view.profile.id}:${view.profile.version}`;
-  const [moved, setMoved] = useState<Record<string, Moved>>({});
-  const topZ = useRef(100);
+  // A rebuilt profile has different clusters, so each version gets a fresh board.
+  const boardId = `${view.profile.id}:v${view.profile.version}`;
+
+  const { isActive, identity, getConnection } = useSpacetimeDB();
+  const conn = getConnection() as DbConnection | null;
+  const [rows] = useTable(tables.boardPiece.where((r) => r.boardId.eq(boardId)));
+  const [cursorRows] = useTable(tables.boardCursor.where((r) => r.boardId.eq(boardId)));
+
+  const shared: Record<string, Moved> = {};
+  for (const row of rows) shared[row.pieceId] = { dx: row.dx, dy: row.dy, z: row.z };
+  // Your own drag wins while it's in flight; `pending` holds dropped positions until the server echoes them
+  // (and keeps the board usable on its own if the live connection is down).
+  const [dragging, setDragging] = useState<{ id: string; moved: Moved } | null>(null);
+  const [pending, setPending] = useState<Record<string, Moved>>({});
+  const position = (id: string) => (dragging?.id === id ? dragging.moved : pending[id] ?? shared[id]);
 
   useEffect(() => {
-    try {
-      const saved = JSON.parse(localStorage.getItem(storageKey) ?? "{}") as Record<string, Moved>;
-      setMoved(saved);
-      topZ.current = Math.max(100, ...Object.values(saved).map((m) => m.z));
-    } catch {
-      setMoved({});
-    }
-  }, [storageKey]);
+    setPending((current) => {
+      const left = Object.entries(current).filter(([id, m]) => {
+        const echo = rows.find((r) => r.pieceId === id);
+        return !(echo && echo.dx === m.dx && echo.dy === m.dy && echo.z === m.z);
+      });
+      return left.length === Object.keys(current).length ? current : Object.fromEntries(left);
+    });
+  }, [rows]);
 
-  const save = useCallback(
-    (next: Record<string, Moved>) => {
-      try {
-        localStorage.setItem(storageKey, JSON.stringify(next));
-      } catch {
-        // Storage blocked: the arrangement just won't survive a reload.
-      }
-    },
-    [storageKey],
-  );
+  const send = (pieceId: string, m: Moved) => {
+    if (!conn || !isActive) return;
+    conn.reducers.movePiece({ boardId, pieceId, dx: m.dx, dy: m.dy, z: m.z }).catch(() => {});
+  };
 
   function startDrag(e: React.PointerEvent, piece: Piece) {
     const spread = spreadRef.current;
@@ -71,13 +90,15 @@ export function Binder({ view, onOpenImage }: { view: ProfileView; onOpenImage?:
     e.preventDefault();
     const rect = spread.getBoundingClientRect();
     const start = { x: e.clientX, y: e.clientY };
-    const base = moved[piece.id] ?? { dx: 0, dy: 0, z: piece.z };
-    const z = ++topZ.current; // picking something up puts it on top of the pile
+    const base = position(piece.id) ?? { dx: 0, dy: 0, z: piece.z };
+    const highest = Math.max(100, ...rows.map((r) => r.z), ...Object.values(pending).map((m) => m.z));
+    const z = highest + 1; // picking something up puts it on top of the pile, for everyone
     const target = e.currentTarget as HTMLElement;
     target.setPointerCapture(e.pointerId);
 
     let latest = { ...base, z };
     let travelled = 0;
+    let lastSent = 0;
     const onMove = (ev: PointerEvent) => {
       travelled = Math.max(travelled, Math.hypot(ev.clientX - start.x, ev.clientY - start.y));
       latest = {
@@ -85,35 +106,72 @@ export function Binder({ view, onOpenImage }: { view: ProfileView; onOpenImage?:
         dy: base.dy + ((ev.clientY - start.y) / rect.height) * 100,
         z,
       };
-      setMoved((m) => ({ ...m, [piece.id]: latest }));
+      setDragging({ id: piece.id, moved: latest });
+      if (ev.timeStamp - lastSent > SEND_EVERY_MS) {
+        lastSent = ev.timeStamp;
+        send(piece.id, latest);
+      }
     };
     const onUp = () => {
       target.removeEventListener("pointermove", onMove);
       target.removeEventListener("pointerup", onUp);
       target.removeEventListener("pointercancel", onUp);
       if (travelled < CLICK_SLOP_PX && piece.kind === "image" && piece.image) onOpenImage?.(piece.image);
-      setMoved((m) => {
-        const next = { ...m, [piece.id]: latest };
-        save(next);
-        return next;
-      });
+      setPending((p) => ({ ...p, [piece.id]: latest }));
+      setDragging(null);
+      send(piece.id, latest);
     };
     target.addEventListener("pointermove", onMove);
     target.addEventListener("pointerup", onUp);
     target.addEventListener("pointercancel", onUp);
-    setMoved((m) => ({ ...m, [piece.id]: latest }));
+    setDragging({ id: piece.id, moved: latest });
   }
 
   function reset() {
-    setMoved({});
-    save({});
+    setPending({});
+    if (conn && isActive) conn.reducers.resetBoard({ boardId }).catch(() => {});
   }
+
+  // Cursor presence: where you are on the spread, shared with everyone on this board.
+  const lastCursor = useRef(0);
+  const myColor = identity ? cursorColor(identity.toHexString()) : "#000";
+  function trackCursor(e: React.PointerEvent) {
+    const spread = spreadRef.current;
+    if (!spread || !conn || !isActive || e.timeStamp - lastCursor.current < CURSOR_EVERY_MS) return;
+    lastCursor.current = e.timeStamp;
+    const rect = spread.getBoundingClientRect();
+    conn.reducers
+      .moveCursor({
+        boardId,
+        name: viewerName,
+        color: myColor,
+        x: ((e.clientX - rect.left) / rect.width) * 100,
+        y: ((e.clientY - rect.top) / rect.height) * 100,
+      })
+      .catch(() => {});
+  }
+  function leave() {
+    if (conn && isActive) conn.reducers.leaveBoard({ boardId }).catch(() => {});
+  }
+  const leaveRef = useRef(leave);
+  leaveRef.current = leave;
+  useEffect(() => () => leaveRef.current(), [boardId]);
+
+  const me = identity?.toHexString();
+  const now = Date.now();
+  const others = cursorRows.filter(
+    (c) =>
+      c.viewer.toHexString() !== me &&
+      now - Number(c.updatedAt.microsSinceUnixEpoch / BigInt(1000)) < CURSOR_STALE_MS,
+  );
 
   return (
     // isolate: piece z-indexes (which grow as things are picked up) stay inside the book, under page overlays.
     <section className="relative isolate bg-ink overflow-x-auto">
       <div
         ref={spreadRef}
+        onPointerMove={trackCursor}
+        onPointerLeave={leave}
         className="relative h-[calc(100dvh-3.5rem)] min-h-[560px] w-full min-w-[960px] overflow-hidden select-none"
       >
         <Paper side="left" />
@@ -121,7 +179,7 @@ export function Binder({ view, onOpenImage }: { view: ProfileView; onOpenImage?:
         {/* Everything on the pages is trimmed at the paper's outer edge, matching the Paper insets below. */}
         <div className="absolute inset-0" style={{ clipPath: `inset(${PAPER_INSET_Y}% ${PAPER_INSET_X}%)` }}>
           {pieces.map((piece) => {
-            const m = moved[piece.id];
+            const m = position(piece.id);
             return (
               <div
                 key={piece.id}
@@ -141,13 +199,43 @@ export function Binder({ view, onOpenImage }: { view: ProfileView; onOpenImage?:
           })}
         </div>
         <Rings />
+        {others.map((c) => (
+          <Cursor key={c.key} x={c.x} y={c.y} name={c.name} color={c.color} />
+        ))}
       </div>
       <div className="absolute bottom-3 right-4 z-[999] flex gap-4 bg-ink text-paper px-3 py-1.5">
-        <span className="label opacity-60">Drag to rearrange · click a photo to edit its notes</span>
+        <span className="label opacity-60">
+          {others.length > 0 ? `${others.length + 1} people here · ` : ""}Drag to rearrange · click a photo to edit its notes
+        </span>
         <button onClick={reset} className="label underline">Reset layout</button>
       </div>
     </section>
   );
+}
+
+function Cursor({ x, y, name, color }: { x: number; y: number; name: string; color: string }) {
+  return (
+    <div
+      aria-hidden
+      className="pointer-events-none absolute z-[950] transition-[left,top] duration-75 ease-linear"
+      style={{ left: `${x}%`, top: `${y}%` }}
+    >
+      <svg viewBox="0 0 16 20" className="w-4 drop-shadow-sm">
+        <path d="M1 1 L1 16 L5 12 L8 19 L11 18 L8 11 L14 11 Z" fill={color} stroke="#fff" strokeWidth="1.2" />
+      </svg>
+      <span className="font-hand text-lg leading-none ml-3 px-1 bg-paper/80" style={{ color }}>
+        {name}
+      </span>
+    </div>
+  );
+}
+
+const CURSOR_COLORS = ["#b5452a", "#2f5d8a", "#3d7a4a", "#8a3f7a", "#a8741a", "#1f6f6f"];
+
+function cursorColor(identityHex: string) {
+  let h = 0;
+  for (const ch of identityHex) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
+  return CURSOR_COLORS[h % CURSOR_COLORS.length];
 }
 
 function PieceBody({ piece }: { piece: Piece }) {

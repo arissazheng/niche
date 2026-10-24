@@ -2,6 +2,7 @@ import asyncio
 import re
 from .sources import NICHE, ApifySources, FixtureSources
 from .claude import Claude
+from .live import Live
 
 
 def eligible(items, request):
@@ -63,10 +64,11 @@ def diversify(items, limit):
     return selected
 
 class Pipeline:
-    def __init__(self, settings, store, sources=None, model=None):
+    def __init__(self, settings, store, sources=None, model=None, live=None):
         self.settings,self.store = settings,store
         self.sources = sources or (FixtureSources() if settings.sourcing_mode=='fixture' else ApifySources(settings,store))
         self.model = model or Claude(settings,store)
+        self.live = live or Live(settings)
 
     async def run(self, request, job_id):
         result = {'mode':self.settings.sourcing_mode,'sources':{},'results':[],'warnings':[]}
@@ -79,6 +81,8 @@ class Pipeline:
                 self.store.event(job_id,'planner_failed',{'type':type(exc).__name__})
                 result['warnings'].append('Query planning failed; searched the original request')
         result['queries'] = queries
+        live_args = (job_id, request.profile_id or '', request.request.query)
+        await self.live.search(*live_args, 'running')
         # One bounded run per marketplace for MVP. Rotate query variants across marketplaces.
         sources = list(dict.fromkeys(request.sources))
         if not request.request.allow_secondhand and len(sources) > 1:
@@ -100,6 +104,9 @@ class Pipeline:
             for task in asyncio.as_completed(tasks):
                 source,items,status = await task
                 collected.extend(items)
+                # Provisional rows so the UI fills in per marketplace; copies keep eligible() from
+                # appending warnings to the items ranked below.
+                await self.live.listings(job_id, eligible([x.model_copy(deep=True) for x in items], request)[:8])
                 result['sources'][source] = status
                 self.store.update(job_id,'running',result)
         finally:
@@ -132,7 +139,10 @@ class Pipeline:
                     item.match_dimensions = {}
                     item.reason = 'Text keyword overlap only; visual taste matching has not been evaluated.'
             result['results'] = [x.model_dump(mode='json') for x in diversify(shortlist,request.limit)]
+        # Replace the provisional rows with the final ranked set (or none).
+        await self.live.listings(job_id, [{**x, 'rank': i+1} for i,x in enumerate(result['results'])], replace=True)
         failures = sum(x['status']=='failed' for x in result['sources'].values())
         status = 'failed' if failures==len(sources) else 'partial' if failures or result['warnings'] else 'completed'
         self.store.update(job_id,status,result)
+        await self.live.search(*live_args, status, result.get('ranking_method', ''), result['warnings'])
         return result

@@ -76,11 +76,11 @@ def create_router(settings, store: Store):
         return view(await engine.edit(profile_or_404(ident), edit.instruction, edit.source))
 
     @router.put('/profiles/{ident}/prompt')
-    def prompt(ident: str, update: PromptUpdate):
+    async def prompt(ident: str, update: PromptUpdate):
         profile = profile_or_404(ident)
         taste.event(ident, 'profile_edit', {'source': 'manual', 'prompt': update.prompt})
         profile.prompt, profile.version = update.prompt, profile.version + 1
-        return view(taste.save_profile(profile))
+        return view(await engine.save(profile))
 
     @router.post('/profiles/{ident}/searches', status_code=202)
     def search(ident: str, search: ProfileSearch):
@@ -90,6 +90,7 @@ def create_router(settings, store: Store):
             raise HTTPException(422, 'Build the taste profile first')
         ob = profile.onboarding
         request = SearchRequest(taste_profile=profile.to_sourcing(), sources=search.sources, limit=search.limit,
+            profile_id=profile.id,
             request=ShoppingRequest(query=search.query, max_item_price=search.max_item_price or ob.budget_max,
                 currency=ob.currency, size=search.size))
         job = store.create(request.model_dump(mode='json'))

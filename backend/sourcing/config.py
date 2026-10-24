@@ -30,6 +30,10 @@ class Settings(BaseSettings):
     nessie_api_key: str = ''
     nessie_account_id: str = ''
     nessie_merchant_id: str = ''
+    # SpacetimeDB live state (blank URL disables publishing; the app still works by polling).
+    spacetime_url: str = ''
+    spacetime_db: str = 'niche'
+    spacetime_token: str = ''
 
     def validate_live(self):
         if self.sourcing_mode == 'live' and not (self.apify_token and self.anthropic_api_key):

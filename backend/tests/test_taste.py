@@ -125,3 +125,52 @@ def test_live_build_redoes_fixture_analyses(tmp_path):
     asyncio.run(live.build(taste.profile(profile.id)))
     assert stages == ['extract', 'synthesize']
     assert taste.images(profile.id)[0].analysis.garments[0].category == 'skirt'
+
+
+class RecordingLive:
+    def __init__(self):
+        self.calls = []
+
+    async def build_progress(self, *args):
+        self.calls.append(('progress', args[1], args[2], args[3]))
+
+    async def profile_version(self, profile_id, version):
+        self.calls.append(('version', version))
+
+    async def search(self, *args):
+        self.calls.append(('search', args[3]))
+
+    async def listings(self, search_id, items, replace=False):
+        self.calls.append(('listings', len(items), replace, [x.get('rank') if isinstance(x, dict) else None for x in items]))
+
+
+def test_live_publishing_for_build_and_search(tmp_path):
+    from sourcing.models import SearchRequest
+    from sourcing.pipeline import Pipeline
+    from pathlib import Path
+    settings = Settings(database_path=str(tmp_path/'t.sqlite'), upload_dir=str(tmp_path/'u'))
+    store = Store(settings.database_path)
+    taste = TasteStore(store)
+    live = RecordingLive()
+    engine = TasteEngine(settings, taste, publish=live)
+    profile = taste.create_profile(Onboarding())
+    engine.add_image(profile.id, png((10, 20, 30)), 'outfit')
+    engine.add_image(profile.id, png((200, 20, 30)), 'item')
+    asyncio.run(engine.build(profile))
+    assert live.calls[0] == ('progress', 'extracting', 0, 2)
+    assert ('progress', 'extracting', 2, 2) in live.calls
+    assert live.calls[-2:] == [('version', 1), ('progress', 'done', 2, 2)]
+
+    live.calls.clear()
+    request = SearchRequest.model_validate_json(Path('examples/search.json').read_text())
+    request.sources = ['etsy', 'depop']
+    job = store.create(request.model_dump(mode='json'))
+    asyncio.run(Pipeline(settings, store, live=live).run(request, job))
+    assert live.calls[0] == ('search', 'running') and live.calls[-1] == ('search', 'completed')
+    provisional = [c for c in live.calls if c[0] == 'listings' and not c[2]]
+    final = [c for c in live.calls if c[0] == 'listings' and c[2]]
+    assert len(provisional) == 2 and all(c[1] > 0 for c in provisional)
+    assert len(final) == 1 and final[0][3] == list(range(1, final[0][1] + 1))
+    # Provisional copies must not leak duplicate warnings into the final results.
+    result = store.get(job)['results'][0]
+    assert len(result['warnings']) == len(set(result['warnings']))
