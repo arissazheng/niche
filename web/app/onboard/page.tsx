@@ -89,7 +89,7 @@ export default function OnboardPage() {
     try {
       if (existing) {
         await api.updateOnboarding(existing.id, form);
-        router.push(existing.built ? "/shop" : "/upload");
+        router.push("/upload"); // saved changes go back to the lookbook
         return;
       }
       const { profile } = await api.createProfile(form);
