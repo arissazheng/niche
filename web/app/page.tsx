@@ -17,7 +17,7 @@ export default function Home() {
           priority
           className="h-[60dvh] min-h-[320px] w-auto max-w-[92%] object-contain"
         />
-        <Link href="/onboard" className="label bg-paper text-ink px-6 py-3">
+        <Link href="/onboard" className="text-display bg-paper text-ink px-10 py-4 hover:bg-plinth transition-colors">
           Find your niche
         </Link>
       </section>
