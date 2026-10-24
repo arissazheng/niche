@@ -7,12 +7,20 @@ export default function Home() {
   return (
     <div className="px-4">
       <p className="text-display text-center my-2">{CATEGORIES.join(", ")}</p>
-      {/* Full-bleed hero: the image spans the page width, cropped top and bottom (the subject sits centred). */}
-      <section className="relative -mx-4 my-4 h-[80dvh] min-h-[420px] overflow-hidden">
-        <Image src="/niche-front.webp" alt="Niche" fill priority sizes="100vw" className="object-cover" />
+      {/* Full-width band in the photo's own dark red, with the whole photo centred in it: nothing is cropped, and the
+          photo's edges fade into the band so it reads as one image across the page. */}
+      <section className="relative -mx-4 my-4 bg-[#1e070a] flex justify-center">
+        <Image
+          src="/niche-front.webp"
+          alt="Niche"
+          width={1080}
+          height={1350}
+          priority
+          className="h-[70dvh] min-h-[380px] w-auto max-w-full object-contain [mask-image:linear-gradient(to_right,transparent,black_12%,black_88%,transparent)]"
+        />
         <Link
           href="/onboard"
-          className="label absolute bottom-8 left-1/2 -translate-x-1/2 bg-paper text-ink px-6 py-3"
+          className="label absolute bottom-6 left-1/2 -translate-x-1/2 bg-paper text-ink px-6 py-3"
         >
           Find your niche
         </Link>
