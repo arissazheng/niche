@@ -36,7 +36,7 @@ export function SiteFooter() {
       {/* Edge-to-edge wordmark in swash italic, its descenders cut by the bottom of the page. */}
       <p
         aria-hidden
-        className="font-display italic text-center leading-[0.8] tracking-[-0.02em] text-[41vw] -mb-[7vw] mt-2 whitespace-nowrap select-none"
+        className="font-display italic text-center leading-[0.95] tracking-[-0.02em] text-[41vw] mb-[1vw] mt-2 whitespace-nowrap select-none"
         style={{ fontFeatureSettings: '"swsh" 1, "salt" 1' }}
       >
         {APP_NAME}
