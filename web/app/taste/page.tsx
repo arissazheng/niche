@@ -154,9 +154,6 @@ export default function TastePage() {
             )}
             {(friendLink || view.profile.share_token) && (
               <>
-                <span className="label text-muted break-all">
-                  {friendLink ?? `${window.location.origin}/friend/${view.profile.share_token}`}
-                </span>
                 <a
                   href={friendLink ?? `/friend/${view.profile.share_token}`}
                   target="_blank"
