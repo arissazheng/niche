@@ -94,6 +94,21 @@ def test_chat_caps_search_at_remaining_budget_and_demo_purchase(tmp_path):
         assert free['action'] == 'search' and free['max_item_price'] is None and free['budget']['remaining'] == 58
         reply = client.post(f'/v1/taste/profiles/{pid}/chat', json={'messages': first, 'use_budget': True}).json()
         assert reply['action'] == 'search' and reply['max_item_price'] == 58
+        # With the switch off, a cap equal to what's left that the shopper never typed (copied from an earlier
+        # reply) is dropped; a price they did type is kept.
+        from taste.chat import AgentTurn, ShopAgent
+        original = ShopAgent.respond
+
+        async def carried(self, *args, **kwargs):
+            return AgentTurn(reply='Searching', action='search', brief='black top', max_item_price=58, size=None,
+                             must_have=[], category='top')
+        ShopAgent.respond = carried
+        try:
+            assert client.post(f'/v1/taste/profiles/{pid}/chat', json={'messages': first}).json()['max_item_price'] is None
+            typed = [{'role': 'user', 'text': 'black top under 58'}]
+            assert client.post(f'/v1/taste/profiles/{pid}/chat', json={'messages': typed}).json()['max_item_price'] == 58
+        finally:
+            ShopAgent.respond = original
         search = client.get(reply['status_url']).json()
         for _ in range(40):
             if search['status'] in ('completed', 'partial'):

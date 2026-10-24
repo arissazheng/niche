@@ -258,6 +258,9 @@ def create_router(settings, store: Store, budgets: Budgets | None = None, signer
             if turn.size:  # a size the user named in the conversation wins
                 out.update(size=turn.size, size_note=f'Size {turn.size}, as asked')
             price = turn.max_item_price
+            said = ' '.join(m.text for m in chat.messages if m.role == 'user')
+            if price and budget and not steer and round(price) == round(budget.remaining) and str(round(price)) not in said:
+                price = None  # "Keep to budget" is off: don't carry over an earlier budget cap the shopper never typed
             if price is None and steer and steer.remaining >= 1:
                 # The agent should set a cap itself; if it didn't, keep the search inside what's left this month.
                 price = min(profile.onboarding.budget_max, steer.remaining)
