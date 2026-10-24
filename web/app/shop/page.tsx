@@ -51,6 +51,23 @@ export default function ShopPage() {
   const [error, setError] = useState<string | null>(null);
   const [searchId, setSearchId] = useState<string | null>(null);
   const [budget, setBudget] = useState<Budget | null>(null);
+  // Off by default: searches use the shopper's own price limits until they ask to stay inside the monthly budget.
+  const [keepToBudget, setKeepToBudget] = useState(false);
+  useEffect(() => {
+    try {
+      setKeepToBudget(localStorage.getItem("keep-to-budget") === "1");
+    } catch {
+      // storage blocked: stays off
+    }
+  }, []);
+  const toggleBudget = (on: boolean) => {
+    setKeepToBudget(on);
+    try {
+      localStorage.setItem("keep-to-budget", on ? "1" : "0");
+    } catch {
+      // storage blocked: applies to this visit only
+    }
+  };
   const pollToken = useRef(0);
 
   // The shopper's mock bank (Capital One Nessie): shown above the chat, and read by the agent every turn.
@@ -122,7 +139,7 @@ export default function ShopPage() {
     setThinking(true);
     try {
       // The current search lets the agent answer questions like "what about #2?".
-      const reply = await api.chat(profileId, next, searchId);
+      const reply = await api.chat(profileId, next, searchId, keepToBudget);
       const agentTurn: ChatTurn = { role: "agent", text: reply.reply };
       if (reply.linked?.length) agentTurn.linked = reply.linked;
       if (reply.action === "search") agentTurn.brief = reply.brief;
@@ -258,6 +275,8 @@ export default function ShopPage() {
         onAccept={accept}
         onReset={reset}
         hasResults={finished && allResults.length > 1}
+        keepToBudget={keepToBudget}
+        onToggleBudget={toggleBudget}
         className="order-1 lg:order-2"
       />
 
@@ -279,6 +298,8 @@ function ChatPanel({
   onAccept,
   onReset,
   hasResults,
+  keepToBudget,
+  onToggleBudget,
   className,
 }: {
   budget: Budget | null;
@@ -289,6 +310,8 @@ function ChatPanel({
   onAccept: (proposal: ChatTurn) => void;
   onReset: () => void;
   hasResults: boolean;
+  keepToBudget: boolean;
+  onToggleBudget: (on: boolean) => void;
   className?: string;
 }) {
   const [draft, setDraft] = useState("");
@@ -325,7 +348,7 @@ function ChatPanel({
           <button onClick={onReset} className="label underline">New search</button>
         )}
       </div>
-      {budget?.linked && <BudgetStrip budget={budget} />}
+      {budget?.linked && <BudgetStrip budget={budget} keepToBudget={keepToBudget} onToggle={onToggleBudget} />}
       <div className="flex-1 overflow-y-auto px-3 py-3 grid gap-3 content-start">
         {messages.length === 0 && (
           <p className="text-sm text-muted">What are you shopping for? Describe it like you would to a friend.</p>
@@ -423,7 +446,15 @@ const shortDate = (iso: string) =>
   new Date(`${iso}T12:00:00`).toLocaleDateString(undefined, { month: "short", day: "numeric" });
 
 /** "$95 of $150 clothing this month · $55 left" plus the next bill, from the shopper's mock bank. */
-function BudgetStrip({ budget }: { budget: Budget }) {
+function BudgetStrip({
+  budget,
+  keepToBudget,
+  onToggle,
+}: {
+  budget: Budget;
+  keepToBudget: boolean;
+  onToggle: (on: boolean) => void;
+}) {
   const spent = budget.month_spent ?? 0;
   const limit = budget.monthly_budget ?? 0;
   const used = limit ? Math.min(100, (spent / limit) * 100) : 0;
@@ -439,10 +470,22 @@ function BudgetStrip({ budget }: { budget: Budget }) {
       <div className="h-1 bg-plinth">
         <div className="h-full bg-ink" style={{ width: `${used}%` }} />
       </div>
-      <p className="label text-muted">
-        Balance {money(budget.balance)}
-        {bill && ` · ${bill.payee} ${money(bill.amount)} due ${shortDate(bill.due)}`}
-      </p>
+      <div className="flex items-center justify-between gap-2">
+        <p className="label text-muted">
+          Balance {money(budget.balance)}
+          {bill && ` · ${bill.payee} ${money(bill.amount)} due ${shortDate(bill.due)}`}
+        </p>
+        <button
+          type="button"
+          role="switch"
+          aria-checked={keepToBudget}
+          onClick={() => onToggle(!keepToBudget)}
+          className={`label border border-ink px-2 py-0.5 shrink-0 ${keepToBudget ? "bg-ink text-paper" : ""}`}
+          title="When on, searches stay within what's left of your monthly clothing budget"
+        >
+          Keep to budget: {keepToBudget ? "on" : "off"}
+        </button>
+      </div>
     </div>
   );
 }

@@ -216,7 +216,9 @@ def create_router(settings, store: Store, budgets: Budgets | None = None, signer
         budget = await budgets.snapshot(ident) if budgets else None
         urls = extract_urls(chat.messages[-1].text)
         linked = list(await asyncio.gather(*map(read_link, urls))) if urls else None
-        turn = await agent.respond(profile, chat.messages, budget, on_screen(ident, chat.search_id), linked)
+        # The monthly budget shapes searches only when the shopper switches it on; the strip shows either way.
+        steer = budget if chat.use_budget else None
+        turn = await agent.respond(profile, chat.messages, steer, on_screen(ident, chat.search_id), linked)
         out = {'reply': turn.reply, 'action': turn.action, 'brief': turn.brief,
                'budget': budget.model_dump() if budget else None}
         if linked:
@@ -229,9 +231,9 @@ def create_router(settings, store: Store, budgets: Budgets | None = None, signer
             if turn.size:  # a size the user named in the conversation wins
                 out.update(size=turn.size, size_note=f'Size {turn.size}, as asked')
             price = turn.max_item_price
-            if price is None and budget and budget.remaining >= 1:
+            if price is None and steer and steer.remaining >= 1:
                 # The agent should set a cap itself; if it didn't, keep the search inside what's left this month.
-                price = min(profile.onboarding.budget_max, budget.remaining)
+                price = min(profile.onboarding.budget_max, steer.remaining)
             out['max_item_price'] = price
             out['must_have'] = clean_features(turn.must_have)
         if turn.action == 'search':

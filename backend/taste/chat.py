@@ -93,6 +93,7 @@ class ChatRequest(BaseModel):
     model_config = ConfigDict(extra='forbid')
     messages: list[ChatTurn] = Field(min_length=1, max_length=40)
     search_id: str | None = Field(default=None, max_length=64)  # the results on screen, so "#2" means something
+    use_budget: bool = False  # "Keep to my budget" switch: only then does the monthly budget cap searches
 
 
 class AgentTurn(BaseModel):

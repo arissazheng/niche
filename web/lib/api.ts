@@ -61,10 +61,10 @@ export const api = {
         ...(options.category && { category: options.category }),
       }),
     }),
-  chat: (id: string, messages: ChatTurn[], searchId?: string | null) =>
+  chat: (id: string, messages: ChatTurn[], searchId?: string | null, useBudget = false) =>
     request<AgentReply>(`/v1/taste/profiles/${id}/chat`, {
       method: "POST",
-      body: json({ messages, ...(searchId && { search_id: searchId }) }),
+      body: json({ messages, ...(searchId && { search_id: searchId }), ...(useBudget && { use_budget: true }) }),
     }),
   budget: (id: string) => request<Budget>(`/v1/taste/profiles/${id}/budget`),
   markBought: (search_id: string, listing_id: string) =>

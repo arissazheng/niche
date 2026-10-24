@@ -9,7 +9,7 @@ export const metadata: Metadata = { title: "How Niche ranks" };
 const NEVER_SHOWN = [
   ["Sponsored, promoted or boosted listings", "Dropped before ranking. No seller or store can pay to appear."],
   ["Sizes that clearly don't fit", "If a listing says L and you wear S, it's gone."],
-  ["Anything over your price cap", "Your cap is the price you name, or what's left of your monthly clothing budget."],
+  ["Anything over your price cap", "Your cap is the price you name, or the everyday budget on your profile. Turn on \u201cKeep to budget\u201d in the chat to stay within what's left of your monthly clothing budget."],
   ["Sold or unavailable items", "When the marketplace says so."],
 ];
 

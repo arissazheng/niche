@@ -90,8 +90,10 @@ def test_chat_caps_search_at_remaining_budget_and_demo_purchase(tmp_path):
         budgets.save_link(pid, 'c1', 'a1', 100)  # 42 spent -> 58 left, below the profile's 80 default
         assert client.get(f'/v1/taste/profiles/{pid}/budget').json()['remaining'] == 58
         first = [{'role': 'user', 'text': 'black skirt'}]
-        reply = client.post(f'/v1/taste/profiles/{pid}/chat', json={'messages': first}).json()
-        assert reply['action'] == 'search' and reply['max_item_price'] == 58 and reply['budget']['remaining'] == 58
+        free = client.post(f'/v1/taste/profiles/{pid}/chat', json={'messages': first}).json()
+        assert free['action'] == 'search' and free['max_item_price'] is None and free['budget']['remaining'] == 58
+        reply = client.post(f'/v1/taste/profiles/{pid}/chat', json={'messages': first, 'use_budget': True}).json()
+        assert reply['action'] == 'search' and reply['max_item_price'] == 58
         search = client.get(reply['status_url']).json()
         for _ in range(40):
             if search['status'] in ('completed', 'partial'):
