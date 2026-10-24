@@ -43,7 +43,9 @@ NOT_INDIE = re.compile(r'(^|\.)(amazon|ebay|etsy|depop|poshmark|grailed|vinted|m
     r'nordstrom|nordstromrack|saksfifthavenue|neimanmarcus|bloomingdales|macys|zara|hm|uniqlo|urbanoutfitters|'
     r'anthropologie|freepeople|abercrombie|lulus|princesspolly|fashionnova|boohoo|prettylittlething|lyst|shopstyle|'
     r'pinterest|instagram|facebook|tiktok|youtube|reddit|twitter|x|wikipedia|vogue|elle|harpersbazaar|whowhatwear|'
-    r'refinery29|cosmopolitan|nytimes|buzzfeed|google|shopmy|ltk|liketoknow|substack|medium|tumblr|lululemon)\.[a-z.]+$')
+    r'refinery29|cosmopolitan|nytimes|buzzfeed|google|shopmy|ltk|liketoknow|substack|medium|tumblr|lululemon|'
+    r'thegoodtrade|goodonyou|editorialist|womanandhome|linkby|glamour|marieclaire|instyle|byrdie|thecut|'
+    r'wolfandbadger|trustpilot|fashiongo|faire|acnestudios|ganni|reformation)\.[a-z.]+$')
 
 
 def slug(text):
