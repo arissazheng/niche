@@ -330,6 +330,11 @@ export function AssistantProvider({ children }: { children: React.ReactNode }) {
     };
   }, []);
 
+  // A tip belongs to the page it was shown on: clear it on navigation (the next page may show its own below).
+  useEffect(() => {
+    setNudge(null);
+  }, [pathname]);
+
   // Arriving on a page mid-conversation: it says what it can help with here. With the conversation closed, the
   // page's opener waits by the dock instead.
   const current = skills.at(-1) ?? null;
