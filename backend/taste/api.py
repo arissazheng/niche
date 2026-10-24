@@ -28,6 +28,7 @@ from .links import extract_urls, read_link
 from .engine import TasteEngine, fingerprint
 from .models import EditInstruction, ImageFromUrl, ImageKind, ImportRequest, Measurements, LookbookNotes, NoteUpdate, Onboarding, PhotoReaction, ProfileSearch, PromptUpdate, ShopRequest
 from . import brands, shops
+from actors.niche_actors.labels import domain_of
 from .signing import Signer
 from .store import TasteStore
 
@@ -246,9 +247,16 @@ def create_router(settings, store: Store, budgets: Budgets | None = None, signer
             raise HTTPException(422, f'You can add up to {MAX_SHOPS} shops; remove one first')
         shop = await shops.find(body.shop, any_platform=web.enabled)
         if not shop:
-            raise HTTPException(422, "Couldn't find an online shop Niche can read for that. Try pasting the brand's "
-                                     "website" + ("." if web.enabled else
-                                     " (Niche can read shops built on Shopify, which most small labels use)."))
+            # Not a store Niche can read directly (most big brands): keep it as a favorite brand instead, which
+            # ranking favors and searches can name.
+            name = body.shop.strip()
+            if '/' in name or '.' in name:
+                name = domain_of(name).split('.')[0].replace('-', ' ').title() or name
+            known = {x.lower() for x in profile.onboarding.favorite_brands}
+            if name.lower() not in known and len(profile.onboarding.favorite_brands) < 30:
+                profile.onboarding.favorite_brands.append(name[:60])
+                profile = await engine.save(profile)
+            return view(profile)
         if all(x.domain != shop.domain for x in profile.indie_shops):
             profile.indie_shops.append(await brands.verify(shop))
             profile = await engine.save(profile)

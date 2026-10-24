@@ -95,8 +95,11 @@ def test_add_and_remove_a_shop(client, monkeypatch):
     assert added.status_code == 201 and added.json()['profile']['indie_shops'] == [BATUL.model_dump()]
     again = client.post(f'/v1/taste/profiles/{pid}/shops', json={'shop': 'batulthecollection.com'}).json()
     assert len(again['profile']['indie_shops']) == 1
-    missing = client.post(f'/v1/taste/profiles/{pid}/shops', json={'shop': 'Unknown Label'})
-    assert missing.status_code == 422 and 'website' in missing.json()['detail']
+    # A brand without a shop Niche can read (most big brands) is kept as a favorite instead of refused.
+    missing = client.post(f'/v1/taste/profiles/{pid}/shops', json={'shop': 'Unknown Label'}).json()
+    assert len(missing['profile']['indie_shops']) == 1 and 'Unknown Label' in missing['profile']['onboarding']['favorite_brands']
+    again = client.post(f'/v1/taste/profiles/{pid}/shops', json={'shop': 'unknown label'}).json()
+    assert again['profile']['onboarding']['favorite_brands'].count('Unknown Label') == 1
     removed = client.delete(f'/v1/taste/profiles/{pid}/shops/batulthecollection.com').json()
     assert removed['profile']['indie_shops'] == []
 

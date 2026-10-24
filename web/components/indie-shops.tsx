@@ -16,6 +16,8 @@ export function IndieShops({ view, onChange }: { view: ProfileView; onChange: Ch
   const [status, setStatus] = useState<string | null>(null);
   const [suggestions, setSuggestions] = useState<BrandSuggestion[] | null>(null);
   const built = profile.version > 0;
+  const shopNames = new Set(shops.map((shop) => shop.name.toLowerCase()));
+  const favorites = (profile.onboarding.favorite_brands ?? []).filter((name) => !shopNames.has(name.toLowerCase()));
   const shopKey = shops.map((shop) => shop.domain).join(",");
   useEffect(() => {
     if (!built) return;
@@ -38,11 +40,12 @@ export function IndieShops({ view, onChange }: { view: ProfileView; onChange: Ch
 
   return (
     <section className="grid gap-3">
-      <SectionTitle aside={shops.length ? `${shops.length}` : undefined}>Your independent shops</SectionTitle>
+      <SectionTitle aside={shops.length + favorites.length ? `${shops.length + favorites.length}` : undefined}>
+        Brands &amp; stores you like
+      </SectionTitle>
       <p className="text-sm">
-        Small labels you love. Niche searches their own stores on every search, so you get their new pieces and not
-        only resale. Paste a website if the name isn&apos;t found. Brands you named when you signed up are looked up
-        when you build your profile.
+        Any brand or store, big or small. Labels with their own online shop get searched directly every time, so you
+        see their new pieces, not only resale. The rest are favorites that Niche looks for and ranks a little higher.
       </p>
       {shops.length > 0 && (
         <ul className="grid gap-1 text-sm">
@@ -63,18 +66,59 @@ export function IndieShops({ view, onChange }: { view: ProfileView; onChange: Ch
           ))}
         </ul>
       )}
+      {favorites.length > 0 && (
+        <ul className="grid gap-1 text-sm">
+          {favorites.map((name) => (
+            <li key={name} className="flex justify-between gap-2 rule-b py-1">
+              <span>
+                {name} <span className="text-muted">· favorite</span>
+              </span>
+              <button
+                disabled={!!working}
+                onClick={() =>
+                  change(
+                    () =>
+                      api.updateOnboarding(profile.id, {
+                        ...profile.onboarding,
+                        favorite_brands: (profile.onboarding.favorite_brands ?? []).filter((x) => x !== name),
+                      }),
+                    "Removing…",
+                    `Removed ${name}.`,
+                  )
+                }
+                className="label underline disabled:no-underline disabled:text-muted"
+                aria-label={`Remove ${name}`}
+              >
+                Remove
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
       <form
         className="grid gap-2"
         onSubmit={async (e) => {
           e.preventDefault();
           const shop = text.trim();
           if (shop.length < 2 || working) return;
-          if (await change(() => api.addShop(profile.id, shop), `Looking for ${shop}'s shop…`, `Added ${shop}.`)) setText("");
+          setWorking(`Looking for ${shop}…`);
+          setStatus(null);
+          let message = "";
+          const error = await onChange(async () => {
+            const next = await api.addShop(profile.id, shop);
+            // Searched directly when its own shop was found; otherwise kept as a favorite brand.
+            const direct = (next.profile.indie_shops ?? []).length > shops.length;
+            message = direct ? `Added ${shop}: Niche searches its shop directly.` : `Saved ${shop} as a favorite.`;
+            return next;
+          });
+          setWorking(null);
+          setStatus(error ?? message);
+          if (!error) setText("");
         }}
       >
         <input
           className="input"
-          placeholder="Brand name or website, e.g. Batul The Collection"
+          placeholder="Brand, store or website, e.g. Batul The Collection, Aritzia"
           value={text}
           disabled={!!working}
           onChange={(e) => setText(e.target.value)}
@@ -84,7 +128,7 @@ export function IndieShops({ view, onChange }: { view: ProfileView; onChange: Ch
             {working ?? status}
           </p>
           <button disabled={!!working || text.trim().length < 2} className="label underline disabled:no-underline disabled:text-muted">
-            Add shop
+            Add
           </button>
         </div>
       </form>
