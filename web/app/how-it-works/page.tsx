@@ -8,14 +8,13 @@ export const metadata: Metadata = { title: "How Niche ranks" };
 
 const NEVER_SHOWN = [
   ["Sponsored, promoted or boosted listings", "Dropped before ranking. No seller or store can pay to appear."],
-  ["Shein and its house labels", "ROMWE, DAZY, MOTF and Emery Rose too, from any source, new or resale."],
   ["Sizes that clearly don't fit", "If a listing says L and you wear S, it's gone."],
   ["Anything over your price cap", "Your cap is the price you name, or what's left of your monthly clothing budget."],
   ["Sold or unavailable items", "When the marketplace says so."],
 ];
 
 const STEPS = [
-  ["You ask, Niche proposes", "Describe what you want in the chat. Niche suggests a search and only runs it when you say yes."],
+  ["You ask, Niche proposes", "Describe what you want in the chat. Niche suggests a search."],
   ["Claude plans the search", "Your request and taste profile become a few concrete search phrases (garment, colour, silhouette)."],
   ["Stores are searched", "Mainstream retailers through Google Shopping, plus Depop, Poshmark, Vinted and Etsy for secondhand and small shops."],
   ["Hard filters", "Your size for that kind of garment, your price cap, and the exclusions above."],
