@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { SectionTitle } from "@/components/chrome";
 import { HandCircle } from "@/components/hand-circle";
+import { MeasurementsPanel } from "@/components/measurements";
 import { VoiceButton } from "@/components/voice";
 import { api } from "@/lib/api";
 import { clearProfile, getProfileId, setProfileId } from "@/lib/session";
@@ -24,6 +25,7 @@ export default function OnboardPage() {
     age: null,
     email: "",
     sizes: { top: null, bottom: null, outerwear: null, shoe: null },
+    measurements: { unit: "in" },
     budget_min: 0,
     budget_max: 150,
     currency: "USD",
@@ -164,6 +166,17 @@ export default function OnboardPage() {
               onChange={(e) => setForm({ ...form, sizes: { ...form.sizes, shoe: e.target.value || null } })}
             />
           </div>
+          <MeasurementsPanel
+            key={existing?.id ?? "new"} // remount once a saved profile loads, to show its measurements
+            value={form.measurements ?? { unit: "in" }}
+            onChange={(measurements) => setForm((f) => ({ ...f, measurements }))}
+            onUseSizes={(suggested) =>
+              setForm((f) => ({
+                ...f,
+                sizes: { ...f.sizes, ...Object.fromEntries(Object.entries(suggested).filter(([, v]) => v != null)) },
+              }))
+            }
+          />
         </section>
 
         <section>

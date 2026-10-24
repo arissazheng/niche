@@ -24,6 +24,8 @@ class ShoppingRequest(StrictModel):
     currency: str = Field(default='USD', pattern=r'^[A-Z]{3}$')
     size: str | None = Field(default=None, max_length=30)
     length: Literal['short', 'regular', 'long'] | None = None  # pants/skirts: petite, regular or tall
+    # The shopper's body measurements in inches (any of shoulder, bust, waist, hips, inseam, arm), for fit checks.
+    measurements: dict[str, float] = Field(default_factory=dict)
     ship_to_country: str = Field(default='US', pattern=r'^[A-Z]{2}$')
     allow_secondhand: bool = True
     unknown_policy: Literal['include_with_warning', 'exclude'] = 'include_with_warning'

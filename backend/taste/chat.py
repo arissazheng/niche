@@ -6,6 +6,7 @@ from typing import Literal
 from pydantic import BaseModel, ConfigDict, Field
 from sourcing.claude import Claude
 from finance.budget import BudgetSnapshot
+from .fit import effective_sizes
 from .links import LinkedItem
 from .models import Profile
 
@@ -129,7 +130,7 @@ class ShopAgent:
                              max_item_price=None, size=None, category='other')
         content = json.dumps({
             'taste_profile': (profile.prompt or profile.summary)[:1500],
-            'profile_sizes': profile.onboarding.sizes.model_dump(),
+            'profile_sizes': effective_sizes(profile.onboarding.sizes, profile.onboarding.measurements).model_dump(),
             'budget_max': profile.onboarding.budget_max,
             'conversation': [m.model_dump(exclude_none=True) for m in messages],
             **({'bank': budget.model_dump()} if budget else {}),
@@ -184,7 +185,8 @@ def guess_category(text):
 
 
 def profile_size(profile: Profile, category):
-    """The shopper's saved size for a garment type; None when there's nothing sensible to filter on."""
-    sizes = profile.onboarding.sizes
+    """The shopper's saved size for a garment type (filled from their measurements when they didn't pick one);
+    None when there's nothing sensible to filter on."""
+    sizes = effective_sizes(profile.onboarding.sizes, profile.onboarding.measurements)
     return {'top': sizes.top, 'dress': sizes.top, 'bottom': sizes.bottom,
             'outerwear': sizes.outerwear or sizes.top, 'shoes': sizes.shoe}.get(category)

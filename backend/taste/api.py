@@ -9,10 +9,11 @@ from sourcing.prefetch import BROAD_QUERY, Prefetcher
 from sourcing.store import Store
 import json
 from .chat import ChatRequest, ShopAgent, guess_category, profile_size, result_cards
+from .fit import effective_sizes, inches, suggest
 from .imports import Importer, LinkError
 from .links import extract_urls, read_link
 from .engine import TasteEngine, fingerprint
-from .models import EditInstruction, ImageFromUrl, ImageKind, ImportRequest, LookbookNotes, NoteUpdate, Onboarding, ProfileSearch, PromptUpdate
+from .models import EditInstruction, ImageFromUrl, ImageKind, ImportRequest, Measurements, LookbookNotes, NoteUpdate, Onboarding, ProfileSearch, PromptUpdate
 from .signing import Signer
 from .store import TasteStore
 
@@ -39,6 +40,11 @@ def create_router(settings, store: Store, budgets: Budgets | None = None, signer
         return {'profile': profile.model_dump(mode='json'),
                 'images': [signer.image(x.model_dump(mode='json')) for x in images],
                 'up_to_date': bool(profile.version and profile.built_from == fingerprint(profile, images))}
+
+    @router.post('/sizes/suggest')
+    def suggest_sizes(measurements: Measurements):
+        # Live preview on the onboarding form: what sizes these measurements point to.
+        return suggest(measurements).model_dump()
 
     @router.post('/profiles', status_code=201)
     def create(onboarding: Onboarding):
@@ -163,7 +169,7 @@ def create_router(settings, store: Store, budgets: Budgets | None = None, signer
         return SearchRequest(taste_profile=profile.to_sourcing(), sources=search.sources, limit=search.limit,
             profile_id=profile.id,
             request=ShoppingRequest(query=search.query, max_item_price=search.max_item_price or ob.budget_max,
-                currency=ob.currency, size=search.size, length=search.length))
+                currency=ob.currency, size=search.size, length=search.length, measurements=inches(ob.measurements)))
 
     def start_search(profile, search: ProfileSearch):
         job = store.create(search_request(profile, search).model_dump(mode='json'))
@@ -209,7 +215,8 @@ def create_router(settings, store: Store, budgets: Budgets | None = None, signer
             # Unless the user named a size, search in their saved size for this kind of garment.
             category = turn.category if turn.category != 'other' else guess_category(turn.brief)
             out['size'] = turn.size or profile_size(profile, category)
-            out['length'] = profile.onboarding.sizes.bottom_length if category == 'bottom' else None
+            ob = profile.onboarding
+            out['length'] = effective_sizes(ob.sizes, ob.measurements).bottom_length if category == 'bottom' else None
             out['category'] = category
             price = turn.max_item_price
             if price is None and budget and budget.remaining >= 1:

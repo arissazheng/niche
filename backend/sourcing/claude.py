@@ -23,6 +23,10 @@ Return JSON with rankings, one entry per provided id: id, score (0 to 100), dime
 (color, silhouette, aesthetic: each 0 to 100), reason (one concise sentence), uncertainties (array of strings).
 Listings come from mainstream retailers and secondhand marketplaces (see retailer and tier). Rank them as one list
 by taste fit and the request; do not favor new or secondhand. Prioritize requested garment category; an unrelated garment should score below 30.
+request.measurements are the shopper's body measurements in inches. When a listing states garment measurements
+(pit to pit, chest, waist, hips, inseam, sleeve, shoulders), judge fit against them, allowing normal ease
+(a top's chest about 2-4 in over the bust), and say so in the reason; a clear misfit should score lower.
+Do not mention or infer anything else about the shopper's body.
 When request.length is short or long, prefer pants/skirts described as petite/short inseam or tall/long inseam;
 an unstated length is not a reason to score lower, but note it in uncertainties.
 When an item already fits the taste, a brand in taste.preferred_brands or a store in taste.preferred_stores may add up to 10 points;
