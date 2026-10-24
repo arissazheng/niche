@@ -15,20 +15,35 @@ export function EditLookbookButton() {
 }
 
 function PencilAndEraser() {
+  // Hand-drawn look: ink lines only, slightly wobbly, with hatching for shading.
   return (
-    <svg viewBox="0 0 48 48" className="size-10" aria-hidden="true">
+    <svg
+      viewBox="0 0 48 48"
+      className="size-10"
+      aria-hidden="true"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.4"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
       {/* eraser block lying down */}
       <g transform="rotate(-12 31 38)">
-        <rect x="22" y="33" width="18" height="9" rx="2" fill="#f6b3c4" stroke="#000" strokeWidth="1.5" />
-        <rect x="22" y="33" width="6" height="9" rx="1" fill="#9ec5f0" stroke="#000" strokeWidth="1.5" />
+        <path d="M22.4 33.2 L39.6 32.8 Q40.3 33 40.2 34 L40 41.3 Q39.8 42.1 39 42 L22.6 42.2 Q21.8 42 21.9 41.2 L22 34 Q22 33.3 22.4 33.2 Z" fill="var(--color-paper, #fff)" />
+        <path d="M28 33.1 L27.8 42.1" />
+        <path d="M23.5 35.5 L26 33.5 M23.2 38.5 L27.3 35 M23.4 41.4 L27.5 37.8 M25.6 41.9 L27.5 40.3" strokeWidth="0.8" />
+        <path d="M23 43.3 Q31 43.8 39.5 43" strokeWidth="0.8" />
       </g>
       {/* pencil, eraser end up */}
       <g transform="rotate(-45 24 22)">
-        <polygon points="8,17 1,22 8,27" fill="#f3e3c3" stroke="#000" strokeWidth="1.5" strokeLinejoin="round" />
-        <polygon points="1,22 4,20.3 4,23.7" fill="#000" />
-        <rect x="8" y="17" width="24" height="10" fill="#ffd45c" stroke="#000" strokeWidth="1.5" />
-        <rect x="32" y="17" width="4" height="10" fill="#c9c9cf" stroke="#000" strokeWidth="1.5" />
-        <rect x="36" y="17" width="6" height="10" rx="2" fill="#f6b3c4" stroke="#000" strokeWidth="1.5" />
+        <path d="M8 17.2 L1.2 22 L8.1 26.9" fill="var(--color-paper, #fff)" />
+        <path d="M1.2 22 L3.8 20.4 L3.9 23.6 Z" fill="currentColor" />
+        <path d="M8 17 L31.8 17.3 L32 26.8 L8.1 27 Z" fill="var(--color-paper, #fff)" />
+        <path d="M8.3 20.4 Q20 20.1 31.7 20.5 M8.2 23.7 Q20 23.9 31.9 23.5" strokeWidth="0.8" />
+        <path d="M32 17.2 L36 17.1 L36.1 26.9 L32 26.8" fill="var(--color-paper, #fff)" />
+        <path d="M33.3 17.4 L33.4 26.6 M34.7 17.3 L34.8 26.7" strokeWidth="0.8" />
+        <path d="M36 17.1 L40.4 17.3 Q42.2 17.6 42.1 19.4 L42 24.8 Q41.9 26.7 40.2 26.8 L36.1 26.9" fill="var(--color-paper, #fff)" />
+        <path d="M37.4 25.8 L40.6 18.6 M38.8 26 L41.4 20.3" strokeWidth="0.8" />
       </g>
     </svg>
   );
