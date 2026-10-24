@@ -128,6 +128,11 @@ export default function ShopPage() {
     const thread = loadThread(id);
     setMessages(thread.messages);
     if (thread.searchId) follow(thread.searchId);
+    // Leaving the page stops the poll loop; otherwise every visit leaves another one running.
+    const polls = pollToken;
+    return () => {
+      polls.current++;
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps -- restore once on load
   }, []);
 

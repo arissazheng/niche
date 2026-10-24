@@ -26,6 +26,14 @@ export default function LookbookPage() {
   const [noteFor, setNoteFor] = useState<TasteImage | null>(null);
   const [imports, setImports] = useState<ImportJob[]>([]);
   const router = useRouter();
+  // A build can take minutes; if the shopper has gone elsewhere meanwhile, don't pull them to the moodboard.
+  const mounted = useRef(true);
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+    };
+  }, []);
 
   // Resolves to an error message, or null on success, so callers can show inline feedback.
   const run = useCallback(async (task: () => Promise<ProfileView | void>) => {
@@ -184,8 +192,9 @@ export default function LookbookPage() {
     setBuilding(true);
     try {
       await api.build(id);
-      router.push("/taste");
+      if (mounted.current) router.push("/taste");
     } catch (err) {
+      if (!mounted.current) return;
       setBuildError((err as Error).message);
       setBuilding(false);
     }
