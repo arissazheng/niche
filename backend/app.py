@@ -1,4 +1,4 @@
-"""Single API process: sourcing (prior Person 3 service) + taste engine + checkout."""
+"""Single API process: sourcing (prior Person 3 service) + taste engine + checkout + voice."""
 import hmac
 from pathlib import Path
 from fastapi import Depends, Header, HTTPException
@@ -10,6 +10,7 @@ from taste.api import create_router as taste_router
 from taste.signing import Signer
 from checkout.api import create_router as checkout_router
 from finance.budget import Budgets
+from voice.api import create_router as voice_router
 
 
 def create_app(settings=None):
@@ -26,6 +27,7 @@ def create_app(settings=None):
     signer = Signer(settings)
     app.include_router(taste_router(settings, store, budgets, signer), dependencies=[Depends(authorize)])
     app.include_router(checkout_router(settings, store, budgets), dependencies=[Depends(authorize)])
+    app.include_router(voice_router(settings, store), dependencies=[Depends(authorize)])
     uploads = Path(settings.upload_dir)
     uploads.mkdir(parents=True, exist_ok=True)
 
