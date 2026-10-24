@@ -11,6 +11,8 @@ dependencies = ["fastapi>=0.115,<1", "uvicorn>=0.30,<1", "httpx>=0.27,<1", "pyda
 
 [project.optional-dependencies]
 dev = ["pytest>=8,<10"]
+# Moss SDK: in-memory semantic queries over earlier finds (taste/finds.py). Without it, queries use Moss's cloud API.
+moss = ["inferedge-moss>=1.0.0b19"]
 
 [tool.setuptools]
 py-modules = ["app"]

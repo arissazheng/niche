@@ -11,7 +11,8 @@ from sourcing.prefetch import BROAD_QUERY, Prefetcher
 from sourcing.features import clean as clean_features
 from sourcing.store import Store
 import json
-from .chat import ChatRequest, ShopAgent, guess_category, result_cards, search_sizes
+from .chat import ChatRequest, ShopAgent, find_cards, guess_category, result_cards, search_sizes
+from .finds import Finds
 from .fit import inches, suggest
 from .sizing import CATALOG
 from .imports import Importer, LinkError
@@ -198,6 +199,7 @@ def create_router(settings, store: Store, budgets: Budgets | None = None, signer
         return start_search(built_profile(ident), search)
 
     agent = ShopAgent(settings, engine.model)
+    finds = Finds(settings, store)  # earlier finds in Moss, for "the green one from before"
 
     def on_screen(ident, search_id):
         # Loaded server-side (not sent by the browser), and only for this profile's own searches.
@@ -245,9 +247,18 @@ def create_router(settings, store: Store, budgets: Budgets | None = None, signer
         linked = list(await asyncio.gather(*map(read_link, urls))) if urls else None
         # The monthly budget shapes searches only when the shopper switches it on; the strip shows either way.
         steer = budget if chat.use_budget else None
-        turn = await agent.respond(profile, chat.messages, steer, on_screen(ident, chat.search_id), linked)
+        results = on_screen(ident, chat.search_id)
+        if results is not None:
+            finds.remember_soon(ident, chat.search_id)  # what's on screen now becomes an earlier find
+        earlier = await finds.recall(ident, chat.messages[-1].text, skip_search=chat.search_id)
+        turn = await agent.respond(profile, chat.messages, steer, results, linked,
+                                   **({'earlier': find_cards(earlier)} if earlier else {}))
         out = {'reply': turn.reply, 'action': turn.action, 'brief': turn.brief,
                'budget': budget.model_dump() if budget else None}
+        by_ref = {f'E{n}': x for n, x in enumerate(earlier, start=1)}
+        if recalled := [by_ref[r] for r in dict.fromkeys(turn.recall) if r in by_ref][:5]:
+            out['recalled'] = [{'title': x['title'], 'url': x['url'], 'price': x['price'], 'currency': x['currency'],
+                                'store': x.get('retailer') or x.get('seller') or x['source']} for x in recalled]
         if linked:
             out['linked'] = [{'url': x.url, 'site': x.site, 'title': x.title, 'readable': x.readable} for x in linked]
         if turn.action in ('propose', 'search'):
