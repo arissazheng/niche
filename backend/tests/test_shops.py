@@ -50,8 +50,11 @@ def test_indie_actor_gets_the_shoppers_shops_first_then_the_seed_list(tmp_path):
     _, plain = sources.actor_input('indie', ['satin dress'], 30)
     assert 'shops' not in plain  # the actor uses its own seed list
     _, mine = sources.actor_input('indie', ['satin dress'], 30, shops=[BATUL, IndieShop(**INDIE_SHOPS[0])])
+    _, new = sources.actor_input('indie', ['satin dress'], 30, shops=[IndieShop(domain='newlabel.example', name='New')])
+    assert len(new['shops']) == len(INDIE_SHOPS) + 1 and new['shops'][0]['domain'] == 'newlabel.example'
     domains = [s['domain'] for s in mine['shops']]
-    assert domains[0] == 'batulthecollection.com' and len(domains) == len(INDIE_SHOPS) + 1 == len(set(domains))
+    assert domains[0] == 'batulthecollection.com' and len(domains) == len(set(domains))
+    assert set(domains) == {s['domain'] for s in INDIE_SHOPS}  # Batul is in the seed list too, sent once
     _, other = sources.actor_input('secondhand', ['satin dress'], 30, shops=[BATUL])
     assert 'shops' not in other
 
