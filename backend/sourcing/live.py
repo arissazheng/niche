@@ -39,6 +39,9 @@ class Live:
     async def search(self, search_id, profile_id, query, status, ranking_method='', warnings=()):
         await self.call('upsert_search', search_id, profile_id, query, status, ranking_method or '', list(warnings))
 
+    async def forget_profile(self, profile_id):
+        await self.call('forget_profile', profile_id)
+
     async def listings(self, search_id, items, replace=False):
         await self.call('upsert_listings', search_id, [listing_row(x) for x in items], replace)
 

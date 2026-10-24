@@ -82,6 +82,11 @@ class TasteEngine:
         return self.taste.save_image(TasteImage(id=ident, profile_id=profile_id, kind=kind, note=note, source=source,
             url=f'{self.settings.public_api_url}/uploads/{ident}.jpg', palette=px.palette(image), created_at=now()))
 
+    def remove_image_file(self, ident):
+        # Look the image up first so only a file Niche saved is ever removed.
+        if image := self.taste.image(ident):
+            (self.uploads / f'{image.id}.jpg').unlink(missing_ok=True)
+
     def jpeg(self, image: TasteImage):
         return (self.uploads / f'{image.id}.jpg').read_bytes()
 

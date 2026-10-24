@@ -338,3 +338,27 @@ def test_numbered_bottom_size_and_length_reach_the_search(client):
     skirt = client.post(f'/v1/taste/profiles/{pid}/chat', json={'messages': [{'role': 'user', 'text': 'pleated midi skirt'}]}).json()
     top = client.post(f'/v1/taste/profiles/{pid}/chat', json={'messages': [{'role': 'user', 'text': 'black halter top'}]}).json()
     assert (skirt['size'], skirt['length']) == ('00', 'long') and top['length'] is None
+
+
+def test_photos_need_a_signed_link_and_deleting_removes_the_file(client, tmp_path):
+    from urllib.parse import urlsplit
+    pid = client.post('/v1/taste/profiles', json={'data_consent': True}).json()['profile']['id']
+    image = client.post(f'/v1/taste/profiles/{pid}/images', files={'file': ('a.png', png((20, 20, 20)))}).json()
+    url = urlsplit(image['url'])
+    assert client.get(f'{url.path}?{url.query}').status_code == 200
+    assert client.get(url.path).status_code == 404  # bare link
+    assert client.get(f'{url.path}?{url.query[:-4]}0000').status_code == 404  # tampered signature
+    client.delete(f'/v1/taste/images/{image["id"]}')
+    assert not (tmp_path/'uploads'/f'{image["id"]}.jpg').exists()
+
+
+def test_delete_my_data_removes_profile_photos_and_searches(client, tmp_path):
+    pid = client.post('/v1/taste/profiles', json={'data_consent': True}).json()['profile']['id']
+    image = client.post(f'/v1/taste/profiles/{pid}/images', files={'file': ('a.png', png((20, 20, 20)))}).json()
+    client.post(f'/v1/taste/profiles/{pid}/build')
+    search_id = client.post(f'/v1/taste/profiles/{pid}/searches', json={'query': 'black boots'}).json()['search_id']
+    assert client.delete(f'/v1/taste/profiles/{pid}').status_code == 204
+    assert client.get(f'/v1/taste/profiles/{pid}').status_code == 404
+    assert not (tmp_path/'uploads'/f'{image["id"]}.jpg').exists()
+    assert client.get(f'/v1/searches/{search_id}').status_code == 404
+    assert client.delete(f'/v1/taste/profiles/{pid}').status_code == 404

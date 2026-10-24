@@ -12,13 +12,15 @@ from .imports import Importer, LinkError
 from .links import extract_urls, read_link
 from .engine import TasteEngine
 from .models import EditInstruction, ImageKind, ImportRequest, LookbookNotes, NoteUpdate, Onboarding, ProfileSearch, PromptUpdate
+from .signing import Signer
 from .store import TasteStore
 
 MAX_UPLOAD_BYTES = 15 * 1024 * 1024
 
 
-def create_router(settings, store: Store, budgets: Budgets | None = None):
+def create_router(settings, store: Store, budgets: Budgets | None = None, signer: Signer | None = None):
     taste = TasteStore(store)
+    signer = signer or Signer(settings)
     engine = TasteEngine(settings, taste)
     prefetcher = Prefetcher(settings, store)
     importer = Importer(settings, taste, engine)
@@ -32,7 +34,7 @@ def create_router(settings, store: Store, budgets: Budgets | None = None):
 
     def view(profile):
         return {'profile': profile.model_dump(mode='json'),
-                'images': [x.model_dump(mode='json') for x in taste.images(profile.id)]}
+                'images': [signer.image(x.model_dump(mode='json')) for x in taste.images(profile.id)]}
 
     @router.post('/profiles', status_code=201)
     def create(onboarding: Onboarding):
@@ -41,6 +43,16 @@ def create_router(settings, store: Store, budgets: Budgets | None = None):
     @router.get('/profiles/{ident}')
     def get(ident: str):
         return view(profile_or_404(ident))
+
+    @router.delete('/profiles/{ident}', status_code=204)
+    async def forget(ident: str):
+        # Delete my data: photo files first, then every record tied to the profile, then the live (SpacetimeDB) copy.
+        # The mock bank (Nessie) keeps its own demo transactions; Niche only drops the link to it.
+        profile_or_404(ident)
+        for image in taste.images(ident):
+            engine.remove_image_file(image.id)
+        taste.forget(ident)
+        await engine.publish.forget_profile(ident)
 
     @router.put('/profiles/{ident}/onboarding')
     def onboarding(ident: str, onboarding: Onboarding):
@@ -56,7 +68,7 @@ def create_router(settings, store: Store, budgets: Budgets | None = None):
         if len(data) > MAX_UPLOAD_BYTES:
             raise HTTPException(413, 'Image larger than 15 MB')
         try:
-            return engine.add_image(ident, data, kind, note).model_dump(mode='json')
+            return signer.image(engine.add_image(ident, data, kind, note).model_dump(mode='json'))
         except (UnidentifiedImageError, OSError):
             raise HTTPException(422, 'Unsupported image')
 
@@ -89,10 +101,11 @@ def create_router(settings, store: Store, budgets: Budgets | None = None):
         if not image:
             raise HTTPException(404, 'Image not found')
         image.note, image.analysis = update.note, None
-        return taste.save_image(image).model_dump(mode='json')
+        return signer.image(taste.save_image(image).model_dump(mode='json'))
 
     @router.delete('/images/{ident}', status_code=204)
     def delete(ident: str):
+        engine.remove_image_file(ident)
         taste.delete_image(ident)
 
     @router.post('/profiles/{ident}/build')

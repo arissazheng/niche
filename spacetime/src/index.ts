@@ -241,3 +241,21 @@ export const upsertListings = spacetimedb.reducer(
     }
   }
 );
+
+// "Delete my data": drops everything kept live for a profile (board layouts, build progress, searches, listings).
+export const forgetProfile = spacetimedb.reducer({ profileId: t.string() }, (ctx, { profileId }) => {
+  requireService(ctx);
+  if (!profileId) throw new SenderError('invalid profile');
+  for (const piece of [...ctx.db.boardPiece.iter()]) {
+    if (piece.boardId.startsWith(`${profileId}:`)) ctx.db.boardPiece.key.delete(piece.key);
+  }
+  for (const cursor of [...ctx.db.boardCursor.iter()]) {
+    if (cursor.boardId.startsWith(`${profileId}:`)) ctx.db.boardCursor.key.delete(cursor.key);
+  }
+  ctx.db.buildProgress.profileId.delete(profileId);
+  ctx.db.profileVersion.profileId.delete(profileId);
+  for (const row of [...ctx.db.search.profileId.filter(profileId)]) {
+    for (const item of [...ctx.db.listing.searchId.filter(row.searchId)]) ctx.db.listing.key.delete(item.key);
+    ctx.db.search.searchId.delete(row.searchId);
+  }
+});

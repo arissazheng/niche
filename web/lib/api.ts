@@ -33,6 +33,7 @@ export const api = {
   importLink: (id: string, url: string) =>
     request<ImportJob>(`/v1/taste/profiles/${id}/imports`, { method: "POST", body: json({ url }) }),
   imports: (id: string) => request<ImportJob[]>(`/v1/taste/profiles/${id}/imports`),
+  deleteProfile: (id: string) => request<void>(`/v1/taste/profiles/${id}`, { method: "DELETE" }),
   deleteImage: (imageId: string) => request<void>(`/v1/taste/images/${imageId}`, { method: "DELETE" }),
   build: (id: string) => request<ProfileView>(`/v1/taste/profiles/${id}/build`, { method: "POST" }),
   edit: (id: string, instruction: string, source: "text" | "voice" = "text") =>

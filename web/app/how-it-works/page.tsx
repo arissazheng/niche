@@ -105,10 +105,8 @@ export default function HowItWorks() {
           </div>
         </div>
         <p className="text-sm mt-6">
-          Niche shows no ads and doesn&apos;t sell your data.{" "}
-          <span className="text-muted">
-            Demo limitation: there are no accounts yet, so uploaded photos can be opened by anyone who has their link.
-          </span>
+          Niche shows no ads and doesn&apos;t sell your data. Your photos open only through links that expire within two
+          hours. You can delete everything from your <Link href="/onboard" className="underline">Profile page</Link>.
         </p>
       </section>
 

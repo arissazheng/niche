@@ -7,7 +7,7 @@ import { SectionTitle } from "@/components/chrome";
 import { HandCircle } from "@/components/hand-circle";
 import { VoiceButton } from "@/components/voice";
 import { api } from "@/lib/api";
-import { getProfileId, setProfileId } from "@/lib/session";
+import { clearProfile, getProfileId, setProfileId } from "@/lib/session";
 import type { Length, Onboarding, SizeLabel } from "@/lib/types";
 
 const SIZES: SizeLabel[] = ["XS", "S", "M", "L", "XL", "XXL"];
@@ -33,6 +33,7 @@ export default function OnboardPage() {
   const [error, setError] = useState<string | null>(null);
   // An existing profile is edited in place; creating a new one would detach its photos and moodboard.
   const [existing, setExisting] = useState<{ id: string; built: boolean } | null>(null);
+  const [confirmDelete, setConfirmDelete] = useState(false);
 
   useEffect(() => {
     const id = getProfileId();
@@ -71,6 +72,20 @@ export default function OnboardPage() {
       router.push("/upload");
     } catch (err) {
       setError((err as Error).message);
+      setBusy(false);
+    }
+  }
+
+  async function deleteData() {
+    if (!existing) return;
+    setBusy(true);
+    try {
+      await api.deleteProfile(existing.id);
+      clearProfile(existing.id);
+      router.push("/");
+    } catch (err) {
+      setError((err as Error).message);
+      setConfirmDelete(false);
       setBusy(false);
     }
   }
@@ -197,8 +212,44 @@ export default function OnboardPage() {
         <button disabled={busy} className="rule-t rule-b text-display py-2 w-full disabled:text-muted">
           {busy ? "Saving…" : existing ? "Save changes" : "Continue"}
         </button>
+        {existing && (
+          <button type="button" onClick={() => setConfirmDelete(true)} className="label underline justify-self-center">
+            Delete my data
+          </button>
+        )}
       </div>
+      {confirmDelete && <ConfirmDelete busy={busy} onYes={deleteData} onNo={() => setConfirmDelete(false)} />}
     </form>
+  );
+}
+
+function ConfirmDelete({ busy, onYes, onNo }: { busy: boolean; onYes: () => void; onNo: () => void }) {
+  useEffect(() => {
+    const close = (e: KeyboardEvent) => e.key === "Escape" && onNo();
+    window.addEventListener("keydown", close);
+    return () => window.removeEventListener("keydown", close);
+  }, [onNo]);
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-ink/40 px-4" onClick={onNo}>
+      <div
+        role="alertdialog"
+        aria-modal="true"
+        aria-labelledby="delete-title"
+        className="bg-paper border border-ink p-6 max-w-sm w-full grid gap-4"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <p id="delete-title" className="text-display">Are you sure you want to delete your data?</p>
+        <p className="text-sm">
+          Your profile, photos, taste profile, searches, chat and bank link are removed from Niche. This can&apos;t be undone.
+        </p>
+        <div className="grid grid-cols-2 gap-2">
+          <button type="button" onClick={onNo} autoFocus className="label border border-ink px-3 py-2">No</button>
+          <button type="button" onClick={onYes} disabled={busy} className="label bg-ink text-paper px-3 py-2 disabled:opacity-50">
+            {busy ? "Deleting…" : "Yes, delete"}
+          </button>
+        </div>
+      </div>
+    </div>
   );
 }
 

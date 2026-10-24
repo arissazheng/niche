@@ -13,7 +13,9 @@ import { tables } from "@/lib/spacetime";
 import { TIER_LABELS, type Budget, type ChatTurn, type Listing, type SearchCounts, type SearchJob } from "@/lib/types";
 
 const DONE = new Set(["completed", "partial", "failed", "interrupted"]);
-const EXAMPLES = ["an asymmetrical buttoned top", "black knee-high boots under $120", "a vintage leather jacket"];
+// Tap-to-ask starters in the chat: before the first message, then once results are on screen.
+const STARTERS = ["Find me black knee-high boots under $120", "Find me a vintage leather jacket", "Find me an asymmetrical buttoned top"];
+const FOLLOW_UPS = ["Compare #1 and #2", "Which is the best value?", "Which fits my style best?"];
 
 interface Thread {
   messages: ChatTurn[];
@@ -200,13 +202,6 @@ export default function ShopPage() {
               Then keep talking: &ldquo;less formal&rdquo;, &ldquo;only black&rdquo;, &ldquo;under $60&rdquo;. Each reply refines the
               search.
             </p>
-            <div className="flex flex-wrap gap-2 mt-4">
-              {EXAMPLES.map((example) => (
-                <button key={example} onClick={() => send(example)} className="label border border-ink px-3 py-2">
-                  {example}
-                </button>
-              ))}
-            </div>
           </div>
         ) : (
           <>
@@ -260,6 +255,7 @@ export default function ShopPage() {
         onSend={send}
         onAccept={accept}
         onReset={reset}
+        hasResults={finished && allResults.length > 1}
         className="order-1 lg:order-2"
       />
 
@@ -280,6 +276,7 @@ function ChatPanel({
   onSend,
   onAccept,
   onReset,
+  hasResults,
   className,
 }: {
   budget: Budget | null;
@@ -289,12 +286,22 @@ function ChatPanel({
   onSend: (text: string) => void;
   onAccept: (proposal: ChatTurn) => void;
   onReset: () => void;
+  hasResults: boolean;
   className?: string;
 }) {
   const [draft, setDraft] = useState("");
   const end = useRef<HTMLDivElement>(null);
   const input = useRef<HTMLTextAreaElement>(null);
   const pending = outstandingProposal(messages);
+  const last = messages.at(-1);
+  // Starters until the shopper types; follow-ups right after a search finishes, until they ask something else.
+  const suggestions = thinking
+    ? []
+    : messages.length === 0
+      ? STARTERS
+      : hasResults && last?.role === "agent" && last.brief
+        ? FOLLOW_UPS
+        : [];
   useEffect(() => {
     // Braces matter: newer browsers return a Promise from scrollIntoView, which React rejects as a cleanup.
     end.current?.scrollIntoView({ block: "end" });
@@ -349,6 +356,15 @@ function ChatPanel({
               </div>
             </div>
           ),
+        )}
+        {suggestions.length > 0 && (
+          <div className="flex flex-wrap gap-2">
+            {suggestions.map((text) => (
+              <button key={text} onClick={() => onSend(text)} className="label border border-ink px-3 py-1.5 text-left">
+                {text}
+              </button>
+            ))}
+          </div>
         )}
         {thinking && <p className="label animate-pulse">Niche is thinking…</p>}
         {error && <p className="text-sm">{error}</p>}
