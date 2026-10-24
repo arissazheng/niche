@@ -45,6 +45,7 @@ export default function ShopPage() {
   const [thinking, setThinking] = useState(false);
   const [job, setJob] = useState<SearchJob | null>(null);
   const [selected, setSelected] = useState<Listing | null>(null);
+  const [kind, setKind] = useState<Kind>("all");
   const [error, setError] = useState<string | null>(null);
   const [searchId, setSearchId] = useState<string | null>(null);
   const [budget, setBudget] = useState<Budget | null>(null);
@@ -178,7 +179,8 @@ export default function ShopPage() {
   }
 
   const finished = !!job && DONE.has(job.status);
-  const results = finished ? job.results ?? [] : liveListings.length ? liveListings : job?.results ?? [];
+  const allResults = finished ? job.results ?? [] : liveListings.length ? liveListings : job?.results ?? [];
+  const results = kind === "all" ? allResults : allResults.filter((item) => kindOf(item) === kind);
   const status = finished ? job.status : liveSearch[0]?.status ?? job?.status;
   const ranked = finished || liveRows.some((r) => r.rank !== undefined);
   const brief = [...messages].reverse().find((m) => m.brief)?.brief;
@@ -205,6 +207,7 @@ export default function ShopPage() {
           <>
             <SectionTitle aside={job?.ranking_method}>{matchCount(results.length, !finished)}</SectionTitle>
             {brief && <p className="label -mt-1 mb-2 text-muted">For: {brief}</p>}
+            <MixFilter results={allResults} kind={kind} onChange={setKind} />
             {status && !DONE.has(status) && (
               <p className="label mb-3 animate-pulse">
                 {results.length
@@ -417,6 +420,30 @@ function BudgetStrip({ budget }: { budget: Budget }) {
 }
 
 // "Loading matches" → "3 matches so far" → "20 matches".
+// "new" covers every store in the retailer bank (the mainstream actor); "secondhand" covers resale apps and small shops.
+type Kind = "all" | "secondhand" | "new";
+const kindOf = (item: Listing): Kind => (item.source === "mainstream" ? "new" : "secondhand");
+
+function MixFilter({ results, kind, onChange }: { results: Listing[]; kind: Kind; onChange: (kind: Kind) => void }) {
+  if (!results.length) return null;
+  const count = (k: Kind) => (k === "all" ? results.length : results.filter((item) => kindOf(item) === k).length);
+  const options: [Kind, string][] = [["all", "All"], ["secondhand", "Secondhand & small shops"], ["new", "New from stores"]];
+  return (
+    <div className="flex flex-wrap gap-2 mb-3" role="group" aria-label="Show">
+      {options.map(([k, label]) => (
+        <button
+          key={k}
+          onClick={() => onChange(k)}
+          aria-pressed={kind === k}
+          className={`label border border-ink px-3 py-1 ${kind === k ? "bg-ink text-paper" : ""}`}
+        >
+          {label} {count(k)}
+        </button>
+      ))}
+    </div>
+  );
+}
+
 function matchCount(count: number, loading: boolean) {
   if (loading && count === 0) return "Loading matches";
   const noun = count === 1 ? "match" : "matches";
