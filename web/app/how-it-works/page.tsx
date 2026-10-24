@@ -105,6 +105,7 @@ export default function HowItWorks() {
               <li>— Your searches and their results</li>
               <li>— If you connect a bank (demo): balance, this month&apos;s clothing spend, upcoming bills. Read only; Niche can&apos;t move money.</li>
               <li>— Your chat history stays in this browser</li>
+              <li>— If you share your taste: a private link. Anyone with it sees your moodboard (photos, style clusters, palette) and your first name, and can shop for you with your taste and sizes. They never see your sizes, budget, email, age, notes or bank, and their gift searches aren&apos;t added to your history. Stop sharing on your moodboard and the link stops working.</li>
               <li>— If you turn on Shops near you: your ZIP code, sent with each search&apos;s description to Google&apos;s Gemini to find shops on Google Maps</li>
               <li>— If you import a public Pinterest, Instagram or TikTok link, it may be fetched through Bright Data</li>
             </ul>

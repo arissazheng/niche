@@ -46,6 +46,9 @@ class SearchRequest(StrictModel):
     limit: int = Field(default=20, ge=1, le=24)
     candidates_per_source: int = Field(default=30, ge=1, le=50)
     profile_id: str | None = Field(default=None, max_length=64)  # lets live subscribers find a profile's searches
+    # Started by a friend through a share link (gift shopping): ranked with this profile's taste, but kept out of the
+    # live per-profile feed and never recorded against the profile's bank.
+    for_friend: bool = False
 
 class Listing(StrictModel):
     id: str

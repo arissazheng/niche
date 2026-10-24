@@ -24,6 +24,7 @@ export default function TastePage() {
   const [notesChanged, setNotesChanged] = useState(false);
   const [rebuilding, setRebuilding] = useState(false);
   const [shared, setShared] = useState(false);
+  const [token, setToken] = useState<string | null>(null); // the share link's token, when viewing a friend's board
 
   // Resolves to an error message, or null on success, so the profile panel can show inline feedback.
   const run = useCallback(async (task: () => Promise<ProfileView>) => {
@@ -38,19 +39,24 @@ export default function TastePage() {
   }, []);
 
   useEffect(() => {
-    // `?board=<profile id>` is a shared link: a friend can rearrange the board with you, but not edit the profile.
-    const own = getProfileId();
+    // `?board=<share token>` is a friend's link: they see the board (no personal details), can rearrange it with you,
+    // and can shop for you; they can't edit the profile.
     const board = new URLSearchParams(window.location.search).get("board");
-    const id = board ?? own;
-    if (!id) return setMissing(true);
-    setIsOwner(!board || board === own);
-    setProfileId(id);
-    run(() => api.getProfile(id));
+    if (board) {
+      setIsOwner(false);
+      setToken(board);
+      run(() => api.shared(board));
+      return;
+    }
+    const own = getProfileId();
+    if (!own) return setMissing(true);
+    setProfileId(own);
+    run(() => api.getProfile(own));
   }, [run]);
 
   // Any change to the profile elsewhere (another tab, a voice edit, a rebuild) bumps its live version.
   const [versions] = useTable(tables.profileVersion.where((r) => r.profileId.eq(profileId ?? "")), {
-    enabled: !!profileId,
+    enabled: !!profileId, // owner only: a friend's view has no profile id to follow
   });
   const liveVersion = versions[0]?.version ?? 0;
   useEffect(() => {
@@ -96,12 +102,21 @@ export default function TastePage() {
 
   async function share() {
     try {
-      await navigator.clipboard.writeText(`${window.location.origin}/taste?board=${id}`);
+      const link = view?.profile.share_token ?? (await api.share(id)).token;
+      await navigator.clipboard.writeText(`${window.location.origin}/taste?board=${link}`);
+      if (!view?.profile.share_token) await run(() => api.getProfile(id));
       setShared(true);
       window.setTimeout(() => setShared(false), 2500);
     } catch {
       setError("Couldn't copy the link");
     }
+  }
+
+  async function stopSharing() {
+    await run(async () => {
+      await api.unshare(id);
+      return api.getProfile(id);
+    });
   }
 
   return (
@@ -119,13 +134,25 @@ export default function TastePage() {
       <div className="flex items-center justify-center gap-4 py-1">
         {view.profile.mode === "fixture" && <span className="label text-muted">Fixture mode — no Claude call</span>}
         {isOwner ? (
-          <button onClick={share} className="label underline">
-            {shared ? "Link copied — send it to a friend" : "Share board"}
-          </button>
+          <>
+            <button onClick={share} className="label underline">
+              {shared ? "Link copied — send it to a friend" : "Share my taste"}
+            </button>
+            {view.profile.share_token && (
+              <button onClick={stopSharing} className="label underline text-muted">Stop sharing</button>
+            )}
+          </>
         ) : (
           <span className="label">You&apos;re viewing {ownerName ? `${ownerName}'s` : "a shared"} moodboard</span>
         )}
       </div>
+      {!isOwner && token && (
+        <div className="flex justify-center pb-3">
+          <Link href={`/gift/${token}`} className="text-display bg-ink text-paper px-8 py-3 hover:opacity-90">
+            Find something for {ownerName || "them"}
+          </Link>
+        </div>
+      )}
       <Binder
         view={view}
         viewerName={isOwner ? ownerName || "Owner" : "Guest"}

@@ -32,6 +32,13 @@ class TasteStore:
             row = db.execute('SELECT data FROM profiles WHERE id=?', (ident,)).fetchone()
         return None if row is None else Profile.model_validate_json(row[0])
 
+    def by_share_token(self, token) -> Profile | None:
+        if not token:
+            return None
+        with self.store.connect() as db:
+            row = db.execute("SELECT data FROM profiles WHERE json_extract(data, '$.share_token')=?", (token,)).fetchone()
+        return None if row is None else Profile.model_validate_json(row[0])
+
     def save_image(self, image: TasteImage):
         with self.store.connect() as db:
             db.execute('INSERT OR REPLACE INTO images VALUES (?,?,?,?)',

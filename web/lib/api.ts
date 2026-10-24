@@ -64,6 +64,16 @@ export const api = {
         ...(options.brands?.length && { brands: options.brands }),
       }),
     }),
+  share: (id: string) => request<{ token: string }>(`/v1/taste/profiles/${id}/share`, { method: "POST" }),
+  unshare: (id: string) => request<void>(`/v1/taste/profiles/${id}/share`, { method: "DELETE" }),
+  /** A friend's board through their share link: taste and photos, first name only. */
+  shared: (token: string) => request<ProfileView>(`/v1/taste/shared/${encodeURIComponent(token)}`),
+  /** Shopping for the friend who shared the link: their taste and sizes, your price. */
+  giftChat: (token: string, messages: ChatTurn[], searchId?: string | null) =>
+    request<AgentReply>(`/v1/taste/shared/${encodeURIComponent(token)}/chat`, {
+      method: "POST",
+      body: json({ messages, ...(searchId && { search_id: searchId }) }),
+    }),
   chat: (id: string, messages: ChatTurn[], searchId?: string | null, useBudget = false) =>
     request<AgentReply>(`/v1/taste/profiles/${id}/chat`, {
       method: "POST",

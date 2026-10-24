@@ -169,11 +169,15 @@ export interface Profile {
   prompt: string;
   mode: "empty" | "fixture" | "claude";
   updated_at: string;
+  /** Set while the owner shares their moodboard (friends can view it and shop for them). */
+  share_token?: string;
 }
 
 export interface ProfileView {
   profile: Profile;
   images: TasteImage[];
+  /** Key of the live (SpacetimeDB) board: the same for the owner and friends, and doesn't reveal the profile id. */
+  board_id?: string;
   /** Built, and nothing in the lookbook or preferences has changed since, so there's nothing to rebuild. */
   up_to_date?: boolean;
 }

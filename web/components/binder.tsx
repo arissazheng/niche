@@ -56,7 +56,7 @@ export function Binder({
   const shapes = useShapes(view.images);
   const pieces = layout(view, shapes, aspect);
   // A rebuilt profile has different clusters, so each version gets a fresh board.
-  const boardId = `${view.profile.id}:v${view.profile.version}`;
+  const boardId = `${view.board_id ?? view.profile.id}:v${view.profile.version}`;
 
   const { isActive, identity, getConnection } = useSpacetimeDB();
   const conn = getConnection() as DbConnection | null;

@@ -114,6 +114,9 @@ class Profile(StrictModel):
     mode: Literal['empty', 'fixture', 'claude'] = 'empty'
     # Fingerprint of the photos, notes and preferences the last build used; unchanged means no rebuild is needed.
     built_from: str = ''
+    # Set when the owner shares their moodboard: friends with /taste?board=<token> see a redacted board and can shop
+    # for them (gift chat). Empty means not shared; clearing it revokes every link handed out.
+    share_token: str = ''
     updated_at: str = ''
 
     def to_sourcing(self) -> SourcingProfile:

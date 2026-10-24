@@ -1,4 +1,6 @@
 import asyncio
+import hashlib
+import secrets
 import logging
 import httpx
 from typing import Annotated, Literal
@@ -42,12 +44,37 @@ def create_router(settings, store: Store, budgets: Budgets | None = None, signer
             raise HTTPException(404, 'Profile not found')
         return profile
 
+    def board_id(profile):
+        # The live (SpacetimeDB) board key: shared by owner and friends, but it doesn't reveal the profile id.
+        return hashlib.sha256(f'board:{profile.id}'.encode()).hexdigest()[:20]
+
     def view(profile):
         images = taste.images(profile.id)
         # up_to_date: built, and nothing in the lookbook or preferences changed since, so Build can just show it.
         return {'profile': profile.model_dump(mode='json'),
                 'images': [signer.image(x.model_dump(mode='json')) for x in images],
+                'board_id': board_id(profile),
                 'up_to_date': bool(profile.version and profile.built_from == fingerprint(profile, images))}
+
+    def first_name(profile):
+        return (profile.onboarding.name.split() or [''])[0][:40]
+
+    def shared_view(profile):
+        """What a friend with the share link sees: the board (clusters, palette, summary, photos) and a first name.
+        Not the profile id, email, age, sizes, measurements, budget, notes, ZIP or bank."""
+        keep = {'version', 'summary', 'clusters', 'colors', 'silhouettes', 'patterns', 'materials', 'designers',
+                'aesthetics', 'avoid', 'mode', 'updated_at'}
+        public = profile.model_dump(mode='json', include=keep)
+        public.update(id='', prompt='', onboarding={**Onboarding().model_dump(mode='json'), 'name': first_name(profile)})
+        images = [signer.image({**x.model_dump(mode='json', exclude={'analysis'}), 'profile_id': '', 'note': ''})
+                  for x in taste.images(profile.id)]
+        return {'profile': public, 'images': images, 'board_id': board_id(profile), 'up_to_date': True}
+
+    def shared_or_404(token):
+        profile = taste.by_share_token(token)
+        if not profile:
+            raise HTTPException(404, 'This link was turned off or never existed')
+        return profile
 
     @router.get('/sizing/catalog')
     def sizing_catalog():
@@ -74,8 +101,10 @@ def create_router(settings, store: Store, budgets: Budgets | None = None, signer
         profile_or_404(ident)
         for image in taste.images(ident):
             engine.remove_image_file(image.id)
+        board = board_id(profile_or_404(ident))
         taste.forget(ident)
         await engine.publish.forget_profile(ident)
+        await engine.publish.forget_profile(board)  # the live board is keyed by board_id(...), not the profile id
 
     @router.put('/profiles/{ident}/onboarding')
     def onboarding(ident: str, onboarding: Onboarding):
@@ -176,21 +205,23 @@ def create_router(settings, store: Store, budgets: Budgets | None = None, signer
             raise HTTPException(422, 'Build the taste profile first')
         return profile
 
-    def search_request(profile, search: ProfileSearch):
+    def search_request(profile, search: ProfileSearch, for_friend=False):
         # Hand-off to the sourcing pipeline: the taste prompt becomes the SearchRequest's taste_profile.
         ob = profile.onboarding
         return SearchRequest(taste_profile=profile.to_sourcing(), sources=search.sources, limit=search.limit,
-            profile_id=profile.id,
-            request=ShoppingRequest(query=search.query, max_item_price=search.max_item_price or ob.budget_max,
+            profile_id=profile.id, for_friend=for_friend,
+            # A gift search has no cap unless the friend shopping names one (the owner's own budget isn't theirs).
+            request=ShoppingRequest(query=search.query,
+                max_item_price=search.max_item_price or (10000 if for_friend else ob.budget_max),
                 currency=ob.currency, size=search.size, length=search.length, measurements=inches(ob.measurements),
                 shoe_size_system=search.shoe_size_system, size_note=search.size_note,
                 must_have=clean_features(search.must_have), brands=[b.strip()[:40] for b in search.brands if b.strip()][:3],
                 category=search.category if search.category not in (None, 'other') else guess_category(search.query)))
 
-    def start_search(profile, search: ProfileSearch):
-        job = store.create(search_request(profile, search).model_dump(mode='json'))
+    def start_search(profile, search: ProfileSearch, for_friend=False):
+        job = store.create(search_request(profile, search, for_friend).model_dump(mode='json'))
         ob = profile.onboarding
-        if ob.nearby_shops and ob.zip_code and nearby.enabled:
+        if not for_friend and ob.nearby_shops and ob.zip_code and nearby.enabled:  # the friend's ZIP stays private
             nearby.warm(ob.zip_code, search.query)  # Shops near you, looked up alongside the search
         return {'search_id': job, 'status': 'queued', 'status_url': f'/v1/searches/{job}'}
 
@@ -236,6 +267,34 @@ def create_router(settings, store: Store, budgets: Budgets | None = None, signer
         snap = await budgets.snapshot(ident) if budgets else None
         return {'linked': snap is not None, **(snap.model_dump() if snap else {})}
 
+    def plan(profile, turn, chat, out, budget=None, steer=None, for_friend=False):
+        """Sizes, price cap, must-haves and brands for a proposed or run search; starts it when the agent searches."""
+        if turn.action in ('propose', 'search'):
+            # Unless the user named a size, search in their saved size for this kind of garment.
+            category = turn.category if turn.category != 'other' else guess_category(turn.brief)
+            fit = search_sizes(profile, category, turn.brief)
+            out.update(fit, category=category)
+            if turn.size:  # a size the user named in the conversation wins
+                out.update(size=turn.size, size_note=f'Size {turn.size}, as asked')
+            price = turn.max_item_price
+            said = ' '.join(m.text for m in chat.messages if m.role == 'user')
+            if price and budget and not steer and round(price) == round(budget.remaining) and str(round(price)) not in said:
+                price = None  # "Keep to budget" is off: don't carry over an earlier budget cap the shopper never typed
+            if price is None and steer and steer.remaining >= 1:
+                # The agent should set a cap itself; if it didn't, keep the search inside what's left this month.
+                price = min(profile.onboarding.budget_max, steer.remaining)
+            out['max_item_price'] = price
+            out['must_have'] = clean_features(turn.must_have)
+            out['brands'] = [b.strip()[:40] for b in turn.brands if b.strip()][:3]
+        if turn.action == 'search':
+            out.update(start_search(profile, ProfileSearch(query=turn.brief, max_item_price=out['max_item_price'],
+                                                           size=out['size'], length=out['length'],
+                                                           shoe_size_system=out['shoe_size_system'],
+                                                           size_note=out['size_note'],
+                                                           must_have=out['must_have'], category=out['category'],
+                                                           brands=out['brands']), for_friend))
+        return out
+
     @router.post('/profiles/{ident}/chat')
     async def chat(ident: str, chat: ChatRequest):
         # One conversational turn: a clarifying question, or a refined search over the whole conversation.
@@ -261,30 +320,49 @@ def create_router(settings, store: Store, budgets: Budgets | None = None, signer
                                 'store': x.get('retailer') or x.get('seller') or x['source']} for x in recalled]
         if linked:
             out['linked'] = [{'url': x.url, 'site': x.site, 'title': x.title, 'readable': x.readable} for x in linked]
-        if turn.action in ('propose', 'search'):
-            # Unless the user named a size, search in their saved size for this kind of garment.
-            category = turn.category if turn.category != 'other' else guess_category(turn.brief)
-            fit = search_sizes(profile, category, turn.brief)
-            out.update(fit, category=category)
-            if turn.size:  # a size the user named in the conversation wins
-                out.update(size=turn.size, size_note=f'Size {turn.size}, as asked')
-            price = turn.max_item_price
-            said = ' '.join(m.text for m in chat.messages if m.role == 'user')
-            if price and budget and not steer and round(price) == round(budget.remaining) and str(round(price)) not in said:
-                price = None  # "Keep to budget" is off: don't carry over an earlier budget cap the shopper never typed
-            if price is None and steer and steer.remaining >= 1:
-                # The agent should set a cap itself; if it didn't, keep the search inside what's left this month.
-                price = min(profile.onboarding.budget_max, steer.remaining)
-            out['max_item_price'] = price
-            out['must_have'] = clean_features(turn.must_have)
-            out['brands'] = [b.strip()[:40] for b in turn.brands if b.strip()][:3]
-        if turn.action == 'search':
-            out.update(start_search(profile, ProfileSearch(query=turn.brief, max_item_price=out['max_item_price'],
-                                                           size=out['size'], length=out['length'],
-                                                           shoe_size_system=out['shoe_size_system'],
-                                                           size_note=out['size_note'],
-                                                           must_have=out['must_have'], category=out['category'],
-                                                           brands=out['brands'])))
+        return plan(profile, turn, chat, out, budget, steer)
+
+    # ---- Sharing: a friend with the link sees the board and can shop for the owner (gift chat) ----
+
+    @router.post('/profiles/{ident}/share')
+    def share(ident: str):
+        profile = profile_or_404(ident)
+        if not profile.share_token:
+            profile.share_token = secrets.token_urlsafe(12)
+            taste.save_profile(profile)
+        return {'token': profile.share_token}
+
+    @router.delete('/profiles/{ident}/share', status_code=204)
+    def unshare(ident: str):
+        # Stop sharing: every link handed out stops working at once.
+        profile = profile_or_404(ident)
+        profile.share_token = ''
+        taste.save_profile(profile)
+
+    @router.get('/shared/{token}')
+    def shared(token: str):
+        return shared_view(shared_or_404(token))
+
+    @router.post('/shared/{token}/chat')
+    async def gift_chat(token: str, chat: ChatRequest):
+        # Shopping for the owner, by a friend: the owner's taste and sizes, the friend's price. No bank, no earlier
+        # finds, no nearby shops, and nothing about the owner beyond their first name comes back.
+        if chat.messages[-1].role != 'user':
+            raise HTTPException(422, 'The last message must be from the user')
+        profile = shared_or_404(token)
+        if not (profile.prompt or profile.summary):
+            raise HTTPException(422, "Their taste profile isn't built yet")
+        urls = extract_urls(chat.messages[-1].text)
+        linked = list(await asyncio.gather(*map(read_link, urls))) if urls else None
+        name = first_name(profile) or 'your friend'
+        turn = await agent.respond(profile, chat.messages, None, on_screen(profile.id, chat.search_id), linked,
+                                   recipient=name)
+        out = {'reply': turn.reply, 'action': turn.action, 'brief': turn.brief, 'budget': None}
+        if linked:
+            out['linked'] = [{'url': x.url, 'site': x.site, 'title': x.title, 'readable': x.readable} for x in linked]
+        out = plan(profile, turn, chat, out, for_friend=True)
+        for private in ('size', 'size_note', 'length', 'shoe_size_system'):
+            out.pop(private, None)  # the search uses their size; the friend shopping doesn't need to see it
         return out
 
     return router

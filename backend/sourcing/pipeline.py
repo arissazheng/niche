@@ -200,7 +200,7 @@ class Pipeline:
                 self.store.event(job_id,'planner_failed',{'type':type(exc).__name__})
                 result['warnings'].append('Query planning failed; searched the original request')
         result['queries'] = queries
-        live_args = (job_id, request.profile_id or '', request.request.query)
+        live_args = (job_id, '' if request.for_friend else request.profile_id or '', request.request.query)
         await self.live.search(*live_args, 'running')
         # One bounded run per marketplace for MVP. Rotate query variants across marketplaces.
         sources = list(dict.fromkeys(request.sources))

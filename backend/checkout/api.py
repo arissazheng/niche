@@ -33,6 +33,11 @@ def create_router(settings, store: Store, budgets: Budgets):
             row = db.execute('SELECT request FROM jobs WHERE id=?', (search_id,)).fetchone()
         return json.loads(row[0]).get('profile_id') if row else None
 
+    def for_friend(search_id):
+        with store.connect() as db:
+            row = db.execute('SELECT request FROM jobs WHERE id=?', (search_id,)).fetchone()
+        return bool(row and json.loads(row[0]).get('for_friend'))
+
     def already_marked(search_id, listing_id):
         with store.connect() as db:
             rows = db.execute("SELECT payload FROM events WHERE job_id=? AND kind='purchase_marked'", (search_id,)).fetchall()
@@ -41,6 +46,8 @@ def create_router(settings, store: Store, budgets: Budgets):
     @router.post('/mark-bought')
     async def mark_bought(body: MarkBought):
         item = listing(body.search_id, body.listing_id)
+        if for_friend(body.search_id):
+            raise HTTPException(403, "Gift searches aren't recorded against the friend's budget")
         if already_marked(body.search_id, body.listing_id):
             return {'recorded': False, 'reason': 'already_marked'}
         profile_id = profile_for(body.search_id)
