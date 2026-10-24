@@ -1,6 +1,6 @@
 "use client";
 
-import Link from "next/link";
+import Link, { useLinkStatus } from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { APP_NAME, FRIEND_EVENT, clearFriendView, getFriendView, startGuest, type FriendView } from "@/lib/session";
@@ -11,6 +11,12 @@ const NAV = [
   { href: "/taste", label: "Taste" },
   { href: "/shop", label: "Shop" },
 ];
+
+/** Dims while its page loads (a first visit in dev can take seconds to compile), so a click never looks ignored. */
+function Pending({ children }: { children: React.ReactNode }) {
+  const { pending } = useLinkStatus();
+  return <span className={pending ? "opacity-40 animate-pulse" : undefined} aria-busy={pending || undefined}>{children}</span>;
+}
 
 /** The site menu. In a friend view it shops for the friend, and Profile / Lookbook offer to build your own instead. */
 export function SiteNav() {
@@ -28,10 +34,10 @@ export function SiteNav() {
   if (!friend) {
     return (
       <nav className="label flex justify-center gap-4 py-2">
-        <Link href="/">{APP_NAME}</Link>
+        <Link href="/"><Pending>{APP_NAME}</Pending></Link>
         {NAV.map((item) => (
           <Link key={item.href} href={item.href} className="hover:underline">
-            {item.label}
+            <Pending>{item.label}</Pending>
           </Link>
         ))}
       </nav>
@@ -42,13 +48,15 @@ export function SiteNav() {
   return (
     <>
       <nav className="label flex justify-center gap-4 py-2">
-        <Link href="/">{APP_NAME}</Link>
+        <Link href="/"><Pending>{APP_NAME}</Pending></Link>
         <button onClick={() => setAsking(true)} className="uppercase hover:underline">Profile</button>
         <button onClick={() => setAsking(true)} className="uppercase hover:underline">Lookbook</button>
         <Link href={`/friend/${friend.token}`} className="hover:underline">
-          {friend.name ? `${friend.name}'s taste` : "Their taste"}
+          <Pending>{friend.name ? `${friend.name}'s taste` : "Their taste"}</Pending>
         </Link>
-        <Link href={`/gift/${friend.token}`} className="hover:underline">Shop for {friend.name || "them"}</Link>
+        <Link href={`/gift/${friend.token}`} className="hover:underline">
+          <Pending>Shop for {friend.name || "them"}</Pending>
+        </Link>
       </nav>
       {asking && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-ink/40 px-4" onClick={() => setAsking(false)}>
