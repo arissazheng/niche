@@ -48,7 +48,7 @@ def test_find_by_website_takes_the_store_as_given(monkeypatch):
 def test_indie_actor_gets_the_shoppers_shops_first_then_the_seed_list(tmp_path):
     sources = ApifySources(Settings(), Store(str(tmp_path/'s.sqlite')))
     _, plain = sources.actor_input('indie', ['satin dress'], 30)
-    assert 'shops' not in plain  # the actor uses its own seed list
+    assert plain['shops'] == INDIE_SHOPS  # sent every time, so the deployed actor's copy never goes stale
     _, mine = sources.actor_input('indie', ['satin dress'], 30, shops=[BATUL, IndieShop(**INDIE_SHOPS[0])])
     _, new = sources.actor_input('indie', ['satin dress'], 30, shops=[IndieShop(domain='newlabel.example', name='New')])
     assert len(new['shops']) == len(INDIE_SHOPS) + 1 and new['shops'][0]['domain'] == 'newlabel.example'
