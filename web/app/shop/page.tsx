@@ -8,6 +8,7 @@ import { SectionTitle } from "@/components/chrome";
 import { Drawer } from "@/components/drawer";
 import { VoiceButton } from "@/components/voice";
 import { api } from "@/lib/api";
+import { onAsk, takeAskFromUrl } from "@/lib/assistant";
 import { getProfileId } from "@/lib/session";
 import { tables } from "@/lib/spacetime";
 import { TIER_LABELS, type Budget, type ChatTurn, type Listing, type SearchCounts, type SearchJob } from "@/lib/types";
@@ -69,6 +70,8 @@ export default function ShopPage() {
     }
   };
   const pollToken = useRef(0);
+  // Messages typed or spoken in the Ask Niche box on another page (or this one) wait here until the chat is free.
+  const [queued, setQueued] = useState<string | null>(null);
 
   // The shopper's mock bank (Capital One Nessie): shown above the chat, and read by the agent every turn.
   function refreshBudget(id = profileId) {
@@ -128,8 +131,18 @@ export default function ShopPage() {
     const thread = loadThread(id);
     setMessages(thread.messages);
     if (thread.searchId) follow(thread.searchId);
+    setQueued(takeAskFromUrl());
     // eslint-disable-next-line react-hooks/exhaustive-deps -- restore once on load
   }, []);
+
+  useEffect(() => onAsk(setQueued), []);
+
+  useEffect(() => {
+    if (!queued || !profileId || thinking) return;
+    setQueued(null);
+    send(queued);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- send reads this render's messages
+  }, [queued, profileId, thinking]);
 
   async function send(text: string) {
     if (!profileId || !text.trim() || thinking) return;
@@ -344,6 +357,7 @@ function ChatPanel({
     >
       <div className="rule-b flex items-baseline justify-between px-3 py-2">
         <span className="text-display">Ask Niche</span>
+        <span className="label text-muted hidden lg:inline">space space to type</span>
         {messages.length > 0 && (
           <button onClick={onReset} className="label underline">New search</button>
         )}
@@ -404,6 +418,7 @@ function ChatPanel({
       >
         <textarea
           ref={input}
+          data-ask-niche
           rows={2}
           className="flex-1 resize-none bg-transparent outline-none text-sm placeholder:text-muted"
           placeholder={

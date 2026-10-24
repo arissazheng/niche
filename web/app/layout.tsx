@@ -9,6 +9,7 @@ import "@fontsource/cormorant-garamond/500.css";
 import "@fontsource/cormorant-garamond/500-italic.css";
 import "@fontsource/cedarville-cursive/400.css";
 import "@fontsource/reenie-beanie/400.css";
+import { AssistantLauncher } from "@/components/assistant";
 import { SiteFooter, SiteHeader } from "@/components/chrome";
 import { LiveProvider } from "@/components/live-provider";
 import { APP_NAME } from "@/lib/session";
@@ -28,6 +29,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
           <SiteHeader />
           <main className="flex-1">{children}</main>
           <SiteFooter />
+          <AssistantLauncher />
         </LiveProvider>
       </body>
     </html>

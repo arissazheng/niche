@@ -33,6 +33,7 @@ export default function OnboardPage() {
   const [existing, setExisting] = useState<{ id: string; built: boolean } | null>(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [voiceNote, setVoiceNote] = useState<string | null>(null);
+  const [typed, setTyped] = useState("");
 
   useEffect(() => {
     const id = getProfileId();
@@ -120,10 +121,37 @@ export default function OnboardPage() {
       <aside className="md:sticky md:top-4 self-start">
         <h1 className="text-display">{existing ? "Your profile" : "Let\u2019s get to know you."}</h1>
         <p className="text-sm mt-2 max-w-xs">
-          Talk it through with the voice agent, or tap your answers. You can change everything later.
+          Talk it through with the voice agent, type it in one go, or tap your answers. You can change everything later.
         </p>
         <div className="mt-4">
           <VoiceButton context="onboarding" label="Answer out loud" onTranscript={answered} />
+          {/* Typed answers take the same path as spoken ones. This sits inside the profile form, so no nested <form>. */}
+          <div className="flex items-end gap-2 mt-3 max-w-xs">
+            <input
+              className="input flex-1"
+              aria-label="Or type your answer"
+              placeholder="Or type it here"
+              value={typed}
+              onChange={(e) => setTyped(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key !== "Enter") return;
+                e.preventDefault();
+                if (typed.trim()) answered(typed.trim());
+                setTyped("");
+              }}
+            />
+            <button
+              type="button"
+              disabled={!typed.trim()}
+              onClick={() => {
+                answered(typed.trim());
+                setTyped("");
+              }}
+              className="label underline disabled:no-underline disabled:text-muted"
+            >
+              Fill in
+            </button>
+          </div>
           <p className="text-xs text-muted mt-2 max-w-xs">
             {"Try: \u201CI\u2019m Dana, 25, I shop on Depop and thrift stores, budget up to $120.\u201D"}
           </p>
