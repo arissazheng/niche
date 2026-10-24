@@ -88,10 +88,8 @@ export default function TastePage() {
         <p className="label text-center py-1 text-muted">Fixture mode — no Claude call</p>
       )}
       <Binder view={view} onOpenImage={setNoteFor} />
-      <div className="px-4 mt-10 grid gap-10 lg:grid-cols-[1fr_2fr]">
-        <div className="grid content-start gap-2">
-          <Link href="/upload" className="label underline">← Add or change images</Link>
-        </div>
+      <div className="px-4 mt-10 mx-auto max-w-3xl grid gap-6">
+        <Link href="/upload" className="label underline justify-self-start">← Add or change images</Link>
         <ProfilePanel view={view} onChange={run} />
       </div>
 
