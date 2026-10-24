@@ -1,8 +1,9 @@
 from typing import Literal
 from pydantic import BaseModel, Field, HttpUrl, ConfigDict
 
-# mainstream / secondhand are the two Niche Apify actors (backend/actors); the others are single-marketplace adapters.
-Source = Literal['mainstream', 'secondhand', 'indie', 'etsy', 'depop', 'poshmark', 'grailed']
+# mainstream / secondhand / indie are Niche's Apify actors (backend/actors); web is independent shops found through
+# Bright Data (sourcing/webshops.py); the others are single-marketplace adapters.
+Source = Literal['mainstream', 'secondhand', 'indie', 'web', 'etsy', 'depop', 'poshmark', 'grailed']
 
 class StrictModel(BaseModel):
     model_config = ConfigDict(extra='forbid')
@@ -12,6 +13,9 @@ class IndieShop(StrictModel):
     domain: str = Field(pattern=r'^[a-z0-9-]+(\.[a-z0-9-]+)+$', max_length=100)
     name: str = Field(min_length=1, max_length=80)
     currency: str = Field(default='USD', pattern=r'^[A-Z]{3}$')
+    # shopify: niche-indie reads its catalog. web: any other platform, found and read through Bright Data
+    # (sourcing/webshops.py).
+    platform: Literal['shopify', 'web'] = 'shopify'
 
 class TasteProfile(StrictModel):
     summary: str = Field(max_length=3000)

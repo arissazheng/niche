@@ -84,7 +84,7 @@ def client(tmp_path):
 
 
 def test_add_and_remove_a_shop(client, monkeypatch):
-    async def find(text, http=None):
+    async def find(text, http=None, any_platform=False):
         return BATUL if 'batul' in text.lower() else None
     monkeypatch.setattr(shops, 'find', find)
     pid = client.post('/v1/taste/profiles', json={'data_consent': True}).json()['profile']['id']

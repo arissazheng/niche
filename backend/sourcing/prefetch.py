@@ -37,7 +37,7 @@ class Prefetcher:
             mine = request.taste_profile.indie_shops
             results = await asyncio.gather(*(self.sources.fetch(source, queries, request.candidates_per_source, job,
                                                                 request.request.max_item_price,
-                                                                **({'shops': mine} if source == 'indie' and mine else {}))
+                                                                **({'shops': mine} if source in ('indie', 'web') and mine else {}))
                                              for source in request.sources), return_exceptions=True)
             listings = [x for r in results if not isinstance(r, BaseException) for x in r[0]]
             kept = eligible(listings, request)
