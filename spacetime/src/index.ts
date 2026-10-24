@@ -92,6 +92,11 @@ const listing = table(
     rank: t.option(t.u32()),
     isFixture: t.bool(),
     updatedAt: t.timestamp(),
+    // Store labels from the mainstream/secondhand actors (appended with defaults so the migration is non-breaking).
+    marketplace: t.string().default(''),
+    retailer: t.string().default(''),
+    tier: t.string().default(''),
+    brand: t.string().default(''),
   }
 );
 
@@ -214,6 +219,10 @@ const ListingInput = t.object('ListingInput', {
   score: t.option(t.f64()),
   rank: t.option(t.u32()),
   isFixture: t.bool(),
+  marketplace: t.string(),
+  retailer: t.string(),
+  tier: t.string(),
+  brand: t.string(),
 });
 
 export const upsertListings = spacetimedb.reducer(

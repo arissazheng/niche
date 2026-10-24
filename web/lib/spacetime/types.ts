@@ -61,6 +61,10 @@ export const Listing = __t.object("Listing", {
   rank: __t.option(__t.u32()),
   isFixture: __t.bool(),
   updatedAt: __t.timestamp(),
+  marketplace: __t.string(),
+  retailer: __t.string(),
+  tier: __t.string(),
+  brand: __t.string(),
 });
 export type Listing = __Infer<typeof Listing>;
 
@@ -78,6 +82,10 @@ export const ListingInput = __t.object("ListingInput", {
   score: __t.option(__t.f64()),
   rank: __t.option(__t.u32()),
   isFixture: __t.bool(),
+  marketplace: __t.string(),
+  retailer: __t.string(),
+  tier: __t.string(),
+  brand: __t.string(),
 });
 export type ListingInput = __Infer<typeof ListingInput>;
 

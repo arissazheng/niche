@@ -174,3 +174,12 @@ def test_live_publishing_for_build_and_search(tmp_path):
     # Provisional copies must not leak duplicate warnings into the final results.
     result = store.get(job)['results'][0]
     assert len(result['warnings']) == len(set(result['warnings']))
+
+
+def test_live_listing_row_carries_store_labels():
+    from sourcing.live import listing_row
+    row = listing_row({'id': 'secondhand:1', 'source': 'secondhand', 'title': 'Skirt', 'url': 'https://www.depop.com/p/1',
+                       'image_urls': [], 'price': 30, 'currency': 'USD', 'warnings': [], 'score': None,
+                       'retailer': 'Depop', 'tier': 'resale', 'marketplace': 'depop', 'brand': None})
+    assert (row['retailer'], row['tier'], row['marketplace'], row['brand']) == ('Depop', 'resale', 'depop', '')
+    assert row['score'] == {'none': []} and row['rank'] == {'none': []}

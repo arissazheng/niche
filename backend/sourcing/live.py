@@ -51,4 +51,6 @@ def listing_row(item):
     return {'listing_id': x['id'], 'source': x['source'], 'title': x['title'][:300], 'url': x['url'],
             'image_url': (x.get('image_urls') or [''])[0], 'price': float(x['price']), 'currency': x['currency'],
             'seller': x.get('seller') or '', 'reason': x.get('reason') or '', 'warnings': x.get('warnings') or [],
-            'score': option(x.get('score')), 'rank': option(x.get('rank')), 'is_fixture': bool(x.get('is_fixture'))}
+            'score': option(x.get('score')), 'rank': option(x.get('rank')), 'is_fixture': bool(x.get('is_fixture')),
+            'marketplace': x.get('marketplace') or '', 'retailer': x.get('retailer') or '',
+            'tier': x.get('tier') or '', 'brand': x.get('brand') or ''}

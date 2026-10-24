@@ -39,10 +39,9 @@ export default function ShopPage() {
       price: r.price,
       currency: r.currency,
       seller: r.seller || null,
-      // The live table has no store/type columns yet; labels fill in from the final REST record.
-      retailer: null,
-      tier: null,
-      brand: null,
+      retailer: r.retailer || null,
+      tier: (r.tier || null) as Listing["tier"],
+      brand: r.brand || null,
       condition: null,
       sizes: [],
       warnings: r.warnings,

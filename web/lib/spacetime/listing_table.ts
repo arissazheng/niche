@@ -27,4 +27,8 @@ export default __t.row({
   rank: __t.option(__t.u32()),
   isFixture: __t.bool().name("is_fixture"),
   updatedAt: __t.timestamp().name("updated_at"),
+  marketplace: __t.string(),
+  retailer: __t.string(),
+  tier: __t.string(),
+  brand: __t.string(),
 });
