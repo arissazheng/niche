@@ -51,7 +51,7 @@ export interface TasteImage {
   profile_id: string;
   kind: ImageKind;
   url: string;
-  source?: "upload" | "pinterest" | "instagram";
+  source?: "upload" | "pinterest" | "instagram" | "tiktok";
   note: string;
   palette: string[];
   analysis: {
@@ -170,8 +170,8 @@ export interface AgentReply {
 /** A Pinterest/Instagram import running in the background (backend/taste/imports.py). */
 export interface ImportJob {
   id: string;
-  site: "pinterest" | "instagram";
-  kind: "board" | "profile";
+  site: "pinterest" | "instagram" | "tiktok";
+  kind: "board" | "profile" | "post";
   url: string;
   status: "running" | "done" | "empty" | "failed";
   added: number;
