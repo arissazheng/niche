@@ -429,12 +429,12 @@ function layout(view: ProfileView, shapes: Shapes, aspect: number): Piece[] {
       index: i,
     });
     if (cluster.description) {
-      const noteWidth = Math.min(zone.width * 0.36, 13);
+      const noteWidth = Math.min(zone.width * 0.4, 15);
       pieces.push({
         id: `note:${i}`,
         kind: "note",
         left: clamp(zone.left + zone.width * (0.58 + rand() * 0.06), zone.page.left, zone.page.right - noteWidth),
-        top: Math.min(zone.top + zone.height * (0.6 + rand() * 0.1), PAGE_BOTTOM - 14),
+        top: Math.min(zone.top + zone.height * (0.6 + rand() * 0.1), PAGE_BOTTOM - 18),
         width: noteWidth,
         rotate: (rand() - 0.5) * 6,
         z: 75,
@@ -497,13 +497,22 @@ function zones(counts: number[]): Zone[] {
 }
 
 /**
- * A short card-sized summary. New builds write one sentence; older, longer descriptions keep their lead clause
- * ("2000s-revival tailoring with a ladylike, slightly gothic edge: cropped shrugs…" → the part before the colon).
+ * The note card's paragraph. New builds write at most 35 words; older, longer descriptions keep whole sentences up to
+ * the card's length, or end at the last full phrase (a comma break) with a period, never a clipped "…".
  */
-function cardText(description: string, max = 110) {
-  const lead = description.split(/[:;.!?—]\s/)[0].trim().replace(/[:;,.—]$/, "");
-  if (lead.length <= max) return lead;
-  return lead.slice(0, max).replace(/[\s,]+\S*$/, "");
+function cardText(description: string, max = 220) {
+  const text = description.trim();
+  if (text.length <= max) return text;
+  const sentences = text.match(/[^.!?]+[.!?]+/g) ?? [];
+  let kept = "";
+  for (const sentence of sentences) {
+    if ((kept + sentence).length > max) break;
+    kept += sentence;
+  }
+  if (kept) return kept.trim();
+  const cut = text.slice(0, max);
+  const phrase = cut.slice(0, Math.max(cut.lastIndexOf(","), cut.lastIndexOf(";")));
+  return `${(phrase || cut.replace(/\s+\S*$/, "")).replace(/[:,;\s]+$/, "")}.`;
 }
 
 /** About a third of prints are torn out of a magazine; the rest get tape, a binder clip or nothing. */
