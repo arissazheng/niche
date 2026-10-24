@@ -106,7 +106,7 @@ export default function TastePage() {
 
   async function share() {
     try {
-      const link = view?.profile.share_token ?? (await api.share(id)).token;
+      const link = view?.profile.share_token || (await api.share(id)).token; // "" means not shared yet
       const url = `${window.location.origin}/friend/${link}`;
       setFriendLink(url);
       await navigator.clipboard.writeText(url).catch(() => {}); // the link is also shown on the page
