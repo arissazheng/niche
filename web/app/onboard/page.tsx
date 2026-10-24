@@ -3,7 +3,6 @@
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
-import { SectionTitle } from "@/components/chrome";
 import { HandCircle } from "@/components/hand-circle";
 import { MeasurementsPanel } from "@/components/measurements";
 import { api } from "@/lib/api";
@@ -158,157 +157,269 @@ export default function OnboardPage() {
   }
 
   return (
-    <form ref={formEl} onSubmit={submit} className="px-4 grid gap-10 md:grid-cols-[1fr_2fr] mt-6">
-      <aside className="md:sticky md:top-4 self-start">
-        <h1 className="text-display">{existing ? "Your profile" : "Let\u2019s get to know you."}</h1>
-        <p className="text-sm mt-2 max-w-xs">
-          Talk it through with Niche, or tap your answers. You can change everything later.
-        </p>
-        <div className="mt-4">
+    <form ref={formEl} onSubmit={submit} className="bg-[#efefef] -mt-px pb-12">
+      <header className="px-4 pt-6 max-w-[1500px] mx-auto">
+        <p className="label">Niche profiles</p>
+        <h1 className="text-[clamp(2.2rem,5vw,4rem)] leading-[1.05] tracking-tight font-medium">
+          {existing ? "Your profile" : "Let\u2019s get to know you."}
+        </h1>
+      </header>
+
+      <div className="px-4 mt-8 max-w-[1500px] mx-auto grid gap-10 xl:grid-cols-[minmax(0,1fr)_340px] items-center">
+        {/* An open encyclopedia: two pages, two ruled columns each, figures as grey plates (photos come later). */}
+        <Book>
+          <BookPage side="left" letter="P" number="01" footer="The Niche Profile">
+            <Column>
+              <Plate caption="Fig. 1 — You, in a favourite outfit" />
+            </Column>
+            <Column ruled>
+              <Entry title="About you">
+                <div className="grid gap-3">
+                  <Field label="Name">
+                    <input className="input" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
+                  </Field>
+                  <div className="grid grid-cols-[5rem_1fr] gap-3">
+                    <Field label="Age">
+                      <input
+                        className="input"
+                        type="number"
+                        min={13}
+                        value={form.age ?? ""}
+                        onChange={(e) => setForm({ ...form, age: e.target.value ? Number(e.target.value) : null })}
+                      />
+                    </Field>
+                    <Field label="Email">
+                      <input className="input" type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} />
+                    </Field>
+                  </div>
+                </div>
+                <SeeAlso>Lookbook · Taste</SeeAlso>
+              </Entry>
+            </Column>
+            <Column wide>
+              <Entry title="Sizes">
+                <SizingSection value={form.sizing} onChange={(sizing) => setForm((f) => ({ ...f, sizing }))} />
+                {form.sizing.system && (
+                  <MeasurementsPanel
+                    key={existing?.id ?? "new"} // remount once a saved profile loads, to show its measurements
+                    system={form.sizing.system}
+                    value={form.measurements ?? { unit: "in" }}
+                    onChange={(measurements) => setForm((f) => ({ ...f, measurements }))}
+                    onUseSizes={(suggested) =>
+                      setForm((f) => {
+                        const system = f.sizing.system!;
+                        // Only categories the measurements actually point to; everything else stays as picked.
+                        const filled = Object.fromEntries(
+                          Object.entries(suggested).filter(([k, p]) => k !== "bra" && ((p as SizePick).values?.length || Object.keys((p as SizePick).extras ?? {}).length)),
+                        ) as Partial<ClothingSizes>;
+                        return { ...f, sizing: { ...f.sizing, [system]: { ...f.sizing[system], ...filled } } };
+                      })
+                    }
+                  />
+                )}
+              </Entry>
+            </Column>
+          </BookPage>
+
+          <BookPage side="right" letter="P" number="02" footer="An A–Z of Your Taste">
+            <Column>
+              <Plate caption="Fig. 2 — The piece you'd save up for" />
+              <Entry title="Everyday outfit budget">
+                <div className="flex items-center gap-4">
+                  <span className="font-serif text-3xl tabular-nums">${form.budget_max}</span>
+                  <input
+                    type="range"
+                    min={10}
+                    max={500}
+                    step={5}
+                    value={form.budget_max}
+                    onChange={(e) => setForm({ ...form, budget_max: Number(e.target.value) })}
+                    className="flex-1 accent-ink"
+                    aria-label="Maximum price per item"
+                  />
+                </div>
+              </Entry>
+              <Entry title="Where you usually shop">
+                <div className="flex flex-wrap gap-2">
+                  {SHOPS.map((shop) => (
+                    <button type="button" key={shop} onClick={() => toggleShop(shop)} aria-pressed={form.usual_shops.includes(shop)}>
+                      <HandCircle selected={form.usual_shops.includes(shop)}>{shop}</HandCircle>
+                    </button>
+                  ))}
+                </div>
+              </Entry>
+            </Column>
+            <Column ruled>
+              <Plate caption="Fig. 3 — Your corner of the city" />
+              <Entry title="Shops near you">
+                <label className="flex items-start gap-3 text-sm">
+                  <input
+                    type="checkbox"
+                    className="mt-1 accent-ink"
+                    checked={!!form.nearby_shops}
+                    onChange={(e) => setForm({ ...form, nearby_shops: e.target.checked })}
+                  />
+                  <span>
+                    Also suggest local shops worth visiting under my search results. Only your ZIP code is used: it&apos;s
+                    sent to Google&apos;s Gemini to find shops on Google Maps, never your exact location.
+                  </span>
+                </label>
+                {form.nearby_shops && (
+                  <div className="mt-2">
+                    <Field label="ZIP code">
+                      <input
+                        className="input w-32"
+                        inputMode="numeric"
+                        pattern="\d{5}"
+                        maxLength={5}
+                        required
+                        value={form.zip_code ?? ""}
+                        onChange={(e) => setForm({ ...form, zip_code: e.target.value.replace(/\D/g, "").slice(0, 5) })}
+                      />
+                    </Field>
+                  </div>
+                )}
+              </Entry>
+              <Entry title="Before we begin">
+                <label className="flex items-start gap-3 text-sm">
+                  <input
+                    type="checkbox"
+                    required
+                    className="mt-1 accent-ink"
+                    checked={!!form.data_consent}
+                    onChange={(e) => setForm({ ...form, data_consent: e.target.checked })}
+                  />
+                  <span>
+                    I agree that my photos and notes are sent to Claude (Anthropic) to build my taste profile. My name,
+                    email and age never are. <Link href="/how-it-works#data" className="underline">What Niche keeps</Link>
+                  </span>
+                </label>
+              </Entry>
+            </Column>
+          </BookPage>
+        </Book>
+
+        {/* Beside the book: what this is, talking it through, and saving. */}
+        <aside className="grid gap-5 content-start xl:max-w-[340px]">
+          <p className="text-xl leading-snug">
+            <em>The Niche Profile</em> is the first page of your taste: who you are, what fits, what you spend and where
+            you shop. Talk it through with Niche, or fill it in by hand. You can change everything later.
+          </p>
           {assistant.mode === "off" && (
-            <button type="button" onClick={() => assistant.start("voice")} className="label bg-ink text-paper px-3 py-2">
+            <button type="button" onClick={() => assistant.start("voice")} className="label underline justify-self-start">
               Talk it through
             </button>
           )}
-          <p className="text-xs text-muted mt-2 max-w-xs">
+          <p className="text-xs text-muted">
             {"Niche asks as you go. Try: \u201CI\u2019m Dana, I shop on Depop and thrift stores, budget up to $120.\u201D"}
           </p>
           {voiceNote && (
-            <p className="text-xs mt-2 max-w-xs" role="status" aria-live="polite">
+            <p className="text-xs" role="status" aria-live="polite">
               {voiceNote}
             </p>
           )}
-        </div>
-      </aside>
-
-      <div className="grid gap-8">
-        <section>
-          <SectionTitle aside="01">About you</SectionTitle>
-          <div className="grid gap-3 sm:grid-cols-3">
-            <Field label="Name">
-              <input className="input" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
-            </Field>
-            <Field label="Age">
-              <input
-                className="input"
-                type="number"
-                min={13}
-                value={form.age ?? ""}
-                onChange={(e) => setForm({ ...form, age: e.target.value ? Number(e.target.value) : null })}
-              />
-            </Field>
-            <Field label="Email">
-              <input className="input" type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} />
-            </Field>
-          </div>
-        </section>
-
-        <section>
-          <SectionTitle aside="02">Sizes</SectionTitle>
-          <SizingSection value={form.sizing} onChange={(sizing) => setForm((f) => ({ ...f, sizing }))} />
-          {form.sizing.system && (
-            <MeasurementsPanel
-              key={existing?.id ?? "new"} // remount once a saved profile loads, to show its measurements
-              system={form.sizing.system}
-              value={form.measurements ?? { unit: "in" }}
-              onChange={(measurements) => setForm((f) => ({ ...f, measurements }))}
-              onUseSizes={(suggested) =>
-                setForm((f) => {
-                  const system = f.sizing.system!;
-                  // Only categories the measurements actually point to; everything else stays as picked.
-                  const filled = Object.fromEntries(
-                    Object.entries(suggested).filter(([k, p]) => k !== "bra" && ((p as SizePick).values?.length || Object.keys((p as SizePick).extras ?? {}).length)),
-                  ) as Partial<ClothingSizes>;
-                  return { ...f, sizing: { ...f.sizing, [system]: { ...f.sizing[system], ...filled } } };
-                })
-              }
-            />
-          )}
-        </section>
-
-        <section>
-          <SectionTitle aside="03">Everyday outfit budget</SectionTitle>
-          <div className="flex items-center gap-4">
-            <span className="text-display tabular-nums">${form.budget_max}</span>
-            <input
-              type="range"
-              min={10}
-              max={500}
-              step={5}
-              value={form.budget_max}
-              onChange={(e) => setForm({ ...form, budget_max: Number(e.target.value) })}
-              className="flex-1 accent-ink"
-              aria-label="Maximum price per item"
-            />
-          </div>
-        </section>
-
-        <section>
-          <SectionTitle aside="04">Where do you usually shop?</SectionTitle>
-          <div className="flex flex-wrap gap-2">
-            {SHOPS.map((shop) => (
-              <button type="button" key={shop} onClick={() => toggleShop(shop)} aria-pressed={form.usual_shops.includes(shop)}>
-                <HandCircle selected={form.usual_shops.includes(shop)}>{shop}</HandCircle>
-              </button>
-            ))}
-          </div>
-        </section>
-
-        <section>
-          <SectionTitle aside="05">Shops near you</SectionTitle>
-          <label className="flex items-start gap-3 text-sm">
-            <input
-              type="checkbox"
-              className="mt-1 accent-ink"
-              checked={!!form.nearby_shops}
-              onChange={(e) => setForm({ ...form, nearby_shops: e.target.checked })}
-            />
-            <span>
-              Also suggest local shops worth visiting under my search results. Only your ZIP code is used: it&apos;s sent
-              to Google&apos;s Gemini to find shops on Google Maps, never your exact location.
-            </span>
-          </label>
-          {form.nearby_shops && (
-            <Field label="ZIP code">
-              <input
-                className="input w-32"
-                inputMode="numeric"
-                pattern="\d{5}"
-                maxLength={5}
-                required
-                value={form.zip_code ?? ""}
-                onChange={(e) => setForm({ ...form, zip_code: e.target.value.replace(/\D/g, "").slice(0, 5) })}
-              />
-            </Field>
-          )}
-        </section>
-
-        <label className="flex items-start gap-3 text-sm">
-          <input
-            type="checkbox"
-            required
-            className="mt-1 accent-ink"
-            checked={!!form.data_consent}
-            onChange={(e) => setForm({ ...form, data_consent: e.target.checked })}
-          />
-          <span>
-            I agree that my photos and notes are sent to Claude (Anthropic) to build my taste profile. My name, email
-            and age never are. <Link href="/how-it-works#data" className="underline">What Niche keeps</Link>
-          </span>
-        </label>
-
-        {error && <p className="text-sm">{error}</p>}
-        <button disabled={busy} className="rule-t rule-b text-display py-2 w-full disabled:text-muted">
-          {busy ? "Saving…" : existing ? "Save changes" : "Continue"}
-        </button>
-        {existing && (
-          <button type="button" onClick={() => setConfirmDelete(true)} className="label underline justify-self-center">
-            Delete my data
+          {error && <p className="text-sm">{error}</p>}
+          <button disabled={busy} className="justify-self-start border border-ink bg-paper px-5 py-3 text-lg disabled:text-muted">
+            {busy ? "Saving…" : existing ? "Save changes" : "Continue"}
           </button>
-        )}
+          {existing && (
+            <button type="button" onClick={() => setConfirmDelete(true)} className="label underline justify-self-start text-muted">
+              Delete my data
+            </button>
+          )}
+        </aside>
       </div>
       {confirmDelete && <ConfirmDelete busy={busy} onYes={deleteData} onNo={() => setConfirmDelete(false)} />}
     </form>
+  );
+}
+
+// ---- The book: an open encyclopedia spread ----
+
+/** Dark hardcover with page edges showing on both sides and a soft shadow down the spine. */
+function Book({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="relative rounded-[6px] bg-[#1d1d1f] p-[10px] shadow-[0_24px_50px_rgba(0,0,0,.28)]">
+      <div className="relative grid lg:grid-cols-2 bg-[#f7f5ef] shadow-[inset_6px_0_0_#e7e3d9,inset_-6px_0_0_#e7e3d9]">
+        {children}
+        {/* the gutter: pages curving into the binding */}
+        <div
+          aria-hidden
+          className="pointer-events-none absolute inset-y-0 left-1/2 hidden w-16 -translate-x-1/2 lg:block"
+          style={{ background: "linear-gradient(to right, transparent, rgba(0,0,0,.14) 45%, rgba(0,0,0,.2) 50%, rgba(0,0,0,.14) 55%, transparent)" }}
+        />
+      </div>
+    </div>
+  );
+}
+
+function BookPage({
+  side,
+  letter,
+  number,
+  footer,
+  children,
+}: {
+  side: "left" | "right";
+  letter: string;
+  number: string;
+  footer: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <section className={`relative px-10 sm:px-14 pt-10 pb-12 font-serif ${side === "left" ? "lg:pr-16" : "lg:pl-16"}`}>
+      <div className="grid gap-x-6 gap-y-8 sm:grid-cols-2">{children}</div>
+      {/* letter tab on the outer margin, page number by the spine, running footer */}
+      <span className={`absolute top-1/2 -translate-y-1/2 text-lg ${side === "left" ? "left-4" : "right-4"}`}>{letter}</span>
+      <span className={`absolute top-1/2 -translate-y-1/2 text-lg ${side === "left" ? "right-4 lg:right-7" : "left-4 lg:left-7"}`}>
+        {number}
+      </span>
+      <p className="absolute bottom-4 inset-x-0 text-center text-[11px] uppercase tracking-[.12em]">{footer}</p>
+    </section>
+  );
+}
+
+/** A text column; `ruled` draws the hairline between columns, `wide` spans the whole page. Big type inside (the
+ *  sizing picker's headings) is scaled down to book size. */
+function Column({ children, ruled = false, wide = false }: { children: React.ReactNode; ruled?: boolean; wide?: boolean }) {
+  return (
+    <div
+      className={`grid gap-6 content-start [&_.text-display]:text-lg [&_.text-display]:leading-tight ${
+        ruled ? "sm:border-l sm:border-ink/40 sm:pl-6" : ""
+      } ${wide ? "sm:col-span-2" : ""}`}
+    >
+      {children}
+    </div>
+  );
+}
+
+/** An encyclopedia entry: centred serif heading over a hairline, then its body in sans for the form controls. */
+function Entry({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <div className="grid gap-3">
+      <h2 className="border-t border-ink/50 pt-2 text-center text-2xl italic leading-tight">{title}</h2>
+      <div className="font-sans">{children}</div>
+    </div>
+  );
+}
+
+/** A grey plate where a photo will go, with a small-caps caption. */
+function Plate({ caption, tall = false }: { caption: string; tall?: boolean }) {
+  return (
+    <figure className="grid gap-1.5">
+      <div className={`bg-[#cfcdc7] ${tall ? "aspect-[4/5]" : "aspect-[4/3]"}`} />
+      <figcaption className="text-center text-[11px] uppercase tracking-[.08em]">{caption}</figcaption>
+    </figure>
+  );
+}
+
+function SeeAlso({ children }: { children: React.ReactNode }) {
+  return (
+    <p className="mt-3 text-center font-serif text-[10px] uppercase leading-tight tracking-[.1em]">
+      See also:
+      <br />
+      {children}
+    </p>
   );
 }
 
