@@ -1,0 +1,44 @@
+.profile-book { padding: 18px 24px 28px; }
+.profile-heading { max-width: 1680px; margin: auto; }
+.profile-spread { max-width: 1680px; margin: 20px auto 0; display: grid; grid-template-columns: minmax(0, 1fr) 220px; gap: 28px; align-items: center; }
+.book-cover { position: relative; padding: 7px; border-radius: 5px; background: #1d1d1f; box-shadow: 0 15px 24px #0003; }
+.book-leaves { position: relative; display: grid; grid-template-columns: 1fr 1fr; background: #f7f5ef; box-shadow: inset 5px 0 #e7e3d9, inset -5px 0 #e7e3d9; }
+.book-page { position: relative; min-width: 0; padding: 22px 28px 36px; }
+.book-page-grid { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 16px 12px; }
+.book-column { min-width: 0; gap: 16px; }
+.book-entry { gap: 8px; }
+.book-entry h2 { font-size: 22px; }
+.book-entry .text-sm { font-size: 12px; line-height: 1.35; }
+.book-entry .input { width: 100%; min-width: 0; }
+.book-entry input[type=range] { min-width: 0; width: 100%; }
+.book-entry .grid-cols-\[5rem_1fr\] { grid-template-columns: 3rem minmax(0,1fr); gap: 8px; }
+.book-plate > div { aspect-ratio: 1.7; max-height: 125px; }
+.book-plate figcaption { font-size: 9px; }
+.book-page > span { font-size: 12px; }
+.book-page-left > span:first-of-type { left: 10px; }
+.book-page-left > span:nth-of-type(2) { right: 8px; }
+.book-page-right > span:first-of-type { right: 10px; }
+.book-page-right > span:nth-of-type(2) { left: 8px; }
+.book-page > p { font-size: 8px; }
+.size-index { display: grid; gap: 10px; }
+.size-dialog { position: fixed; inset: 0; margin: auto; width: min(760px,calc(100% - 32px)); max-height: 85dvh; background: white; border: 1px solid black; padding: 0; }
+.size-dialog::backdrop { background: #0006; }
+/* Full charts retain their normal readable sizing inside the editor. */
+.size-dialog .text-sm { font-size: 14px; }
+.size-dialog .input { width: auto; }
+.profile-aside { display: grid; gap: 14px; align-content: start; }
+@media (min-width: 1100px) and (min-height: 700px) {
+  .book-leaves { min-height: min(620px, calc(100dvh - 220px)); }
+}
+@media (max-width: 1099px) {
+  .profile-spread { grid-template-columns: minmax(0,1fr); gap: 24px; }
+  .profile-aside { grid-template-columns: minmax(0,1fr) auto; align-items: start; }
+  .profile-aside > p:first-child { grid-row: span 3; max-width: 560px; }
+}
+@media (max-width: 699px) {
+  .profile-book { padding: 16px 12px 24px; }
+  .book-leaves { grid-template-columns: minmax(0,1fr); }
+  .book-page { padding: 22px 26px 36px; }
+  .book-page-right { border-top: 1px solid #0003; }
+  .profile-aside { grid-template-columns: minmax(0,1fr); }
+}

@@ -9,6 +9,7 @@ import { api } from "@/lib/api";
 import { SHOPPING, useAssistant, useAssistantSkill } from "@/lib/assistant";
 import { clearProfile, getProfileId, setProfileId } from "@/lib/session";
 import { SizingSection, emptySizing, withDefaults } from "@/components/sizing";
+import "./profile-book.css";
 import type { ClothingSizes, HeardOnboarding, Onboarding, SizePick } from "@/lib/types";
 
 const SHOPS = ["Depop", "Etsy", "Poshmark", "Grailed", "Thrift stores", "Vintage shops", "Local boutiques", "Big retailers"];
@@ -26,6 +27,7 @@ export default function OnboardPage() {
     currency: "USD",
     usual_shops: [],
   });
+  const sizesDialog = useRef<HTMLDialogElement>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   // An existing profile is edited in place; creating a new one would detach its photos and moodboard.
@@ -157,15 +159,15 @@ export default function OnboardPage() {
   }
 
   return (
-    <form ref={formEl} onSubmit={submit} className="bg-[#efefef] -mt-px pb-12">
-      <header className="px-4 pt-6 max-w-[1500px] mx-auto">
+    <form ref={formEl} onSubmit={submit} className="profile-book bg-[#efefef] -mt-px">
+      <header className="profile-heading">
         <p className="label">Niche profiles</p>
-        <h1 className="text-[clamp(2.2rem,5vw,4rem)] leading-[1.05] tracking-tight font-medium">
+        <h1 className="text-[clamp(1.8rem,3vw,3rem)] leading-[1.05] tracking-tight font-medium">
           {existing ? "Your profile" : "Let\u2019s get to know you."}
         </h1>
       </header>
 
-      <div className="px-4 mt-8 max-w-[1500px] mx-auto grid gap-10 xl:grid-cols-[minmax(0,1fr)_340px] items-center">
+      <div className="profile-spread">
         {/* An open encyclopedia: two pages, two ruled columns each, figures as grey plates (photos come later). */}
         <Book>
           <BookPage side="left" letter="P" number="01" footer="The Niche Profile">
@@ -198,6 +200,24 @@ export default function OnboardPage() {
             </Column>
             <Column wide>
               <Entry title="Sizes">
+                <div className="size-index">
+                  <p className="label">{form.sizing.system ? `${form.sizing.system === "womens" ? "Women's" : "Men's"} sizing · ${form.sizing.region.toUpperCase()}` : "Your fit, at a glance"}</p>
+                  <dl className="grid grid-cols-2 gap-x-5">
+                    {(["tops", "bottoms", "dresses", "outerwear", "shoes", "bra"] as const).map((category) => {
+                      const pick = form.sizing.system ? form.sizing[form.sizing.system][category] : null;
+                      const description = pick && ("values" in pick ? pick.values.join(" / ") : [pick.band, pick.cup].filter(Boolean).join(""));
+                      return <div key={category} className="flex justify-between gap-2 border-b border-ink/20 py-2 text-sm"><dt className="capitalize">{category}</dt><dd>{description || "—"}</dd></div>;
+                    })}
+                  </dl>
+                  <button type="button" className="label border border-ink px-3 py-2 justify-self-start" onClick={() => sizesDialog.current?.showModal()}>Edit sizes & measurements ↗</button>
+                  <p className="text-xs text-muted">Choose multiple sizes, regional charts, accessories and optional measurements.</p>
+                </div>
+                <dialog ref={sizesDialog} className="size-dialog" aria-labelledby="size-editor-title">
+                  <div className="sticky top-0 z-10 flex justify-between items-center gap-4 border-b border-ink bg-paper p-4">
+                    <h2 id="size-editor-title" className="font-sans text-xl">Sizes & measurements</h2>
+                    <button type="button" className="label border border-ink px-3 py-2" onClick={() => sizesDialog.current?.close()}>Done ×</button>
+                  </div>
+                  <div className="p-5 font-sans">
                 <SizingSection value={form.sizing} onChange={(sizing) => setForm((f) => ({ ...f, sizing }))} />
                 {form.sizing.system && (
                   <MeasurementsPanel
@@ -217,6 +237,8 @@ export default function OnboardPage() {
                     }
                   />
                 )}
+                  </div>
+                </dialog>
               </Entry>
             </Column>
           </BookPage>
@@ -300,8 +322,8 @@ export default function OnboardPage() {
         </Book>
 
         {/* Beside the book: what this is, talking it through, and saving. */}
-        <aside className="grid gap-5 content-start xl:max-w-[340px]">
-          <p className="text-xl leading-snug">
+        <aside className="profile-aside">
+          <p className="text-base leading-snug">
             <em>The Niche Profile</em> is the first page of your taste: who you are, what fits, what you spend and where
             you shop. Talk it through with Niche, or fill it in by hand. You can change everything later.
           </p>
@@ -339,8 +361,8 @@ export default function OnboardPage() {
 /** Dark hardcover with page edges showing on both sides and a soft shadow down the spine. */
 function Book({ children }: { children: React.ReactNode }) {
   return (
-    <div className="relative rounded-[6px] bg-[#1d1d1f] p-[10px] shadow-[0_24px_50px_rgba(0,0,0,.28)]">
-      <div className="relative grid lg:grid-cols-2 bg-[#f7f5ef] shadow-[inset_6px_0_0_#e7e3d9,inset_-6px_0_0_#e7e3d9]">
+    <div className="book-cover">
+      <div className="book-leaves">
         {children}
         {/* the gutter: pages curving into the binding */}
         <div
@@ -367,8 +389,8 @@ function BookPage({
   children: React.ReactNode;
 }) {
   return (
-    <section className={`relative px-10 sm:px-14 pt-10 pb-12 font-serif ${side === "left" ? "lg:pr-16" : "lg:pl-16"}`}>
-      <div className="grid gap-x-6 gap-y-8 sm:grid-cols-2">{children}</div>
+    <section className={`book-page book-page-${side} font-serif`}>
+      <div className="book-page-grid">{children}</div>
       {/* letter tab on the outer margin, page number by the spine, running footer */}
       <span className={`absolute top-1/2 -translate-y-1/2 text-lg ${side === "left" ? "left-4" : "right-4"}`}>{letter}</span>
       <span className={`absolute top-1/2 -translate-y-1/2 text-lg ${side === "left" ? "right-4 lg:right-7" : "left-4 lg:left-7"}`}>
@@ -384,8 +406,8 @@ function BookPage({
 function Column({ children, ruled = false, wide = false }: { children: React.ReactNode; ruled?: boolean; wide?: boolean }) {
   return (
     <div
-      className={`grid gap-6 content-start [&_.text-display]:text-lg [&_.text-display]:leading-tight ${
-        ruled ? "sm:border-l sm:border-ink/40 sm:pl-6" : ""
+      className={`book-column grid content-start [&_.text-display]:text-lg [&_.text-display]:leading-tight ${
+        ruled ? "sm:border-l sm:border-ink/40 sm:pl-3" : ""
       } ${wide ? "sm:col-span-2" : ""}`}
     >
       {children}
@@ -396,8 +418,8 @@ function Column({ children, ruled = false, wide = false }: { children: React.Rea
 /** An encyclopedia entry: centred serif heading over a hairline, then its body in sans for the form controls. */
 function Entry({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <div className="grid gap-3">
-      <h2 className="border-t border-ink/50 pt-2 text-center text-2xl italic leading-tight">{title}</h2>
+    <div className="book-entry grid">
+      <h2 className="border-t border-ink/50 pt-2 text-center text-xl italic leading-tight">{title}</h2>
       <div className="font-sans">{children}</div>
     </div>
   );
@@ -406,7 +428,7 @@ function Entry({ title, children }: { title: string; children: React.ReactNode }
 /** A grey plate where a photo will go, with a small-caps caption. */
 function Plate({ caption, tall = false }: { caption: string; tall?: boolean }) {
   return (
-    <figure className="grid gap-1.5">
+    <figure className="book-plate grid gap-1.5">
       <div className={`bg-[#cfcdc7] ${tall ? "aspect-[4/5]" : "aspect-[4/3]"}`} />
       <figcaption className="text-center text-[11px] uppercase tracking-[.08em]">{caption}</figcaption>
     </figure>
