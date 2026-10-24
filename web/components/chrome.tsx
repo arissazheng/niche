@@ -16,14 +16,14 @@ export function SiteHeader() {
 export function SiteFooter() {
   return (
     <footer className="bg-ink text-paper mt-16 px-4 pt-6 overflow-hidden">
-      <div className="label flex justify-between gap-4">
-        <a href="#">Back to top ↑</a>
-        <Link href="/how-it-works">Ranking &amp; privacy</Link>
+      <div className="label relative z-10 flex justify-between gap-4">
+        <a href="#" className="hover:underline">Back to top ↑</a>
+        <Link href="/how-it-works" className="hover:underline">Ranking &amp; privacy</Link>
       </div>
       {/* Edge-to-edge wordmark in swash italic, its descenders cut by the bottom of the page. */}
       <p
         aria-hidden
-        className="font-display italic text-center leading-[0.95] tracking-[-0.02em] text-[41vw] -mb-[4.5vw] mt-2 whitespace-nowrap select-none"
+        className="font-display italic text-center leading-[0.95] tracking-[-0.02em] text-[41vw] -mb-[4.5vw] mt-2 whitespace-nowrap select-none pointer-events-none"
         style={{ fontFeatureSettings: '"swsh" 1, "salt" 1' }}
       >
         {APP_NAME}
