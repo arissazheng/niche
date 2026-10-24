@@ -27,6 +27,8 @@ class ShoppingRequest(StrictModel):
     shoe_size_system: Literal['womens', 'mens'] | None = None  # which shoe size chart `size` uses
     # The shopper's body measurements in inches (any of shoulder, bust, waist, hips, inseam, arm), for fit checks.
     measurements: dict[str, float] = Field(default_factory=dict)
+    # Visible features the request can't do without (sourcing/features.py), e.g. asymmetric + button-front.
+    must_have: list[str] = Field(default_factory=list, max_length=8)
     ship_to_country: str = Field(default='US', pattern=r'^[A-Z]{2}$')
     allow_secondhand: bool = True
     unknown_policy: Literal['include_with_warning', 'exclude'] = 'include_with_warning'
@@ -61,6 +63,7 @@ class Listing(StrictModel):
     is_ad: bool | None = None
     seller_rating: float | None = None  # 0-5, where the marketplace gives it
     seller_reviews: int | None = None
+    features: list[str] = []  # visible features Claude tagged from the photo (pre-loaded listings only)
     risks: list[str] = []  # scam / buyer-protection warnings, shown before the shopper clicks through (sourcing/risk.py)
     shipping_cost: float | None = None
     ships_to: list[str] | None = None

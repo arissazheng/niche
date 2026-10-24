@@ -104,6 +104,11 @@ def same_item(listing, wanted_types):
     return not wanted_types or bool(item_types(listing.title) & wanted_types)
 
 
+def has_features(listing, must_have):
+    """True when the photo-tagged features include at least one the request needs (or it needs none)."""
+    return not must_have or bool(set(listing.features) & set(must_have))
+
+
 def matching(listings, query):
     """Prefetched listings for this search: the requested item type ("jacket" lets in coats and parkas, not corsets),
     or with no type named, a shared word other than a colour ("black" alone isn't a match)."""
@@ -232,7 +237,6 @@ class Pipeline:
                 item.reason = 'Text keyword overlap only; visual taste matching has not been evaluated.'
 
         shortlisted = set()
-        wanted_types = item_types(request.request.query)
 
         async def take(source, items):
             candidates = [x for x in eligible(items,request,counts['left_out']) if x.url not in seen_urls]
@@ -246,9 +250,8 @@ class Pipeline:
             if batch:
                 shortlisted.add(source)
                 key = (source, len(rankers))
-                # Shown unranked until Claude scores them, so only listings of the requested type.
-                provisional[key] = [x.model_dump(mode='json') for x in batch if same_item(x, wanted_types)][:8]
-                await publish()
+                # Live listings have no feature labels yet, so they appear only once Claude has ranked them: a short
+                # wait beats showing pieces that merely share a colour with the request.
                 rankers.append(asyncio.create_task(rank_batch(key,batch)))
 
         async def consume(source, query):
@@ -275,7 +278,9 @@ class Pipeline:
                 # they show straight away as unranked and are re-ranked against the actual search.
                 batch = sorted(ready,key=lambda x:lexical_score(x,request),reverse=True)[:per_source]
                 key = ('prefetched', len(rankers))
-                provisional[key] = [x.model_dump(mode='json') for x in batch[:8]]
+                # Shown before ranking only when the photo labels from the warm-up match the request's must-haves.
+                must_have = request.request.must_have
+                provisional[key] = [x.model_dump(mode='json') for x in batch if has_features(x, must_have)][:8]
                 await publish()
                 rankers.append(asyncio.create_task(rank_batch(key,batch)))
         # Niche actors take every query variant in one run; single-marketplace adapters rotate through them.

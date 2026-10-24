@@ -130,6 +130,7 @@ export default function ShopPage() {
         agentTurn.proposed = reply.brief;
         agentTurn.proposed_price = reply.max_item_price ?? null;
         agentTurn.proposed_size = reply.size ?? null;
+        agentTurn.proposed_must_have = reply.must_have?.length ? reply.must_have : null;
       }
       const withReply: ChatTurn[] = [...next, agentTurn];
       setMessages(withReply);
@@ -160,6 +161,7 @@ export default function ShopPage() {
       const { search_id } = await api.search(profileId, proposal.proposed, {
         maxItemPrice: proposal.proposed_price,
         size: proposal.proposed_size,
+        mustHave: proposal.proposed_must_have,
       });
       saveThread(profileId, { messages: next, searchId: search_id });
       follow(search_id);
@@ -215,7 +217,7 @@ export default function ShopPage() {
               <p className="label mb-3 animate-pulse">
                 {results.length
                   ? `${ranked ? "Ranking" : "Comparing them to your taste"}…`
-                  : "Searching stores and secondhand sellers…"}
+                  : "Searching stores and secondhand sellers, then checking each photo against your request…"}
               </p>
             )}
             {job?.warnings?.map((w) => (

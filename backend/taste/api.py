@@ -6,6 +6,7 @@ from sourcing.models import SearchRequest, ShoppingRequest
 from finance.budget import Budgets
 from sourcing import safe_fetch
 from sourcing.prefetch import BROAD_QUERY, Prefetcher
+from sourcing.features import clean as clean_features
 from sourcing.store import Store
 import json
 from .chat import ChatRequest, ShopAgent, guess_category, profile_size, result_cards
@@ -170,7 +171,7 @@ def create_router(settings, store: Store, budgets: Budgets | None = None, signer
             profile_id=profile.id,
             request=ShoppingRequest(query=search.query, max_item_price=search.max_item_price or ob.budget_max,
                 currency=ob.currency, size=search.size, length=search.length, measurements=inches(ob.measurements),
-                shoe_size_system=search.shoe_size_system))
+                shoe_size_system=search.shoe_size_system, must_have=clean_features(search.must_have)))
 
     def start_search(profile, search: ProfileSearch):
         job = store.create(search_request(profile, search).model_dump(mode='json'))
@@ -225,10 +226,12 @@ def create_router(settings, store: Store, budgets: Budgets | None = None, signer
                 # The agent should set a cap itself; if it didn't, keep the search inside what's left this month.
                 price = min(profile.onboarding.budget_max, budget.remaining)
             out['max_item_price'] = price
+            out['must_have'] = clean_features(turn.must_have)
         if turn.action == 'search':
             out.update(start_search(profile, ProfileSearch(query=turn.brief, max_item_price=out['max_item_price'],
                                                            size=out['size'], length=out['length'],
-                                                           shoe_size_system=out['shoe_size_system'])))
+                                                           shoe_size_system=out['shoe_size_system'],
+                                                           must_have=out['must_have'])))
         return out
 
     return router

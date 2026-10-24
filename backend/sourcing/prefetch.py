@@ -44,7 +44,7 @@ class Prefetcher:
                 best = sorted((x for x in kept if x.source == source), key=lambda x: lexical_score(x, request),
                               reverse=True)[:RANKED_PER_SOURCE]
                 pages += [best[i:i+12] for i in range(0, len(best), 12)]
-            ranked = await asyncio.gather(*(self.model.rank(request, page, job) for page in pages), return_exceptions=True)
+            ranked = await asyncio.gather(*(self.model.rank(request, page, job, tag=True) for page in pages), return_exceptions=True)
             scored = [x for page in ranked if not isinstance(page, BaseException) for x in page]
             self.store.save_prefetch(request.profile_id, [x.model_dump(mode='json') for x in scored])
             self.store.event(job, 'prefetched', {'queries': queries, 'kept': len(kept), 'ranked': len(scored),

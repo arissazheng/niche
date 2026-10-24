@@ -168,6 +168,7 @@ export interface ChatTurn {
   proposed?: string; // a search an agent turn offered to run
   proposed_price?: number | null;
   proposed_size?: string | null;
+  proposed_must_have?: string[] | null; // visible features the offered search needs (asymmetric, button-front…)
   linked?: LinkedPage[]; // product links the agent read from the user's message
 }
 
@@ -193,6 +194,7 @@ export interface AgentReply {
   brief: string;
   max_item_price?: number | null;
   size?: string | null; // the user's profile size for this garment unless they named one
+  must_have?: string[];
   linked?: LinkedPage[];
   budget?: Omit<Budget, "linked"> | null;
   search_id?: string;

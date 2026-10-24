@@ -216,9 +216,9 @@ def test_live_publishing_for_build_and_search(tmp_path):
     asyncio.run(Pipeline(settings, store, live=live).run(request, job))
     assert live.calls[0] == ('search', 'running') and live.calls[-1] == ('search', 'completed')
     updates = [c for c in live.calls if c[0] == 'listings']
-    # Each source shows up (unranked, then ranked) before the final set; every update refreshes the whole view.
+    # Each source shows up once ranked (never unranked) before the final set; every update refreshes the whole view.
     assert len(updates) >= 3 and all(c[2] for c in updates)
-    assert any(None in c[3] for c in updates[:-1])
+    assert not any(None in c[3] for c in updates if c[1])
     final = updates[-1]
     assert final[1] > 0 and final[3] == list(range(1, final[1] + 1))
     # Provisional copies must not leak duplicate warnings into the final results.
@@ -264,7 +264,7 @@ def test_shop_agent_live_uses_claude_and_conversation(tmp_path):
         async def call(self, system, content, job_id, stage, max_tokens, schema=None, effort=None):
             seen.update(stage=stage, effort=effort, content=content)
             return {'reply': 'Searching relaxed ones now.', 'action': 'search',
-                    'brief': 'asymmetrical buttoned top, relaxed casual style', 'max_item_price': None, 'size': None, 'category': 'top'}
+                    'brief': 'asymmetrical buttoned top, relaxed casual style', 'max_item_price': None, 'size': None, 'must_have': ['asymmetric', 'button-front'], 'category': 'top'}
 
     from taste.models import Profile
     agent = ShopAgent(Settings(taste_mode='live', anthropic_api_key='k'), FakeModel())
@@ -291,7 +291,7 @@ def test_chat_sees_numbered_results_of_own_search_only(client, monkeypatch):
 
     async def fake_respond(self, profile, messages, budget=None, results=None, linked=None):
         seen.append(results)
-        return chat_module.AgentTurn(reply='ok', action='reply', brief='', max_item_price=None, size=None, category='other')
+        return chat_module.AgentTurn(reply='ok', action='reply', brief='', max_item_price=None, size=None, must_have=[], category='other')
     monkeypatch.setattr(chat_module.ShopAgent, 'respond', fake_respond)
     pid = client.post('/v1/taste/profiles', json={'data_consent': True}).json()['profile']['id']
     client.post(f'/v1/taste/profiles/{pid}/images', files={'file': ('a.png', png((20, 20, 20)))})

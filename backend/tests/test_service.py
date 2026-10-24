@@ -374,7 +374,7 @@ def test_prefetch_is_shown_first_and_reranked_for_the_search(request_data, store
         async def plan(self, *args):
             return ['olive trousers']
 
-        async def rank(self, request, batch, job_id):
+        async def rank(self, request, batch, job_id, tag=False):
             self.ranked.append([x.id for x in batch])
             for x in batch:
                 x.score, x.match_dimensions, x.reason = 50, {}, 'ok'
@@ -449,3 +449,18 @@ def test_preloaded_listings_must_be_the_requested_item_type(request_data):
     picked = [x.title for x in matching(items, 'cool jacket with a faux-fur hood; in black or charcoal')]
     assert picked == ['Black cropped moto jacket faux fur hood', 'Black wool parka']
     assert matching(items, 'something black and cute') == []  # a colour alone isn't a match
+
+
+def test_only_feature_matched_preloads_show_before_ranking(request_data, store):
+    from sourcing.pipeline import has_features
+    items, _ = asyncio.run(FixtureSources().fetch('secondhand', '', 2, ''))
+    items[0].features, items[1].features = ['strapless', 'corset-boning'], ['asymmetric', 'button-front', 'fitted']
+    assert [has_features(x, ['asymmetric', 'button-front']) for x in items] == [False, True]
+    assert has_features(items[0], [])  # no must-haves: item type alone decides
+
+
+def test_ranker_schema_tags_features_only_for_preloads():
+    from sourcing.claude import output_schema
+    entry = lambda tag: output_schema('ranker', tag)['properties']['rankings']['items']
+    assert 'features' not in entry(False)['properties']
+    assert 'features' in entry(True)['required'] and 'button-front' in entry(True)['properties']['features']['items']['enum']

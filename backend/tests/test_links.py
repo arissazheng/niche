@@ -141,7 +141,7 @@ def test_live_agent_sees_linked_photo():
         async def call(self, system, content, job_id, stage, max_tokens, schema=None, effort=None):
             seen['content'] = content
             return {'reply': 'Would you like me to search for charcoal pinstripe halters?', 'action': 'propose',
-                    'brief': 'charcoal pinstripe halter vest, button front', 'max_item_price': None, 'size': None, 'category': 'top'}
+                    'brief': 'charcoal pinstripe halter vest, button front', 'max_item_price': None, 'size': None, 'must_have': [], 'category': 'top'}
     photo = {'type': 'image', 'source': {'type': 'base64', 'media_type': 'image/jpeg', 'data': 'AAAA'}}
     item = LinkedItem(url='https://d.example/p', title='Halter', readable=True, image=photo)
     agent = ShopAgent(Settings(taste_mode='live', anthropic_api_key='k'), FakeModel())

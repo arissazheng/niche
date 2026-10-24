@@ -6,6 +6,7 @@ import logging
 import anthropic
 from PIL import Image, UnidentifiedImageError
 from . import safe_fetch
+from .features import FEATURES, clean
 from .sources import public_url
 
 log = logging.getLogger(__name__)
@@ -74,7 +75,7 @@ async def fetch_image(client, url):
         return None
     return {'type':'image','source':{'type':'base64','media_type':'image/jpeg','data':base64.b64encode(data).decode()}}
 
-def output_schema(stage):
+def output_schema(stage, tag=False):
     if stage == 'planner':
         return {'type':'object','properties':{'queries':{'type':'array','items':{'type':'string'}}},
                 'required':['queries'],'additionalProperties':False}
@@ -83,6 +84,9 @@ def output_schema(stage):
     entry = {'type':'object','properties':{'id':{'type':'string'},'score':{'type':'number'},
              'dimensions':dimensions,'reason':{'type':'string'},'uncertainties':{'type':'array','items':{'type':'string'}}},
              'required':['id','score','dimensions','reason','uncertainties'],'additionalProperties':False}
+    if tag:  # pre-loaded listings also get visible-feature labels (sourcing/features.py)
+        entry['properties']['features'] = {'type':'array','items':{'type':'string','enum':FEATURES}}
+        entry['required'] = [*entry['required'], 'features']
     return {'type':'object','properties':{'rankings':{'type':'array','items':entry}},
             'required':['rankings'],'additionalProperties':False}
 
@@ -116,10 +120,13 @@ class Claude:
             raise ValueError('Invalid search plan')
         return queries[:3]
 
-    async def rank(self, request, listings, job_id):
+    async def rank(self, request, listings, job_id, tag=False):
         content = [{'type':'text','text':json.dumps({'taste':request.taste_profile.model_dump(mode='json',exclude={'reference_image_urls'}),
                     'request':request.request.model_dump()})},
                    {'type':'text','text':f'Rank all {len(listings)} listings below: return exactly {len(listings)} rankings, one per id.'}]
+        if tag:
+            content.append({'type':'text','text':'Also list each listing\'s features: every term from the allowed list '
+                            'that is clearly visible in its photo or stated in its text. Leave out anything you cannot see.'})
         references = [str(url) for url in request.taste_profile.reference_image_urls if public_url(str(url))]
         urls = references+[item.image_urls[0] if item.image_urls else None for item in listings]
         async with safe_fetch.client() as client:
@@ -136,7 +143,7 @@ class Claude:
             if image:
                 content.append(image)
         # Low effort: ranking is a comparison against a written rubric, and latency is what the shopper feels.
-        result = await self.call(RANKER,content,job_id,'ranker',16000,effort='low')
+        result = await self.call(RANKER,content,job_id,'ranker',16000,output_schema('ranker',tag),effort='low')
         rows = result.get('rankings')
         if not isinstance(rows,list):
             raise ValueError('Invalid rankings')
@@ -157,6 +164,8 @@ class Claude:
                 raise ValueError('Invalid ranking explanation')
             item = by_alias[alias]
             item.score, item.match_dimensions, item.reason = score,dims,row['reason'][:500]
+            if tag:
+                item.features = clean(row.get('features'))
             # Claude sees each listing's existing warnings and often repeats them as uncertainties.
             item.warnings.extend(u for u in row['uncertainties'][:5] if u not in item.warnings)
         if skipped:

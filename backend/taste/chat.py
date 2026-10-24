@@ -5,6 +5,7 @@ import re
 from typing import Literal
 from pydantic import BaseModel, ConfigDict, Field
 from sourcing.claude import Claude
+from sourcing.features import FEATURES
 from finance.budget import BudgetSnapshot
 from .fit import effective_sizes
 from .links import LinkedItem
@@ -30,6 +31,9 @@ Each turn, pick one action:
   something changed.
 reply: one or two short, friendly sentences (a comparison may take a line per piece). Never claim specific products exist; results come from the search.
 The user's taste profile is context for tie-breaking, not something to repeat.
+Set must_have to the visible features the request can't do without, chosen from the allowed list (e.g. "asymmetrical
+buttoned top" -> asymmetric, button-front; "jacket with a fur hood" -> hooded, fur-trim). Only features the user asked
+for, not ones from their taste profile; empty when they named none. Listings shown before ranking must have one.
 Set max_item_price when the user states a price limit (or from the bank snapshot, below). Set category to the garment
 type being searched. Set size only if the user names one in the conversation; otherwise Niche uses the size from
 their profile for that category (given as profile_sizes), so mention it briefly ("in your size S").
@@ -78,6 +82,7 @@ class ChatTurn(BaseModel):
     proposed: str | None = Field(default=None, max_length=500)  # a search an agent turn offered to run
     proposed_price: float | None = None
     proposed_size: str | None = Field(default=None, max_length=30)
+    proposed_must_have: list[str] | None = Field(default=None, max_length=8)
     linked: list[LinkedPage] | None = Field(default=None, max_length=2)
 
 
@@ -94,6 +99,7 @@ class AgentTurn(BaseModel):
     brief: str
     max_item_price: float | None
     size: str | None
+    must_have: list[Literal[tuple(FEATURES)]]  # type: ignore[valid-type]
     category: Literal['top', 'bottom', 'outerwear', 'dress', 'shoes', 'accessory', 'other']
 
 
@@ -120,21 +126,22 @@ class ShopAgent:
             # Fixture mode: a plain "yes" runs the pending proposal; questions get a proposal; requests search.
             if proposal and YES.match(messages[-1].text):
                 return AgentTurn(reply='Searching now.', action='search', brief=proposal.proposed,
-                                 max_item_price=proposal.proposed_price, size=proposal.proposed_size, category='other')
+                                 max_item_price=proposal.proposed_price, size=proposal.proposed_size,
+                                 must_have=proposal.proposed_must_have or [], category='other')
             if linked:
                 readable = [item for item in linked if item.readable and item.title]
                 if not readable:
                     return AgentTurn(reply="I couldn't open that link. Could you describe the piece or upload a screenshot?",
-                                     action='reply', brief='', max_item_price=None, size=None, category='other')
+                                     action='reply', brief='', max_item_price=None, size=None, must_have=[], category='other')
                 brief = '; '.join(f'similar to {item.title}' for item in readable)[:500]
                 return AgentTurn(reply=f'Would you like me to search for pieces {brief}?', action='propose',
-                                 brief=brief, max_item_price=None, size=None, category='other')
+                                 brief=brief, max_item_price=None, size=None, must_have=[], category='other')
             brief = '; '.join(m.text for m in messages if m.role == 'user' and not YES.match(m.text))[-500:]
             if messages[-1].text.rstrip().endswith('?'):
                 return AgentTurn(reply=f'Would you like me to search for: {brief}', action='propose', brief=brief,
-                                 max_item_price=None, size=None, category='other')
+                                 max_item_price=None, size=None, must_have=[], category='other')
             return AgentTurn(reply=f'Searching for: {brief}.', action='search', brief=brief,
-                             max_item_price=None, size=None, category='other')
+                             max_item_price=None, size=None, must_have=[], category='other')
         content = json.dumps({
             'taste_profile': (profile.prompt or profile.summary)[:1500],
             'profile_sizes': effective_sizes(profile.onboarding.sizes, profile.onboarding.measurements).model_dump(),
