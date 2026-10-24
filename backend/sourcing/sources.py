@@ -5,11 +5,12 @@ from urllib.parse import urlsplit, urlunsplit
 import httpx
 from .models import Listing
 from .store import now
+from .webshops import WebShops
 from actors.niche_actors.indie_shops import SHOPS as INDIE_SHOPS
 
 DOMAINS = {'etsy': 'etsy.com', 'depop': 'depop.com', 'poshmark': 'poshmark.com', 'grailed': 'grailed.com'}
 # Sources served by Niche's own actors, which take all query variants at once and return normalized rows.
-NICHE = ('mainstream', 'secondhand', 'indie')
+NICHE = ('mainstream', 'secondhand', 'indie')  # web (Bright Data) is read in-process, not by an actor
 
 
 def public_url(value, domain=None):
@@ -120,6 +121,7 @@ class ApifySources:
                 per_query = self.settings.mainstream_items_per_query
             elif source == 'indie':
                 actor, per_query = self.settings.indie_actor, max(5, limit // len(queries))
+                shops = [s for s in shops if getattr(s, 'platform', 'shopify') == 'shopify']
                 if shops:
                     # `shops` replaces the actor's seed list, so send the seed list too, the shopper's shops first.
                     mine = [s.model_dump() if hasattr(s, 'model_dump') else dict(s) for s in shops]
@@ -148,6 +150,10 @@ class ApifySources:
 
         Niche actors push each marketplace's rows as soon as it finishes, so their dataset is read during the run:
         Depop, Poshmark and Vinted show up while Etsy is still scraping. Other actors are read once, at the end."""
+        if source == 'web':
+            async for batch in self.web(query, limit, job_id, max_price, shops):
+                yield batch
+            return
         actor, payload = self.actor_input(source, query, limit, max_price, brands, shops)
         key = hashlib.sha256(json.dumps([actor,payload],sort_keys=True).encode()).hexdigest()
         cached = self.store.cached(key)
@@ -215,9 +221,22 @@ class ApifySources:
         yield [], dict(status='succeeded',count=len(listings),dropped=dropped,**provenance)
 
 
+    async def web(self, query, limit, job_id, max_price=None, shops=()):
+        # Independent shops on any platform, through Bright Data rather than an Apify actor.
+        payload = ['web', query, limit, max_price, sorted(s.domain for s in shops)]
+        key = hashlib.sha256(json.dumps(payload, sort_keys=True).encode()).hexdigest()
+        if cached := self.store.cached(key):
+            yield [Listing.model_validate(x) for x in cached], {'status': 'cached', 'count': len(cached)}
+            return
+        listings, summary = await WebShops(self.settings).search(query, limit, max_price, shops)
+        self.store.event(job_id, 'source_normalized', {'source': 'web', **summary})
+        self.store.cache(key, [x.model_dump(mode='json') for x in listings])
+        yield listings, summary
+
+
 class FixtureSources:
     LABELS = {'mainstream': ('Madewell', 'mainstream', 'new'), 'secondhand': ('Depop', 'resale', 'used'),
-              'indie': ('Independent label', 'small_shop', 'new')}
+              'indie': ('Independent label', 'small_shop', 'new'), 'web': ('Independent shop', 'small_shop', 'new')}
 
     async def fetch(self, source, query, limit, job_id, max_price=None, brands=(), shops=()):
         # Deliberately synthetic; never presented as purchasable inventory.
