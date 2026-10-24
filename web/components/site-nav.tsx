@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import { APP_NAME, FRIEND_EVENT, clearFriendView, getFriendView, type FriendView } from "@/lib/session";
+import { APP_NAME, FRIEND_EVENT, clearFriendView, getFriendView, startGuest, type FriendView } from "@/lib/session";
 
 const NAV = [
   { href: "/onboard", label: "Profile" },
@@ -71,6 +71,7 @@ export function SiteNav() {
               <button
                 onClick={() => {
                   clearFriendView();
+                  startGuest(); // a new profile for this tab, not the one already saved in this browser
                   setAsking(false);
                   router.push("/onboard");
                 }}
