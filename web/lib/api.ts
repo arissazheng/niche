@@ -47,6 +47,10 @@ export const api = {
   imports: (id: string) => request<ImportJob[]>(`/v1/taste/profiles/${id}/imports`),
   nearby: (id: string, searchId: string) =>
     request<NearbyShops>(`/v1/taste/profiles/${id}/nearby?search_id=${encodeURIComponent(searchId)}`),
+  addShop: (id: string, shop: string) =>
+    request<ProfileView>(`/v1/taste/profiles/${id}/shops`, { method: "POST", body: json({ shop }) }),
+  removeShop: (id: string, domain: string) =>
+    request<ProfileView>(`/v1/taste/profiles/${id}/shops/${encodeURIComponent(domain)}`, { method: "DELETE" }),
   deleteProfile: (id: string) => request<void>(`/v1/taste/profiles/${id}`, { method: "DELETE" }),
   deleteImage: (imageId: string) => request<void>(`/v1/taste/images/${imageId}`, { method: "DELETE" }),
   build: (id: string) => request<ProfileView>(`/v1/taste/profiles/${id}/build`, { method: "POST" }),
