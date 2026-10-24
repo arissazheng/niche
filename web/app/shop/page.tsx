@@ -264,8 +264,8 @@ export default function ShopPage() {
                 </button>
               ))}
             </div>
-            {/* Fetched as soon as the search starts (the backend looks it up alongside), shown once results are in. */}
-            {searchId && <NearbyShopsSection key={searchId} profileId={profileId} searchId={searchId} show={finished} />}
+            {/* Looked up alongside the search and shown as soon as it's ready (it sits below the listings). */}
+            {searchId && <NearbyShopsSection key={searchId} profileId={profileId} searchId={searchId} show={results.length > 0} />}
           </>
         )}
       </section>

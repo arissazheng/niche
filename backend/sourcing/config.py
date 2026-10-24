@@ -21,7 +21,8 @@ class Settings(BaseSettings):
     claude_model: str = 'claude-opus-5-5'
     # Gemini with Grounding with Google Maps, for the optional "Shops near you" list under search results.
     gemini_api_key: str = ''
-    gemini_model: str = 'gemini-3.8-flash'
+    # Flash-Lite: ~3 s with Maps grounding and the same shop quality in tests; 3.8 Flash took ~35 s.
+    gemini_model: str = 'gemini-3.1-flash-lite'
     sourcing_api_key: str = ''
     database_path: str = 'data/sourcing.sqlite3'
     actor_timeout_seconds: int = Field(default=180, ge=10, le=600)
