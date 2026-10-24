@@ -1,4 +1,4 @@
-import type { AgentReply, Budget, ChatTurn, ClothingSizes, HeardOnboarding, ImageKind, ImportJob, Measurements, NearbyShops, Onboarding, ProfileView, SearchJob, SizeCatalog, SizeSystem, Source, TasteImage } from "./types";
+import type { AgentReply, BrandSuggestion, Budget, ChatTurn, ClothingSizes, HeardOnboarding, ImageKind, ImportJob, Measurements, NearbyShops, Onboarding, ProfileView, SearchJob, SizeCatalog, SizeSystem, Source, TasteImage } from "./types";
 
 export const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://127.0.0.1:8000";
 
@@ -42,6 +42,8 @@ export const api = {
     request<NearbyShops>(`/v1/taste/profiles/${id}/nearby?search_id=${encodeURIComponent(searchId)}`),
   addShop: (id: string, shop: string) =>
     request<ProfileView>(`/v1/taste/profiles/${id}/shops`, { method: "POST", body: json({ shop }) }),
+  brandSuggestions: (id: string) =>
+    request<{ suggestions: BrandSuggestion[] }>(`/v1/taste/profiles/${id}/brands/suggestions`),
   removeShop: (id: string, domain: string) =>
     request<ProfileView>(`/v1/taste/profiles/${id}/shops/${encodeURIComponent(domain)}`, { method: "DELETE" }),
   deleteProfile: (id: string) => request<void>(`/v1/taste/profiles/${id}`, { method: "DELETE" }),
