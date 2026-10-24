@@ -177,3 +177,50 @@ def test_grailed_documented_shape_and_inputs(store):
     assert item.id=='grailed:1' and item.seller=='archive'
     _,payload=ApifySources(Settings(),store).actor_input('grailed','jacket',30)
     assert payload=={'queries':['jacket'],'maxPagesPerQuery':1}
+
+
+def niche_request(request_data, sources=('mainstream', 'secondhand')):
+    data = request_data.model_dump(mode='json')
+    data['sources'] = list(sources)
+    data['taste_profile']['preferred_brands'] = ['Madewell']
+    return SearchRequest.model_validate(data)
+
+
+def test_niche_actors_feed_one_labelled_list(request_data, store):
+    request = niche_request(request_data)
+    ident = store.create(request.model_dump(mode='json'))
+    asyncio.run(Pipeline(Settings(), store).run(request, ident))
+    result = store.get(ident)
+    assert result['status'] == 'completed' and set(result['sources']) == {'mainstream', 'secondhand'}
+    assert {(x['retailer'], x['tier']) for x in result['results']} == {('Madewell', 'mainstream'), ('Depop', 'resale')}
+    # Preferred brand gets the lexical bonus on the fallback ranking.
+    by_title = {}
+    for x in result['results']:
+        by_title.setdefault(x['title'], {})[x['retailer']] = x['score']
+    assert all(s['Madewell'] == s['Depop'] + 10 for s in by_title.values() if len(s) == 2)
+
+
+def test_new_only_requests_skip_secondhand_actor(request_data, store):
+    request = niche_request(request_data)
+    request.request.allow_secondhand = False
+    ident = store.create(request.model_dump(mode='json'))
+    asyncio.run(Pipeline(Settings(), store).run(request, ident))
+    assert set(store.get(ident)['sources']) == {'mainstream'}
+
+
+def test_niche_actor_input_and_normalization(store):
+    sources = ApifySources(Settings(), store)
+    actor, payload = sources.actor_input('mainstream', ['wool coat', 'camel coat'], 30, 150.0)
+    assert actor == 'zaarahemd/niche-mainstream'
+    # Mainstream is capped for cost: one phrase, 10 results by default.
+    assert payload == {'queries': ['wool coat'], 'itemsPerQuery': 10, 'maxPrice': 150}
+    actor, payload = sources.actor_input('secondhand', ['wool coat', 'camel coat'], 30, None)
+    assert actor == 'zaarahemd/niche-secondhand' and payload == {'queries': ['wool coat', 'camel coat'], 'itemsPerQuery': 15}
+    row = {'id': 'vinted:7', 'marketplace': 'vinted', 'retailer': 'Vinted', 'tier': 'resale', 'title': 'Wool coat',
+           'url': 'https://www.vinted.com/items/7', 'price': 20.0, 'currency': 'usd', 'image_urls': ['http://insecure/1.jpg'],
+           'sizes': ['M'], 'condition': 'Very good', 'brand': 'Ralph Lauren', 'seller': 's', 'available': True,
+           'is_ad': False, 'shipping_cost': None, 'description': ''}
+    item = normalize('secondhand', row, {'run_id': 'r'})
+    assert item.id == 'vinted:7' and item.source == 'secondhand' and item.retailer == 'Vinted' and item.currency == 'USD'
+    assert item.image_urls == []  # non-https images are dropped
+    assert normalize('secondhand', {**row, 'url': 'javascript:alert(1)'}, {}) is None

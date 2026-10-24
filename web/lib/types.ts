@@ -3,7 +3,17 @@
 
 export type SizeLabel = "XS" | "S" | "M" | "L" | "XL" | "XXL";
 export type ImageKind = "outfit" | "item";
-export type Source = "etsy" | "depop" | "poshmark" | "grailed";
+// mainstream / secondhand are the two Niche Apify actors (backend/actors); the rest are single-marketplace adapters.
+export type Source = "mainstream" | "secondhand" | "etsy" | "depop" | "poshmark" | "grailed";
+export type Tier =
+  | "department" | "mainstream" | "athletic" | "outdoor" | "premium" | "luxury"
+  | "fast_fashion" | "off_price" | "big_box" | "marketplace" | "resale" | "small_shop";
+
+export const TIER_LABELS: Record<Tier, string> = {
+  department: "Department store", mainstream: "Mainstream", athletic: "Athletic", outdoor: "Outdoor",
+  premium: "Premium", luxury: "Luxury", fast_fashion: "Fast fashion", off_price: "Off-price",
+  big_box: "Big box", marketplace: "Marketplace", resale: "Secondhand", small_shop: "Small shop",
+};
 
 export interface Onboarding {
   name: string;
@@ -14,6 +24,7 @@ export interface Onboarding {
   budget_max: number;
   currency: string;
   usual_shops: string[];
+  favorite_brands?: string[];
 }
 
 export interface Garment {
@@ -84,6 +95,9 @@ export interface Listing {
   price: number;
   currency: string;
   seller: string | null;
+  retailer: string | null;
+  tier: Tier | null;
+  brand: string | null;
   condition: string | null;
   sizes: string[];
   warnings: string[];

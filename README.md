@@ -1,6 +1,6 @@
 # Niche
 
-Upload outfits and clothes you love. Claude builds an editable taste profile from them, and agents source matching pieces from small and secondhand sellers (Etsy, Depop, Poshmark, Grailed). There are no sponsored placements.
+Upload outfits and clothes you love. Claude builds an editable taste profile from them, and agents source matching pieces from major retailers (Nordstrom, Madewell, Zara and 100+ more via Google Shopping) and from secondhand and small sellers (Depop, Poshmark, Vinted, Etsy, Grailed), ranked by Claude in one list. There are no sponsored placements.
 
 Who owns what, and which sponsor tools each feature uses: **[docs/WORKPLAN.md](docs/WORKPLAN.md)**.
 
@@ -10,6 +10,7 @@ Who owns what, and which sponsor tools each feature uses: **[docs/WORKPLAN.md](d
 backend/          FastAPI, Python 3.11+
   app.py          one process: sourcing + taste + checkout routers
   sourcing/       Apify marketplace search + Claude query planning/ranking (prior Person 3 work; see SOURCING.md)
+  actors/         Niche's two Apify actors: niche-mainstream (retailer bank) and niche-secondhand (see actors/README.md)
   taste/          image upload, palette, Claude extraction → clustering → taste profile, edits
   checkout/       Stripe PaymentIntents (Link) + Capital One Nessie ledger mirror
   tests/

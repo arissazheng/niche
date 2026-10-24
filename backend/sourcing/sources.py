@@ -7,6 +7,8 @@ from .models import Listing
 from .store import now
 
 DOMAINS = {'etsy': 'etsy.com', 'depop': 'depop.com', 'poshmark': 'poshmark.com', 'grailed': 'grailed.com'}
+# Sources served by Niche's own actors, which take all query variants at once and return normalized rows.
+NICHE = ('mainstream', 'secondhand')
 
 
 def public_url(value, domain=None):
@@ -28,7 +30,28 @@ def first(row, *keys):
     return None
 
 
+def normalize_niche(source, row, provenance):
+    # Rows are already normalized by backend/actors; re-check the link and price rather than trust them.
+    url = public_url(row.get('url'))
+    try:
+        price = float(row.get('price'))
+    except (TypeError, ValueError):
+        return None
+    currency = row.get('currency')
+    if not url or not row.get('title') or not (0 <= price < 10000000) or not isinstance(currency, str) or len(currency) != 3:
+        return None
+    return Listing(id=str(row.get('id') or hashlib.sha256(url.encode()).hexdigest()[:20])[:200], source=source,
+        title=str(row['title'])[:500], url=url, image_urls=[x for x in map(public_url, row.get('image_urls') or []) if x][:4],
+        description=str(row.get('description') or '')[:2500], price=price, currency=currency.upper(),
+        sizes=[str(x) for x in row.get('sizes') or []], condition=row.get('condition'), available=row.get('available'),
+        is_ad=row.get('is_ad'), seller=row.get('seller'), shipping_cost=row.get('shipping_cost'),
+        marketplace=row.get('marketplace'), retailer=row.get('retailer'), tier=row.get('tier'), brand=row.get('brand'),
+        scraped_at=now(), provenance=provenance)
+
+
 def normalize(source, row, provenance):
+    if source in NICHE:
+        return normalize_niche(source, row, provenance)
     if row.get('recordType', 'listing') != 'listing':
         return None
     url = public_url(first(row, 'url', 'listingUrl', 'productUrl', 'listing_url', 'link'), DOMAINS[source])
@@ -77,7 +100,15 @@ class ApifySources:
     def __init__(self, settings, store):
         self.settings, self.store = settings, store
 
-    def actor_input(self, source, query, limit):
+    def actor_input(self, source, query, limit, max_price=None):
+        if source in NICHE:
+            queries = query if isinstance(query, list) else [query]
+            if source == 'mainstream':
+                actor, queries = self.settings.mainstream_actor, queries[:self.settings.mainstream_queries]
+                per_query = self.settings.mainstream_items_per_query
+            else:
+                actor, per_query = self.settings.secondhand_actor, max(5, limit // len(queries))
+            return actor, {'queries': queries, 'itemsPerQuery': per_query, **({'maxPrice': int(max_price)} if max_price else {})}
         if source == 'etsy':
             return self.settings.etsy_actor, {'searchTerms': [query], 'maxItems': max(10,limit), 'maxRunSeconds': max(5,self.settings.actor_timeout_seconds-10)}
         if source == 'grailed':
@@ -86,8 +117,8 @@ class ApifySources:
             availableOnly=True, includeSellerProfile=False, includeSellerListings=False, maxItems=limit,
             autoEscalateOnBlock=False)
 
-    async def fetch(self, source, query, limit, job_id):
-        actor, payload = self.actor_input(source, query, limit)
+    async def fetch(self, source, query, limit, job_id, max_price=None):
+        actor, payload = self.actor_input(source, query, limit, max_price)
         key = hashlib.sha256(json.dumps([actor,payload],sort_keys=True).encode()).hexdigest()
         cached = self.store.cached(key)
         if cached:
@@ -115,7 +146,7 @@ class ApifySources:
             if run['status'] != 'SUCCEEDED':
                 raise RuntimeError('Actor finished with ' + run['status'])
             response = await client.get(f'datasets/{run["defaultDatasetId"]}/items',
-                params={'clean':'true','limit':limit,'format':'json'})
+                params={'clean':'true','limit':limit * (3 if source in NICHE else 1),'format':'json'})
             response.raise_for_status()
             rows = response.json()
         provenance = {'actor_id':actor,'run_id':run['id'],'dataset_id':run['defaultDatasetId']}
@@ -138,8 +169,11 @@ class ApifySources:
 
 
 class FixtureSources:
-    async def fetch(self, source, query, limit, job_id):
+    LABELS = {'mainstream': ('Madewell', 'mainstream', 'new'), 'secondhand': ('Depop', 'resale', 'used')}
+
+    async def fetch(self, source, query, limit, job_id, max_price=None):
         # Deliberately synthetic; never presented as purchasable inventory.
+        retailer, tier, condition = self.LABELS.get(source, (source.title(), 'resale', 'used'))
         styles = [('Olive linen wide-leg trousers','olive relaxed linen vintage',48),
                   ('Cream cotton boxy shirt','cream boxy cotton minimal',35),
                   ('Black fitted satin trousers','black fitted satin sleek',65),
@@ -148,7 +182,7 @@ class FixtureSources:
                   ('Olive sold trousers','olive relaxed linen',40)]
         rows = [Listing(id=f'{source}:fixture-{i}', source=source,title=title,
             url=f'https://example.invalid/{source}/{i}',description=desc,price=price,currency='USD',
-            sizes=['8'],condition='used',available=i!=5,seller=f'Demo seller {i%3}',
+            sizes=['8'],condition=condition,available=i!=5,seller=f'Demo seller {i%3}',retailer=retailer,tier=tier,
             scraped_at=now(),is_fixture=True,provenance={'mode':'fixture'},
             warnings=['Synthetic demo item; not for purchase']) for i,(title,desc,price) in enumerate(styles)]
         return rows[:limit], {'status':'fixture','count':len(rows[:limit])}

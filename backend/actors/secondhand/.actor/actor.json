@@ -1,0 +1,63 @@
+{
+  "actorSpecification": 1,
+  "name": "niche-secondhand",
+  "title": "Niche: secondhand and small shops",
+  "description": "Active listings from Depop, Poshmark, Vinted, Etsy (and optionally Grailed), in one labelled list. Sold items, promoted listings and duplicates are dropped.",
+  "version": "0.1",
+  "dockerfile": "./Dockerfile",
+  "input": {
+    "title": "Secondhand search",
+    "type": "object",
+    "schemaVersion": 1,
+    "properties": {
+      "queries": {
+        "title": "Search queries",
+        "type": "array",
+        "editor": "stringList",
+        "description": "1 to 3 search phrases.",
+        "prefill": [
+          "vintage wool coat"
+        ]
+      },
+      "maxPrice": {
+        "title": "Max price (USD)",
+        "type": "integer",
+        "editor": "number",
+        "description": "Items above this price in USD are dropped."
+      },
+      "itemsPerQuery": {
+        "title": "Items per query, per marketplace",
+        "type": "integer",
+        "editor": "number",
+        "default": 10,
+        "minimum": 1,
+        "maximum": 40,
+        "description": "How many results to read per search phrase (per marketplace for secondhand)."
+      },
+      "marketplaces": {
+        "title": "Marketplaces",
+        "type": "array",
+        "editor": "stringList",
+        "description": "depop, poshmark, vinted, etsy, grailed. Grailed costs $0.20 per run.",
+        "prefill": [
+          "depop",
+          "poshmark",
+          "vinted",
+          "etsy"
+        ]
+      },
+      "maxConcurrentRuns": {
+        "title": "Max scraper runs at once",
+        "type": "integer",
+        "editor": "number",
+        "default": 2,
+        "minimum": 1,
+        "maximum": 10,
+        "description": "Sub-scraper runs this actor starts at the same time. Apify's free plan allows 5 runs account-wide, including this one."
+      }
+    },
+    "required": [
+      "queries"
+    ]
+  }
+}
