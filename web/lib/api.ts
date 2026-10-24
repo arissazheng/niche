@@ -1,4 +1,4 @@
-import type { AgentReply, Budget, ChatTurn, ImageKind, ImportJob, Measurements, Onboarding, ProfileView, SearchJob, Sizes, Source, TasteImage } from "./types";
+import type { AgentReply, Budget, ChatTurn, ClothingSizes, ImageKind, ImportJob, Measurements, Onboarding, ProfileView, SearchJob, SizeCatalog, SizeSystem, Source, TasteImage } from "./types";
 
 export const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://127.0.0.1:8000";
 
@@ -15,8 +15,9 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 const json = (body: unknown) => JSON.stringify(body);
 
 export const api = {
-  suggestSizes: (measurements: Measurements) =>
-    request<Partial<Sizes>>("/v1/taste/sizes/suggest", { method: "POST", body: json(measurements) }),
+  sizingCatalog: () => request<SizeCatalog>("/v1/taste/sizing/catalog"),
+  suggestSizes: (measurements: Measurements, system: SizeSystem) =>
+    request<ClothingSizes>(`/v1/taste/sizes/suggest?system=${system}`, { method: "POST", body: json(measurements) }),
   createProfile: (onboarding: Partial<Onboarding>) =>
     request<ProfileView>("/v1/taste/profiles", { method: "POST", body: json(onboarding) }),
   getProfile: (id: string) => request<ProfileView>(`/v1/taste/profiles/${id}`),

@@ -1,6 +1,7 @@
 from typing import Literal
-from pydantic import BaseModel, Field, ConfigDict, field_validator
+from pydantic import BaseModel, Field, ConfigDict, field_validator, model_validator
 from sourcing.models import TasteProfile as SourcingProfile
+from .sizing import Sizing, legacy
 
 ImageKind = Literal['outfit', 'item', 'own']  # own: the user wearing their own clothes
 SizeLabel = Literal['XS', 'S', 'M', 'L', 'XL', 'XXL']
@@ -10,25 +11,7 @@ class StrictModel(BaseModel):
     model_config = ConfigDict(extra='forbid')
 
 
-# Pants and skirts: letters or US numbered sizes, 00 up to 40 (misses through plus).
-NUMBERED_SIZES = ['00', '0'] + [str(n) for n in range(2, 41, 2)]
-Length = Literal['short', 'regular', 'long']  # petite / regular / tall inseam
-
-
-class Sizes(StrictModel):
-    top: SizeLabel | None = None
-    bottom: str | None = None
-    bottom_length: Length | None = None
-    outerwear: SizeLabel | None = None
-    shoe: str | None = Field(default=None, max_length=10)
-    shoe_system: Literal['womens', 'mens'] | None = None
-
-    @field_validator('bottom')
-    @classmethod
-    def letter_or_number(cls, size):
-        if size is not None and size not in ('XXS', 'XS', 'S', 'M', 'L', 'XL', 'XXL', *NUMBERED_SIZES):
-            raise ValueError('bottom size must be a numbered size from 00 to 40, or XXS-XXL')
-        return size
+Length = Literal['short', 'regular', 'long']  # petite / regular / tall
 
 
 class Measurements(StrictModel):
@@ -44,10 +27,21 @@ class Measurements(StrictModel):
 
 class Onboarding(StrictModel):
     # Mirrors the voice/form setup questions in the design deck.
+
+    @model_validator(mode='before')
+    @classmethod
+    def upgrade(cls, data):
+        # Profiles saved before the sizing chart had a flat `sizes`; carry what still fits over to `sizing`.
+        if isinstance(data, dict) and 'sizes' in data:
+            data = {**data}
+            old = data.pop('sizes') or {}
+            data.setdefault('sizing', legacy(old))
+        return data
+
     name: str = Field(default='', max_length=100)
     age: int | None = Field(default=None, ge=13, le=120)
     email: str = Field(default='', max_length=254)
-    sizes: Sizes = Field(default_factory=Sizes)
+    sizing: Sizing = Field(default_factory=Sizing)
     measurements: Measurements = Field(default_factory=Measurements)
     budget_min: float = Field(default=0, ge=0)
     budget_max: float = Field(default=150, gt=0, le=100000)
@@ -166,6 +160,7 @@ class ProfileSearch(StrictModel):
     length: Length | None = None
     shoe_size_system: Literal['womens', 'mens'] | None = None
     must_have: list[str] = Field(default_factory=list, max_length=8)  # from sourcing/features.py
+    size_note: str = Field(default='', max_length=500)
     sources: list[Literal['mainstream', 'secondhand', 'etsy', 'depop', 'poshmark', 'grailed']] = ['mainstream', 'secondhand']
     limit: int = Field(default=20, ge=1, le=24)
 

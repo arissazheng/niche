@@ -1,5 +1,5 @@
 import asyncio
-from typing import Annotated
+from typing import Annotated, Literal
 from fastapi import APIRouter, File, Form, HTTPException, UploadFile
 from PIL import UnidentifiedImageError
 from sourcing.models import SearchRequest, ShoppingRequest
@@ -9,8 +9,9 @@ from sourcing.prefetch import BROAD_QUERY, Prefetcher
 from sourcing.features import clean as clean_features
 from sourcing.store import Store
 import json
-from .chat import ChatRequest, ShopAgent, guess_category, profile_size, result_cards
-from .fit import effective_sizes, inches, suggest
+from .chat import ChatRequest, ShopAgent, guess_category, result_cards, search_sizes
+from .fit import inches, suggest
+from .sizing import CATALOG
 from .imports import Importer, LinkError
 from .links import extract_urls, read_link
 from .engine import TasteEngine, fingerprint
@@ -42,10 +43,15 @@ def create_router(settings, store: Store, budgets: Budgets | None = None, signer
                 'images': [signer.image(x.model_dump(mode='json')) for x in images],
                 'up_to_date': bool(profile.version and profile.built_from == fingerprint(profile, images))}
 
+    @router.get('/sizing/catalog')
+    def sizing_catalog():
+        # The onboarding page draws its size pickers from this, so the charts live in one place (taste/sizing.py).
+        return CATALOG
+
     @router.post('/sizes/suggest')
-    def suggest_sizes(measurements: Measurements):
+    def suggest_sizes(measurements: Measurements, system: Literal['womens', 'mens'] = 'womens'):
         # Live preview on the onboarding form: what sizes these measurements point to.
-        return suggest(measurements).model_dump()
+        return suggest(measurements, system).model_dump()
 
     @router.post('/profiles', status_code=201)
     def create(onboarding: Onboarding):
@@ -171,7 +177,8 @@ def create_router(settings, store: Store, budgets: Budgets | None = None, signer
             profile_id=profile.id,
             request=ShoppingRequest(query=search.query, max_item_price=search.max_item_price or ob.budget_max,
                 currency=ob.currency, size=search.size, length=search.length, measurements=inches(ob.measurements),
-                shoe_size_system=search.shoe_size_system, must_have=clean_features(search.must_have)))
+                shoe_size_system=search.shoe_size_system, size_note=search.size_note,
+                must_have=clean_features(search.must_have)))
 
     def start_search(profile, search: ProfileSearch):
         job = store.create(search_request(profile, search).model_dump(mode='json'))
@@ -216,11 +223,10 @@ def create_router(settings, store: Store, budgets: Budgets | None = None, signer
         if turn.action in ('propose', 'search'):
             # Unless the user named a size, search in their saved size for this kind of garment.
             category = turn.category if turn.category != 'other' else guess_category(turn.brief)
-            out['size'] = turn.size or profile_size(profile, category)
-            ob = profile.onboarding
-            out['length'] = effective_sizes(ob.sizes, ob.measurements).bottom_length if category == 'bottom' else None
-            out['category'] = category
-            out['shoe_size_system'] = ob.sizes.shoe_system if category == 'shoes' and out['size'] else None
+            fit = search_sizes(profile, category, turn.brief)
+            out.update(fit, category=category)
+            if turn.size:  # a size the user named in the conversation wins
+                out.update(size=turn.size, size_note=f'Size {turn.size}, as asked')
             price = turn.max_item_price
             if price is None and budget and budget.remaining >= 1:
                 # The agent should set a cap itself; if it didn't, keep the search inside what's left this month.
@@ -231,6 +237,7 @@ def create_router(settings, store: Store, budgets: Budgets | None = None, signer
             out.update(start_search(profile, ProfileSearch(query=turn.brief, max_item_price=out['max_item_price'],
                                                            size=out['size'], length=out['length'],
                                                            shoe_size_system=out['shoe_size_system'],
+                                                           size_note=out['size_note'],
                                                            must_have=out['must_have'])))
         return out
 

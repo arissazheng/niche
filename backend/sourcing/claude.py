@@ -29,6 +29,8 @@ by taste fit and the request; do not favor new or secondhand. Prioritize the req
 The request comes first, taste second. When the request names defining features (e.g. asymmetrical, buttoned, a
 high collar, wide-leg, a specific neckline), a listing visibly missing them scores below 40 however well its colours
 or mood fit the taste; one that has some of them sits in the middle; only one that has them can score above 70.
+request.size_note gives the shopper's sizes for this kind of item; prefer listings in those sizes and mention a
+mismatch in uncertainties. A size chart (women's or men's) is about fit only: never lower a score for the department.
 request.measurements are the shopper's body measurements in inches. When a listing states garment measurements
 (pit to pit, chest, waist, hips, inseam, sleeve, shoulders), judge fit against them, allowing normal ease
 (a top's chest about 2-4 in over the bust), and say so in the reason; a clear misfit should score lower.

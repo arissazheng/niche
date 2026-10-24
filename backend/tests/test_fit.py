@@ -1,65 +1,97 @@
 import json
 import sqlite3
+import pytest
 from fastapi.testclient import TestClient
+from pydantic import ValidationError
 from app import create_app
 from sourcing.config import Settings
-from taste.fit import effective_sizes, suggest
-from taste.models import Measurements, Sizes
+from taste.fit import suggest
+from taste.models import Measurements, Onboarding
+from taste.sizing import CATALOG, Sizing, for_search, summary
 from tests.test_taste import png
 
 
-def test_measurements_point_to_standard_sizes():
-    s = suggest(Measurements(bust=36, waist=28, hips=38, inseam=31))
-    assert (s.top, s.bottom, s.bottom_length) == ('M', '8', 'regular')
-    # The bigger of waist and hips decides the pants size.
-    assert suggest(Measurements(waist=25, hips=39)).bottom == '10'
-    # Centimetres convert; petite and tall inseams.
-    s = suggest(Measurements(unit='cm', bust=81, waist=60, inseam=72))
-    assert (s.top, s.bottom, s.bottom_length) == ('XS', '00', 'short')
-    assert suggest(Measurements(inseam=34)).bottom_length == 'long'
-    assert suggest(Measurements(waist=40, hips=50)).bottom == '22'  # plus sizes
-    assert suggest(Measurements(shoulder=15, arm=23)) == Sizes()  # nothing to size from
+def client_for(tmp_path):
+    return TestClient(create_app(Settings(database_path=str(tmp_path / 'f.sqlite'), upload_dir=str(tmp_path / 'up'))))
 
 
-def test_picked_sizes_win_over_measurements():
-    picked = Sizes(top='S', bottom=None)
-    filled = effective_sizes(picked, Measurements(bust=40, waist=30, hips=40))
-    assert filled.top == 'S' and filled.bottom == '12'
+def test_measurements_point_to_sizes_in_each_system():
+    w = suggest(Measurements(bust=36, waist=28, hips=38, inseam=31))
+    assert (w.tops.values, w.bottoms.values, w.bottoms.extras, w.dresses.values) == (['M'], ['8'], {'inseam': '31'}, ['8'])
+    assert suggest(Measurements(waist=25, hips=39)).bottoms.values == ['10']  # the bigger of waist and hips decides
+    assert suggest(Measurements(unit='cm', bust=81, waist=60)).tops.values == ['XS']
+    m = suggest(Measurements(bust=41, waist=32.4, inseam=30), 'mens')
+    assert (m.tops.values, m.bottoms.format, m.bottoms.values, m.bottoms.extras) == (['L'], 'waist', ['32'], {'inseam': '30'})
+    assert suggest(Measurements(shoulder=15, arm=23)).tops.values == []  # nothing to size from
 
 
-def test_measurements_reach_the_search_but_not_the_taste_profile(tmp_path):
-    settings = Settings(database_path=str(tmp_path / 'f.sqlite'), upload_dir=str(tmp_path / 'up'))
-    with TestClient(create_app(settings)) as client:
-        preview = client.post('/v1/taste/sizes/suggest', json={'unit': 'cm', 'bust': 91, 'inseam': 84})
-        assert preview.json()['top'] == 'M' and preview.json()['bottom_length'] == 'long'
-        pid = client.post('/v1/taste/profiles', json={'data_consent': True, 'measurements': {'waist': 30, 'hips': 40, 'inseam': 28}}).json()['profile']['id']
-        client.post(f'/v1/taste/profiles/{pid}/images', files={'file': ('a.png', png((20, 20, 20)))})
-        built = client.post(f'/v1/taste/profiles/{pid}/build').json()['profile']
-        assert '30' not in built['prompt']
-        reply = client.post(f'/v1/taste/profiles/{pid}/chat', json={'messages': [{'role': 'user', 'text': 'wide leg jeans'}]}).json()
-        assert (reply['size'], reply['length']) == ('12', 'short')
-        job = client.post(f'/v1/taste/profiles/{pid}/searches', json={'query': 'jeans'}).json()
-        with sqlite3.connect(settings.database_path) as db:
-            request = json.loads(db.execute('SELECT request FROM jobs WHERE id=?', (job['search_id'],)).fetchone()[0])
-        assert request['request']['measurements'] == {'waist': 30.0, 'hips': 40.0, 'inseam': 28.0}
+def test_sizing_is_checked_against_the_catalog():
+    ok = Sizing(system='mens', mens={'bottoms': {'format': 'waist', 'values': ['31', '33'], 'extras': {'inseam': '29'}},
+                                     'outerwear': {'format': 'chest', 'values': ['40'], 'extras': {'length': 'R'}},
+                                     'shoes': {'format': 'us', 'values': ['10.5'], 'extras': {'width': 'Wide'}}},
+                accessories={'rings': {'format': 'us', 'values': ['6.5']}, 'belts': {'format': 'in', 'values': ['32'],
+                                                                                  'extras': {'measures': 'Belt length'}}})
+    assert ok.mens.bottoms.values == ['31', '33']
+    for bad in ({'womens': {'tops': {'format': 'alpha', 'values': ['4XL']}}},     # men's-only size
+                {'mens': {'shoes': {'format': 'us', 'values': ['3']}}},           # below the men's US chart
+                {'womens': {'bottoms': {'format': 'waist', 'values': ['70']}}},   # typed, but out of range
+                {'mens': {'tops': {'format': 'alpha', 'values': ['M'], 'extras': {'fit': 'Tall'}}}}):  # not a tops option
+        with pytest.raises(ValidationError):
+            Sizing(**bad)
+    bra = Sizing(womens={'bra': {'band': '34', 'cup': 'DD'}}).womens.bra
+    assert bra.size == '34DD'
 
 
-def test_accessories_are_their_own_category_and_carry_no_size():
-    from taste.chat import guess_category
-    for text in ('gold hoop earrings', 'black leather crossbody', 'wool beanie', 'chunky silver jewelry', 'straw tote'):
-        assert guess_category(text) == 'accessory', text
+def test_switching_systems_keeps_both_sets_and_accessories():
+    s = Sizing(system='womens', womens={'tops': {'format': 'alpha', 'values': ['S']}},
+               mens={'tops': {'format': 'alpha', 'values': ['M']}}, accessories={'hats': {'format': 'alpha', 'values': ['M']}})
+    assert s.active().tops.values == ['S']
+    s.system = 'mens'
+    assert s.active().tops.values == ['M'] and s.accessories.hats.values == ['M']
 
 
-def test_shoe_size_system_and_letter_bottoms_reach_the_search(tmp_path):
-    settings = Settings(database_path=str(tmp_path / 's.sqlite'), upload_dir=str(tmp_path / 'up'))
-    with TestClient(create_app(settings)) as client:
-        sizes = {'bottom': 'XXS', 'shoe': '8.5', 'shoe_system': 'womens'}
-        pid = client.post('/v1/taste/profiles', json={'sizes': sizes, 'data_consent': True}).json()['profile']['id']
+def test_old_flat_sizes_are_upgraded():
+    ob = Onboarding.model_validate({'sizes': {'top': 'S', 'bottom': '8', 'bottom_length': 'long', 'shoe': '8.5',
+                                              'shoe_system': 'womens', 'outerwear': None}})
+    w = ob.sizing.womens
+    assert ob.sizing.system == 'womens' and (w.tops.values, w.bottoms.values, w.shoes.values) == (['S'], ['8'], ['8.5'])
+    assert w.dresses.extras == {'fit': 'Tall'}
+    assert Onboarding.model_validate({'sizes': {'bottom': '36'}}).sizing.womens.bottoms.values == []  # not in the chart
+
+
+def test_search_gets_size_filter_note_length_and_shoe_chart():
+    s = Sizing(system='mens', mens={'bottoms': {'format': 'waist', 'values': ['32'], 'extras': {'inseam': '34'}},
+                                    'shoes': {'format': 'eu', 'values': ['43']}},
+               accessories={'rings': {'format': 'us', 'values': ['9']}})
+    pants = for_search(s, 'bottom')
+    assert pants['size'] == '32' and pants['length'] == 'long' and pants['size_note'] == "Bottoms: 32 (Waist (in)), inseam 34 in (men's chart)"
+    shoes = for_search(s, 'shoes')
+    assert shoes['size'] is None and shoes['shoe_size_system'] is None and 'EU' in shoes['size_note']  # EU isn't filtered
+    assert for_search(s, 'accessory', 'silver signet ring')['size'] == '9'
+    assert for_search(s, 'accessory', 'leather tote')['size'] is None
+    assert for_search(Sizing(womens={'dresses': {'format': 'us', 'values': ['4'], 'extras': {'fit': 'Petite'}}}), 'dress')['length'] == 'short'
+    assert 'Rings: 9' in summary(s)
+
+
+def test_catalog_and_sizes_flow_through_the_api(tmp_path):
+    with client_for(tmp_path) as client:
+        catalog = client.get('/v1/taste/sizing/catalog').json()
+        assert 'bra' in catalog and 'bra' not in catalog['mens'] and catalog['mens']['dresses']['optional']
+        assert catalog['womens']['shoes']['formats'][0]['options'][0] == '4' and catalog['mens']['shoes']['formats'][0]['options'][0] == '5'
+        preview = client.post('/v1/taste/sizes/suggest?system=mens', json={'bust': 44}).json()
+        assert preview['tops']['values'] == ['L']
+        sizing = {'system': 'womens', 'womens': {'bottoms': {'format': 'us', 'values': ['6', '8']},
+                                                  'shoes': {'format': 'us', 'values': ['8.5']}}}
+        pid = client.post('/v1/taste/profiles', json={'data_consent': True, 'sizing': sizing,
+                                                      'measurements': {'bust': 35}}).json()['profile']['id']
         client.post(f'/v1/taste/profiles/{pid}/images', files={'file': ('a.png', png((20, 20, 20)))})
         client.post(f'/v1/taste/profiles/{pid}/build')
+        jeans = client.post(f'/v1/taste/profiles/{pid}/chat', json={'messages': [{'role': 'user', 'text': 'wide leg jeans'}]}).json()
         boots = client.post(f'/v1/taste/profiles/{pid}/chat', json={'messages': [{'role': 'user', 'text': 'black ankle boots'}]}).json()
-        bag = client.post(f'/v1/taste/profiles/{pid}/chat', json={'messages': [{'role': 'user', 'text': 'small shoulder bag'}]}).json()
-        skirt = client.post(f'/v1/taste/profiles/{pid}/chat', json={'messages': [{'role': 'user', 'text': 'slip skirt'}]}).json()
-        assert (boots['size'], boots['shoe_size_system']) == ('8.5', 'womens')
-        assert (bag['category'], bag['size'], bag['shoe_size_system']) == ('accessory', None, None)
-        assert skirt['size'] == 'XXS'
+        tee = client.post(f'/v1/taste/profiles/{pid}/chat', json={'messages': [{'role': 'user', 'text': 'white tee'}]}).json()
+        assert jeans['size'] == '6/8' and (boots['size'], boots['shoe_size_system']) == ('8.5', 'womens')
+        assert tee['size'] == 'S'  # not picked, so from the measured bust
+        job = client.post(f'/v1/taste/profiles/{pid}/searches', json={'query': 'jeans', 'size': '6/8', 'size_note': 'Bottoms: 6 or 8'}).json()
+        with sqlite3.connect(tmp_path / 'f.sqlite') as db:
+            request = json.loads(db.execute('SELECT request FROM jobs WHERE id=?', (job['search_id'],)).fetchone()[0])
+        assert request['request']['size_note'] == 'Bottoms: 6 or 8' and request['request']['measurements'] == {'bust': 35.0}
