@@ -30,3 +30,13 @@ def test_actor_rows_carry_seller_reviews():
     row = normalize.etsy({'listingId': 1, 'title': 'coat', 'url': 'https://www.etsy.com/listing/1', 'price': 40,
                           'currency': 'USD', 'shopName': 's', 'shopRating': 4.5, 'shopReviewCount': 17})
     assert (row['seller_rating'], row['seller_reviews']) == (4.5, 17)
+
+
+def test_identical_listings_collapse_to_one_with_a_warning():
+    from sourcing.pipeline import diversify
+    belts = [item(f'b{i}', 13.5, title='Black pyramid stud belt. Black faux-leather strap') for i in range(6)]
+    for i, x in enumerate(belts):
+        x.score = 80 - i
+    shown = flag(diversify(belts + [item('coat', 90)], 20))
+    assert [x.id for x in shown] == ['b0', 'coat']
+    assert 'appears 6 times' in shown[0].risks[0] and shown[1].risks == []

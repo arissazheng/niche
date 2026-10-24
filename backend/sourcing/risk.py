@@ -27,6 +27,9 @@ def flag(items):
         if OFF_PLATFORM.search(f'{item.title}\n{item.description}'):
             risks.append('The listing mentions paying outside the marketplace. Only pay through the site: '
                          'off-platform payments lose buyer and card protection.')
+        if item.copies >= 3:
+            risks.append(f'The same listing appears {item.copies} times, often from look-alike accounts: a common sign '
+                         'of a dropshipper or scam. Check the seller before paying.')
         if item.seller_reviews == 0:
             risks.append('This seller has no reviews yet.')
         elif item.seller_rating is not None and item.seller_rating < LOW_RATING and (item.seller_reviews or 0) >= 3:

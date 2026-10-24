@@ -68,6 +68,7 @@ class Listing(StrictModel):
     seller_rating: float | None = None  # 0-5, where the marketplace gives it
     seller_reviews: int | None = None
     features: list[str] = []  # visible features Claude tagged from the photo (pre-loaded listings only)
+    copies: int = 1  # how many identical listings (same title and price) were found; only the best one is shown
     risks: list[str] = []  # scam / buyer-protection warnings, shown before the shopper clicks through (sourcing/risk.py)
     shipping_cost: float | None = None
     ships_to: list[str] | None = None

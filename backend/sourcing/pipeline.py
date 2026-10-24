@@ -147,9 +147,21 @@ GOOD_FIT = 50
 RELEVANT = 40  # Claude scores below this miss the request (wrong item, or none of its defining features)
 
 
+def copy_key(item):
+    """Same marketplace, title and price: one item posted several times (often from look-alike accounts)."""
+    return (item.marketplace or item.source, re.sub(r'[^a-z0-9]', '', item.title.lower())[:80], round(item.price, 2))
+
+
 def diversify(items, limit):
-    counts, capped = {}, []
+    counts, capped, copies = {}, [], {}
+    for item in items:
+        copies[copy_key(item)] = copies.get(copy_key(item), 0) + 1
+    shown = set()
     for item in sorted(items,key=lambda x: x.score or 0,reverse=True):
+        if copy_key(item) in shown:
+            continue  # keep the best-ranked copy only
+        shown.add(copy_key(item))
+        item.copies = copies[copy_key(item)]
         key = (item.source,item.seller or item.id)
         if counts.get(key,0)>=2:
             continue
