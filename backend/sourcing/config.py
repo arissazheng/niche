@@ -45,6 +45,10 @@ class Settings(BaseSettings):
         'NICHE_CARTESIA_API_KEY', 'CARTESIA_API_KEY', 'cartesia_api_key'))
     cartesia_base_url: str = 'https://api.cartesia.ai'
     cartesia_stt_model: str = 'ink-whisper'
+    # Moss semantic search over listings a shopper was already shown (taste/finds.py). Blank turns it off.
+    moss_project_id: str = ''
+    moss_project_key: str = ''
+    moss_url: str = 'https://service.usemoss.dev'
 
     def validate_live(self):
         if self.sourcing_mode == 'live' and not (self.apify_token and self.anthropic_api_key):

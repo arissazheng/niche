@@ -230,6 +230,16 @@ export interface ChatTurn {
   proposed_must_have?: string[] | null; // visible features the offered search needs (asymmetric, button-front…)
   proposed_category?: string | null;
   linked?: LinkedPage[]; // product links the agent read from the user's message
+  recalled?: RecalledFind[]; // earlier finds the agent brought back (Moss search over past results)
+}
+
+/** A listing from an earlier search that the shop agent recalled (backend/taste/finds.py). */
+export interface RecalledFind {
+  title: string;
+  url: string;
+  price: number | null;
+  currency: string | null;
+  store: string | null;
 }
 
 export interface LinkedPage {
@@ -257,6 +267,7 @@ export interface AgentReply {
   must_have?: string[];
   category?: string;
   linked?: LinkedPage[];
+  recalled?: RecalledFind[];
   budget?: Omit<Budget, "linked"> | null;
   search_id?: string;
   status_url?: string;

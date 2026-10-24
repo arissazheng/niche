@@ -142,6 +142,7 @@ export default function ShopPage() {
       const reply = await api.chat(profileId, next, searchId, keepToBudget);
       const agentTurn: ChatTurn = { role: "agent", text: reply.reply };
       if (reply.linked?.length) agentTurn.linked = reply.linked;
+      if (reply.recalled?.length) agentTurn.recalled = reply.recalled;
       if (reply.action === "search") agentTurn.brief = reply.brief;
       if (reply.action === "propose") {
         agentTurn.proposed = reply.brief;
@@ -367,6 +368,20 @@ function ChatPanel({
                   </p>
                 ))}
                 <p className="text-sm">{m.text}</p>
+                {m.recalled?.length ? (
+                  <ul className="mt-2 grid gap-1">
+                    {m.recalled.map((f) => (
+                      <li key={f.url} className="text-xs">
+                        <a href={f.url} target="_blank" rel="noopener noreferrer" className="underline">
+                          {f.title}
+                        </a>
+                        <span className="text-muted">
+                          {[f.store, f.price != null ? `${f.price} ${f.currency ?? ""}`.trim() : null].filter(Boolean).map((x) => ` \u00B7 ${x}`)}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                ) : null}
                 {m.brief && <p className="label text-muted mt-1">Searched: {m.brief}</p>}
                 {m === pending && !thinking && (
                   <div className="flex gap-3 mt-2">

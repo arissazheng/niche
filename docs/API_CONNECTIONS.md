@@ -43,6 +43,7 @@ All of these go through `sourcing/safe_fetch.py` (public addresses only, size-ca
 | **Elastic** (Elasticsearch Serverless) | Instant search over every listing found so far | Project URL and API key |
 | **Fetch.ai** (Agentverse / ASI:One) | Niche as a shopping agent inside ASI:One | Agentverse account and API key |
 | **Cartesia** | Voice input (speech-to-text, `ink-whisper`) | `web/components/voice.tsx` records; `backend/voice/api.py` calls Cartesia with `CARTESIA_API_KEY`. Moss is search, not speech-to-text, so it is not a voice provider |
+| **Moss** | Shop chat memory: semantic search over listings already shown ("the green skirt from before") | `backend/taste/finds.py` indexes each search's results per shopper via the manage API (`MOSS_PROJECT_ID`, `MOSS_PROJECT_KEY`) and queries with the SDK (`pip install -e '.[moss]'`) or the cloud query API |
 
 ## Removed
 
