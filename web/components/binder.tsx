@@ -319,7 +319,7 @@ function PieceBody({ piece }: { piece: Piece }) {
       return (
         <div className="relative bg-[#f7f6f2]/75 backdrop-blur-[3px] px-[0.8vw] py-[0.7vw] shadow-[0_1px_2px_rgba(0,0,0,.1)]">
           <Paperclip />
-          <p className="font-serif italic text-[0.95vw] leading-[1.25] line-clamp-5">{piece.text}</p>
+          <p className="font-serif italic text-[0.95vw] leading-[1.25]">{piece.text}</p>
         </div>
       );
     case "dots":
@@ -438,7 +438,7 @@ function layout(view: ProfileView, shapes: Shapes, aspect: number): Piece[] {
         width: noteWidth,
         rotate: (rand() - 0.5) * 6,
         z: 75,
-        text: cluster.description,
+        text: cardText(cluster.description),
       });
     }
     const colors = [...new Set(images.flatMap((x) => x.palette.slice(0, 2)))].slice(0, 5);
@@ -494,6 +494,16 @@ function zones(counts: number[]): Zone[] {
     });
   });
   return out;
+}
+
+/**
+ * A short card-sized summary. New builds write one sentence; older, longer descriptions keep their lead clause
+ * ("2000s-revival tailoring with a ladylike, slightly gothic edge: cropped shrugs…" → the part before the colon).
+ */
+function cardText(description: string, max = 110) {
+  const lead = description.split(/[:;.!?—]\s/)[0].trim().replace(/[:;,.—]$/, "");
+  if (lead.length <= max) return lead;
+  return lead.slice(0, max).replace(/[\s,]+\S*$/, "");
 }
 
 /** About a third of prints are torn out of a magazine; the rest get tape, a binder clip or nothing. */
