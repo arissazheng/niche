@@ -235,7 +235,7 @@ def test_live_listing_row_carries_store_labels():
     assert row['score'] == {'none': []} and row['rank'] == {'none': []}
 
 
-def test_chat_proposes_then_searches_only_after_yes(client):
+def test_chat_searches_requests_and_asks_before_its_own_ideas(client):
     pid = client.post('/v1/taste/profiles', json={'data_consent': True, 'budget_max': 80}).json()['profile']['id']
     client.post(f'/v1/taste/profiles/{pid}/images', files={'file': ('a.png', png((20, 20, 20)))}, data={'kind': 'outfit'})
     assert client.post(f'/v1/taste/profiles/{pid}/chat', json={'messages': [{'role': 'user', 'text': 'tops'}]}).status_code == 422
@@ -243,8 +243,12 @@ def test_chat_proposes_then_searches_only_after_yes(client):
     turns = [{'role': 'user', 'text': 'i want an asymmetrical buttoned top'},
              {'role': 'agent', 'text': 'Searching.', 'brief': 'asymmetrical buttoned top'},
              {'role': 'user', 'text': 'no actually less formal'}]
+    refined = client.post(f'/v1/taste/profiles/{pid}/chat', json={'messages': turns}).json()
+    assert refined['action'] == 'search' and 'less formal' in refined['brief'] and refined['search_id']  # no yes/no
+    turns += [{'role': 'agent', 'text': refined['reply'], 'brief': refined['brief']},
+              {'role': 'user', 'text': 'what do you think of cropped ones?'}]
     proposal = client.post(f'/v1/taste/profiles/{pid}/chat', json={'messages': turns}).json()
-    assert proposal['action'] == 'propose' and 'less formal' in proposal['brief'] and 'search_id' not in proposal
+    assert proposal['action'] == 'propose' and 'search_id' not in proposal
     turns += [{'role': 'agent', 'text': proposal['reply'], 'proposed': proposal['brief']},
               {'role': 'user', 'text': 'yes please'}]
     ran = client.post(f'/v1/taste/profiles/{pid}/chat', json={'messages': turns}).json()
@@ -266,8 +270,8 @@ def test_shop_agent_live_uses_claude_and_conversation(tmp_path):
     agent = ShopAgent(Settings(taste_mode='live', anthropic_api_key='k'), FakeModel())
     turn = asyncio.run(agent.respond(Profile(id='p', prompt='monochrome y2k'),
         [ChatTurn(role='user', text='asymmetrical buttoned top'), ChatTurn(role='user', text='less formal')]))
-    # No proposal was accepted yet, so even a model-chosen search is turned into a question.
-    assert turn.action == 'propose' and 'relaxed' in turn.brief and turn.reply.startswith('Would you like me to search')
+    # The user asked for it, so the agent searches without a yes/no.
+    assert turn.action == 'search' and 'relaxed' in turn.brief
     assert seen['stage'] == 'chat' and seen['effort'] == 'low' and 'less formal' in seen['content']
 
 

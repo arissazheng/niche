@@ -14,7 +14,7 @@ const NEVER_SHOWN = [
 ];
 
 const STEPS = [
-  ["You ask, Niche proposes", "Describe what you want in the chat. Niche suggests a search."],
+  ["You ask", "Describe what you want in the chat and Niche searches for it. If a search is Niche's own idea, it asks you first."],
   ["Claude plans the search", "Your request and taste profile become a few concrete search phrases (garment, colour, silhouette)."],
   ["Stores are searched", "Mainstream retailers through Google Shopping, plus Depop, Poshmark, Vinted and Etsy for secondhand and small shops."],
   ["Hard filters", "Your size for that kind of garment, your price cap, and the exclusions above."],
