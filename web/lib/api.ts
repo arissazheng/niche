@@ -33,6 +33,9 @@ export const api = {
     request<TasteImage>(`/v1/taste/images/${imageId}/note`, { method: "PUT", body: json({ note }) }),
   imageFromUrl: (id: string, url: string, kind: ImageKind = "outfit") =>
     request<TasteImage>(`/v1/taste/profiles/${id}/images/from-url`, { method: "POST", body: json({ url, kind }) }),
+  /** The assistant's spoken reaction to photos just added. */
+  reactToPhotos: (id: string, imageIds: string[]) =>
+    request<{ text: string }>(`/v1/taste/profiles/${id}/react`, { method: "POST", body: json({ image_ids: imageIds }) }),
   setLookbookNotes: (id: string, notes: string[]) =>
     request<ProfileView>(`/v1/taste/profiles/${id}/notes`, { method: "PUT", body: json({ notes }) }),
   importLink: (id: string, url: string) =>
@@ -88,10 +91,24 @@ export const api = {
   getSearch: (statusUrl: string) => request<SearchJob>(statusUrl),
   transcribe: (audio: Blob) => {
     const form = new FormData();
-    const ext = audio.type.includes("mp4") ? "mp4" : audio.type.includes("ogg") ? "ogg" : "webm";
+    const ext = audio.type.includes("wav") ? "wav" : audio.type.includes("mp4") ? "mp4" : audio.type.includes("ogg") ? "ogg" : "webm";
     form.append("file", audio, `speech.${ext}`);
     return request<{ text: string }>("/v1/voice/transcribe", { method: "POST", body: form });
   },
+  /** The assistant's reply as speech (MP3). */
+  speak: async (text: string) => {
+    const response = await fetch(`${API_URL}/v1/voice/speak`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: json({ text: text.slice(0, 1500) }),
+    });
+    if (!response.ok) {
+      const detail = await response.json().catch(() => null);
+      throw new Error(typeof detail?.detail === "string" ? detail.detail : `Request failed (${response.status})`);
+    }
+    return response.arrayBuffer();
+  },
+  voiceStatus: () => request<{ enabled: boolean; provider: string }>("/v1/voice/status"),
   /** Onboarding answers spoken out loud → only the form fields the user mentioned. */
   heardOnboarding: (transcript: string, shopOptions: string[]) =>
     request<HeardOnboarding>("/v1/voice/onboarding", {

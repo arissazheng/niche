@@ -113,7 +113,11 @@ export interface Onboarding {
 /** Fields the voice parser heard in a spoken onboarding answer; anything not mentioned is absent. */
 export type HeardOnboarding = Partial<
   Pick<Onboarding, "name" | "age" | "email" | "budget_min" | "budget_max" | "currency" | "usual_shops" | "favorite_brands">
-> & { measurements?: Partial<Measurements> };
+> & {
+  measurements?: Partial<Measurements>;
+  system?: SizeSystem;
+  sizes?: { category: "tops" | "bottoms" | "dresses" | "outerwear" | "shoes"; format: string; value: string }[];
+};
 
 export interface Garment {
   category: string;

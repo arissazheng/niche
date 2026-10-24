@@ -10,6 +10,7 @@ import "@fontsource/cormorant-garamond/500-italic.css";
 import "@fontsource/cedarville-cursive/400.css";
 import "@fontsource/reenie-beanie/400.css";
 import "@fontsource/playfair-display/400-italic.css";
+import { AssistantDock, AssistantProvider } from "@/components/assistant";
 import { SiteFooter, SiteHeader } from "@/components/chrome";
 import { LiveProvider } from "@/components/live-provider";
 import { APP_NAME } from "@/lib/session";
@@ -26,9 +27,13 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
     <html lang="en" suppressHydrationWarning>
       <body className="antialiased min-h-dvh flex flex-col">
         <LiveProvider>
-          <SiteHeader />
-          <main className="flex-1">{children}</main>
-          <SiteFooter />
+          {/* The assistant wraps every page, so its conversation carries on as the shopper moves around. */}
+          <AssistantProvider>
+            <SiteHeader />
+            <main className="flex-1 pb-24">{children}</main>
+            <SiteFooter />
+            <AssistantDock />
+          </AssistantProvider>
         </LiveProvider>
       </body>
     </html>

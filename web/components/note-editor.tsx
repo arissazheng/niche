@@ -1,7 +1,7 @@
 "use client";
 
-import { useState } from "react";
-import { VoiceButton } from "@/components/voice";
+import { useRef, useState } from "react";
+import { useAssistant, useAssistantSkill } from "@/lib/assistant";
 import type { TasteImage } from "@/lib/types";
 
 /** Per-image preference note ("I like the color, not the frills"), shared by Upload and the moodboard. */
@@ -17,6 +17,26 @@ export function NoteEditor({
   hint?: string;
 }) {
   const [note, setNote] = useState(image.note);
+  const latest = useRef(note);
+  latest.current = note;
+  const assistant = useAssistant();
+  // While this photo is open, what the shopper tells the assistant becomes its note.
+  useAssistantSkill({
+    id: "note",
+    label: "Noting what you like about this photo",
+    intro: "Ooh, this one. What do you like about it?",
+    placeholder: "I like the color, not the frills",
+    async handle(text) {
+      if (/^\s*(save|done|that'?s (it|all))\b/i.test(text)) {
+        onSave(latest.current);
+        return "Saved!";
+      }
+      const next = `${latest.current} ${text}`.trim();
+      latest.current = next;
+      setNote(next);
+      return "Got it, added to the note. Say save when you're done.";
+    },
+  });
   return (
     <div className="grid gap-3">
       {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -28,7 +48,11 @@ export function NoteEditor({
         value={note}
         onChange={(e) => setNote(e.target.value)}
       />
-      <VoiceButton context="profile-review" label="Say it" onTranscript={(t) => setNote((n) => `${n} ${t}`.trim())} />
+      {assistant.mode === "off" && (
+        <button type="button" onClick={() => assistant.start("voice")} className="label underline justify-self-start">
+          Say it out loud
+        </button>
+      )}
       {hint && <p className="text-xs text-muted">{hint}</p>}
       <div className="flex justify-between">
         {onDelete ? <button onClick={onDelete} className="label underline">Remove image</button> : <span />}

@@ -3,8 +3,8 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { SectionTitle } from "@/components/chrome";
-import { VoiceButton } from "@/components/voice";
 import { api } from "@/lib/api";
+import { SHOPPING, useAssistant, useAssistantSkill } from "@/lib/assistant";
 import type { ProfileView } from "@/lib/types";
 
 export type Change = (task: () => Promise<ProfileView>) => Promise<string | null>;
@@ -35,6 +35,33 @@ export function ProfilePanel({ view, onChange }: { view: ProfileView; onChange: 
   function adjust(text: string, source: "text" | "voice") {
     return update(() => api.edit(profile.id, text, source), "Updating your profile…", `Updated: “${text}”`);
   }
+
+  // Talking about the taste profile edits it; shopping requests go on to the shopping agent.
+  const assistant = useAssistant();
+  useAssistantSkill(
+    profile.version === 0
+      ? null
+      : {
+          id: "profile",
+          label: "Going over your taste profile",
+          intro: readBack(profile),
+          placeholder: "Less minimal, more vintage",
+          async handle(text) {
+            if (SHOPPING.test(text)) return null;
+            if (/^\s*(yes|yeah|yep|spot on|perfect|exactly|that'?s (right|me|it)|you got it|love it)\b/i.test(text)) {
+              return "Yay! Then let's go shopping. What are you looking for?";
+            }
+            setWorking("Updating your profile…");
+            setStatus(null);
+            const error = await onChange(() => api.edit(profile.id, text, assistant.mode === "voice" ? "voice" : "text"));
+            setWorking(null);
+            setStatus(error ? `Couldn't update: ${error}` : `Updated: “${text}”`);
+            if (error) return `Hmm, I couldn't update that: ${error}`;
+            setFlash(true);
+            return "Done, I updated your profile. Anything else feel off?";
+          },
+        },
+  );
 
   // Changed sections briefly turn grey so it's obvious where an edit landed.
   const changed = `transition-colors duration-700 ${flash ? "bg-plinth" : ""}`;
@@ -101,11 +128,9 @@ export function ProfilePanel({ view, onChange }: { view: ProfileView; onChange: 
               onChange={(e) => setInstruction(e.target.value)}
             />
             <div className="flex justify-between">
-              <VoiceButton
-                context="profile-review"
-                label="Review out loud"
-                onTranscript={(t) => adjust(t, "voice")}
-              />
+              <button type="button" onClick={() => assistant.start("voice")} className="label underline">
+                Talk it over
+              </button>
               <button disabled={!!working} className="label underline disabled:no-underline disabled:text-muted">
                 Apply
               </button>
@@ -120,4 +145,22 @@ export function ProfilePanel({ view, onChange }: { view: ProfileView; onChange: 
       )}
     </aside>
   );
+}
+
+/** "Okay, here's what I got from you…": the assistant reads the moodboard back like a friend would. */
+function readBack(profile: ProfileView["profile"]) {
+  const list = (items: string[]) =>
+    items.length > 1 ? `${items.slice(0, -1).join(", ")} and ${items.at(-1)}` : (items[0] ?? "");
+  const vibe = list(profile.aesthetics.slice(0, 2).map((x) => x.toLowerCase()));
+  const colors = list(profile.colors.filter((x) => !x.startsWith("#")).slice(0, 3).map((x) => x.toLowerCase()));
+  const shapes = list(profile.silhouettes.slice(0, 2).map((x) => x.toLowerCase()));
+  const parts = [
+    "Okay, so here's what I got from you.",
+    vibe && `You're into ${vibe}`,
+    colors && `${vibe ? "with" : "You love"} lots of ${colors}`,
+    shapes && `and you gravitate to ${shapes}.`,
+  ].filter(Boolean);
+  if (parts.length === 1 && profile.summary) parts.push(profile.summary.split(/(?<=\.)\s/)[0]);
+  const said = parts.join(" ").replace(/(\w)( and you)/, "$1,$2");
+  return `${said}${said.endsWith(".") ? "" : "."} Did I get you right? Tell me anything that feels off.`;
 }

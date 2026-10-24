@@ -16,7 +16,7 @@ backend/          FastAPI, Python 3.11+
   tests/
 web/              Next.js 15 (App Router) + Tailwind v4
   app/            / landing · /onboard setup questions · /taste uploads, moodboard, profile · /shop search + checkout
-  components/     chrome (header/footer), drawer, hand-drawn circle, image tile, voice seam, checkout
+  components/     chrome (header/footer), drawer, hand-drawn circle, image tile, assistant (voice + text, on every page), checkout
   lib/            API client, shared types
 spacetime/        SpacetimeDB module: shared moodboard, cursors, build progress, streaming search results
 docs/             workplan

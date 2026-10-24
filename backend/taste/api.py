@@ -21,7 +21,7 @@ from .imports import Importer, LinkError
 from .nearby import Nearby, NearbyError
 from .links import extract_urls, read_link
 from .engine import TasteEngine, fingerprint
-from .models import EditInstruction, ImageFromUrl, ImageKind, ImportRequest, Measurements, LookbookNotes, NoteUpdate, Onboarding, ProfileSearch, PromptUpdate
+from .models import EditInstruction, ImageFromUrl, ImageKind, ImportRequest, Measurements, LookbookNotes, NoteUpdate, Onboarding, PhotoReaction, ProfileSearch, PromptUpdate
 from .signing import Signer
 from .store import TasteStore
 
@@ -123,6 +123,15 @@ def create_router(settings, store: Store, budgets: Budgets | None = None, signer
             return signer.image(engine.add_image(ident, data, kind, note).model_dump(mode='json'))
         except (UnidentifiedImageError, OSError):
             raise HTTPException(422, 'Unsupported image')
+
+    @router.post('/profiles/{ident}/react')
+    async def react(ident: str, body: PhotoReaction):
+        """The assistant's one-line reaction to photos just added ("Ooh, I'm sensing a 90s minimal thing")."""
+        profile = profile_or_404(ident)
+        images = [x for x in (taste.image(i) for i in body.image_ids) if x and x.profile_id == ident]
+        if not images:
+            raise HTTPException(404, 'Photos not found')
+        return {'text': await engine.react(profile, images)}
 
     @router.put('/profiles/{ident}/notes')
     def lookbook_notes(ident: str, body: LookbookNotes):

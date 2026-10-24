@@ -155,6 +155,11 @@ class PromptUpdate(StrictModel):
     prompt: str = Field(min_length=1, max_length=3000)
 
 
+class PhotoReaction(StrictModel):
+    """Photos just added to the lookbook, for the assistant to react to out loud."""
+    image_ids: list[str] = Field(min_length=1, max_length=6)
+
+
 class EditInstruction(StrictModel):
     instruction: str = Field(min_length=1, max_length=1000)
     source: Literal['text', 'voice'] = 'text'

@@ -404,3 +404,28 @@ def test_delete_my_data_removes_profile_photos_and_searches(client, tmp_path):
     assert not (tmp_path/'uploads'/f'{image["id"]}.jpg').exists()
     assert client.get(f'/v1/searches/{search_id}').status_code == 404
     assert client.delete(f'/v1/taste/profiles/{pid}').status_code == 404
+
+
+def test_assistant_reacts_to_new_photos_and_only_sends_them_with_consent(tmp_path, client):
+    pid = client.post('/v1/taste/profiles', json={'name': 'Ari'}).json()['profile']['id']
+    image = client.post(f'/v1/taste/profiles/{pid}/images', files={'file': ('a.png', png((20, 20, 20)))}).json()['id']
+    said = client.post(f'/v1/taste/profiles/{pid}/react', json={'image_ids': [image]})
+    assert said.status_code == 200 and said.json()['text']
+    assert client.post(f'/v1/taste/profiles/{pid}/react', json={'image_ids': ['nope']}).status_code == 404
+
+    settings = Settings(database_path=str(tmp_path/'r.sqlite'), upload_dir=str(tmp_path/'ru'), taste_mode='live')
+    taste = TasteStore(Store(settings.database_path))
+    sent = []
+
+    class FakeModel:
+        async def call(self, system, content, job_id, stage, max_tokens, schema=None, effort=None):
+            sent.append((stage, content))
+            return {'text': " Ooh, I'm sensing a 90s minimal thing. "}
+
+    engine = TasteEngine(settings, taste, model=FakeModel())
+    shy = taste.create_profile(Onboarding())
+    photo = TasteEngine(settings.model_copy(update={'taste_mode': 'fixture'}), taste).add_image(shy.id, png((9, 9, 9)), 'outfit')
+    assert asyncio.run(engine.react(shy, [photo])) and not sent  # no consent: the photo stays home
+    shy.onboarding.data_consent = True
+    assert asyncio.run(engine.react(shy, [photo])) == "Ooh, I'm sensing a 90s minimal thing."
+    assert sent[0][0] == 'react' and sent[0][1][0]['type'] == 'image'
