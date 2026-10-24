@@ -362,7 +362,7 @@ def test_streamed_batches_are_ranked_as_they_arrive(request_data, store):
     assert result['sources']['secondhand']['status'] == 'succeeded' and result['ranking_method'] == 'claude'
 
 
-def test_prefetch_is_ranked_ahead_and_shown_first(request_data, store):
+def test_prefetch_is_shown_first_and_reranked_for_the_search(request_data, store):
     from sourcing.prefetch import Prefetcher
     request = niche_request(request_data, sources=('secondhand',))
     request.profile_id = 'p1'
@@ -396,8 +396,8 @@ def test_prefetch_is_ranked_ahead_and_shown_first(request_data, store):
     request.request.query = 'linen trousers'  # only the trousers in the prefetch match
     ident = store.create(request.model_dump(mode='json'))
     result = asyncio.run(Pipeline(settings, store, sources=Live(), model=model).run(request, ident))
-    # Shown with the scores from the warm-up: no Claude call needed at search time.
-    assert result['prefetched'] > 0 and model.ranked == [] and result['ranking_method'] == 'claude'
+    # Scraped ahead of time, but re-ranked against this search (the warm-up only judged the taste in general).
+    assert result['prefetched'] > 0 and len(model.ranked) == 1 and result['ranking_method'] == 'claude'
     assert all('trousers' in x['title'].lower() for x in result['results'])
 
 
@@ -415,3 +415,26 @@ def test_results_keep_a_mix_of_new_and_secondhand(request_data):
     for x in more:
         x.score = 30  # poor fits don't get a guaranteed place
     assert all(x.source == 'secondhand' for x in diversify(items + more, 6))
+
+
+def test_claude_scores_below_relevance_are_dropped(request_data, store):
+    class Model:
+        async def plan(self, *args):
+            return ['asymmetrical buttoned top']
+
+        async def rank(self, request, batch, job_id):
+            for i, x in enumerate(batch):
+                x.score, x.match_dimensions, x.reason = (85 if i % 2 else 20), {'color': 80}, 'r'
+            return batch
+
+    settings = Settings(sourcing_mode='live', apify_token='t', anthropic_api_key='k')
+    request = niche_request(request_data, sources=('secondhand',))
+
+    class Live:
+        async def stream(self, source, query, limit, job_id, max_price=None):
+            items, _ = await FixtureSources().fetch(source, query, 8, job_id)
+            yield items, {'status': 'succeeded'}
+
+    ident = store.create(request.model_dump(mode='json'))
+    result = asyncio.run(Pipeline(settings, store, sources=Live(), model=Model()).run(request, ident))
+    assert result['results'] and all(x['score'] >= 40 for x in result['results'])

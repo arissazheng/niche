@@ -102,6 +102,7 @@ def lexical_score(item, request):
 # can't crowd out the other just by returning more listings. Better fits still rank first within the list.
 MIX_FLOOR = 0.25
 GOOD_FIT = 50
+RELEVANT = 40  # Claude scores below this miss the request (wrong item, or none of its defining features)
 
 
 def diversify(items, limit):
@@ -168,7 +169,9 @@ class Pipeline:
         seen_urls, ranked, provisional, methods, rankers = set(), [], {}, [], []
 
         def scored_rows():
-            shown = risk.flag(diversify(ranked,request.limit))  # price warnings compare against this page
+            # Claude-ranked items that don't match the request are dropped rather than padding the page.
+            relevant = [x for x in ranked if not x.match_dimensions or (x.score or 0) >= RELEVANT]
+            shown = risk.flag(diversify(relevant,request.limit))  # price warnings compare against this page
             return [{**x.model_dump(mode='json'), 'rank': i+1} for i,x in enumerate(shown)]
 
         async def publish():
@@ -239,9 +242,13 @@ class Pipeline:
             if ready:
                 seen_urls.update(x.url for x in ready)
                 result['prefetched'] = len(ready)
-                ranked.extend(ready)
-                methods.append('claude')
+                # Their saved scores judged the taste in general, not this request ("top" also matched corsets), so
+                # they show straight away as unranked and are re-ranked against the actual search.
+                batch = sorted(ready,key=lambda x:lexical_score(x,request),reverse=True)[:per_source]
+                key = ('prefetched', len(rankers))
+                provisional[key] = [x.model_dump(mode='json') for x in batch[:8]]
                 await publish()
+                rankers.append(asyncio.create_task(rank_batch(key,batch)))
         # Niche actors take every query variant in one run; single-marketplace adapters rotate through them.
         tasks = [asyncio.create_task(consume(s,queries if s in NICHE else queries[i%len(queries)]))
                  for i,s in enumerate(sources)]
@@ -259,7 +266,7 @@ class Pipeline:
                 result['warnings'].append('Claude ranking unavailable for some results; lexical fallback used')
             result['ranking_method'] = ('claude' if set(methods)=={'claude'} else
                                         'fixture_lexical' if 'fixture_lexical' in methods else 'lexical_fallback')
-            result['results'] = [x.model_dump(mode='json') for x in diversify(ranked,request.limit)]
+            result['results'] = scored_rows()  # same relevance floor and scam checks as the streamed pages
         # Replace the provisional rows with the final ranked set (or none).
         await self.live.listings(job_id, [{**x, 'rank': i+1} for i,x in enumerate(result['results'])], replace=True)
         failures = sum(x['status']=='failed' for x in result['sources'].values())

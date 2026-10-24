@@ -25,6 +25,9 @@ Return JSON with rankings, one entry per provided id: id, score (0 to 100), dime
 (color, silhouette, aesthetic: each 0 to 100), reason (one concise sentence), uncertainties (array of strings).
 Listings come from mainstream retailers and secondhand marketplaces (see retailer and tier). Rank them as one list
 by taste fit and the request; do not favor new or secondhand. Prioritize the requested item category (a garment, shoes or an accessory); an unrelated item should score below 30.
+The request comes first, taste second. When the request names defining features (e.g. asymmetrical, buttoned, a
+high collar, wide-leg, a specific neckline), a listing visibly missing them scores below 40 however well its colours
+or mood fit the taste; one that has some of them sits in the middle; only one that has them can score above 70.
 request.measurements are the shopper's body measurements in inches. When a listing states garment measurements
 (pit to pit, chest, waist, hips, inseam, sleeve, shoulders), judge fit against them, allowing normal ease
 (a top's chest about 2-4 in over the bust), and say so in the reason; a clear misfit should score lower.
