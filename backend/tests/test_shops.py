@@ -8,7 +8,7 @@ from sourcing.config import Settings
 from sourcing.models import IndieShop, SearchRequest
 from sourcing.sources import ApifySources, INDIE_SHOPS
 from sourcing.store import Store
-from taste import shops
+from taste import brands, shops
 
 BATUL = IndieShop(domain='batulthecollection.com', name='Batul The Collection')
 
@@ -77,7 +77,10 @@ def test_pipeline_passes_shops_to_indie_only(tmp_path):
 
 
 @pytest.fixture
-def client(tmp_path):
+def client(tmp_path, monkeypatch):
+    async def verify(shop, http=None):
+        return shop  # checks are covered in test_brands.py
+    monkeypatch.setattr(brands, 'verify', verify)
     settings = Settings(database_path=str(tmp_path/'api.sqlite'), upload_dir=str(tmp_path/'uploads'))
     with TestClient(create_app(settings)) as client:
         yield client

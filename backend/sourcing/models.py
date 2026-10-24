@@ -16,6 +16,9 @@ class IndieShop(StrictModel):
     # shopify: niche-indie reads its catalog. web: any other platform, found and read through Bright Data
     # (sourcing/webshops.py).
     platform: Literal['shopify', 'web'] = 'shopify'
+    # Verified independent: passed every check in taste/brands.py (None: couldn't be checked, e.g. not Shopify).
+    verified: bool | None = None
+    checks: dict[str, bool | None] = {}
 
 class TasteProfile(StrictModel):
     summary: str = Field(max_length=3000)

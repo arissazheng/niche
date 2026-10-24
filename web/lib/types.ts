@@ -185,6 +185,14 @@ export interface IndieShop {
   currency: string;
   /** shopify: its catalog is read directly. web: another platform, found and read through Bright Data. */
   platform?: "shopify" | "web";
+  /** Passed every independence check (real store, own label, small, established); null: couldn't be checked. */
+  verified?: boolean | null;
+  checks?: Record<string, boolean | null>;
+}
+
+export interface BrandSuggestion {
+  shop: IndieShop;
+  reason: string;
 }
 
 export interface ProfileView {
