@@ -229,7 +229,7 @@ export default function ShopPage() {
                   <div className="bg-plinth aspect-[3/4] flex items-center justify-center overflow-hidden">
                     {item.image_urls[0] ? (
                       // eslint-disable-next-line @next/next/no-img-element
-                      <img src={item.image_urls[0]} alt="" className="max-h-full max-w-full object-contain" />
+                      <img src={item.image_urls[0]} alt="" className="h-full w-full object-contain" />
                     ) : (
                       <span className="label text-muted">{item.is_fixture ? "Demo item" : "No photo"}</span>
                     )}

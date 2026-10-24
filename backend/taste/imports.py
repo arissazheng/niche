@@ -106,13 +106,21 @@ def parse_link(url: str) -> Link:
     raise LinkError('Paste a public Pinterest, Instagram or TikTok link: a board, profile, pin, post or video.')
 
 
+PINIMG_SIZE = re.compile(r'^(https://i\.pinimg\.com/)(\d+x\d*(?:_[A-Za-z]+)?)/')
+
+
+def larger(url: str) -> str:
+    """Pinterest serves every pin at several sizes ("/60x60/", "/236x/"...); ask for the 736px one."""
+    return PINIMG_SIZE.sub(r'\g<1>736x/', url or '')
+
+
 def board_feed_images(xml: str) -> list[str]:
     """Image URLs from a Pinterest board RSS feed, upgraded from 236px thumbnails to 736px."""
     urls = []
     for description in re.findall(r'<description>(.*?)</description>', xml, re.S):
         match = re.search(r'<img[^>]+src="([^"]+)"', html.unescape(description))
         if match:
-            urls.append(match.group(1).replace('/236x/', '/736x/'))
+            urls.append(larger(match.group(1)))
     return list(dict.fromkeys(urls))
 
 
@@ -297,7 +305,9 @@ class Importer:
 
     async def photo(self, http, image_url, video_url):
         """JPEG/PNG bytes for one post: the image, or for a video its cover plus frames (cover alone if that fails)."""
-        fetched = await safe_fetch.fetch(http, image_url, MAX_IMAGE_BYTES)
+        big = larger(image_url)
+        fetched = (big != image_url and await safe_fetch.fetch(http, big, MAX_IMAGE_BYTES)) or \
+            await safe_fetch.fetch(http, image_url, MAX_IMAGE_BYTES)
         if not fetched:
             return None
         if video_url:
