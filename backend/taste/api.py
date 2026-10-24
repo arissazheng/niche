@@ -4,7 +4,7 @@ import secrets
 import logging
 import httpx
 from typing import Annotated, Literal
-from fastapi import APIRouter, File, Form, HTTPException, UploadFile
+from fastapi import APIRouter, File, Form, HTTPException, Response, UploadFile
 from PIL import UnidentifiedImageError
 from sourcing.models import SearchRequest, ShoppingRequest
 from finance.budget import Budgets
@@ -19,6 +19,8 @@ from .fit import inches, suggest
 from .sizing import CATALOG
 from .imports import Importer, LinkError
 from .nearby import Nearby, NearbyError
+from .share_image import SIZES as SHARE_SIZES, render as render_share
+from . import palette as px
 from .links import extract_urls, read_link
 from .engine import TasteEngine, fingerprint
 from .models import EditInstruction, ImageFromUrl, ImageKind, ImportRequest, Measurements, LookbookNotes, NoteUpdate, Onboarding, ProfileSearch, PromptUpdate
@@ -35,6 +37,7 @@ def create_router(settings, store: Store, budgets: Budgets | None = None, signer
     engine = TasteEngine(settings, taste)
     prefetcher = Prefetcher(settings, store)
     nearby = Nearby(settings)
+    share_images: dict[tuple, bytes] = {}  # (profile, version, inputs, format) -> PNG
     importer = Importer(settings, taste, engine)
     router = APIRouter(prefix='/v1/taste', tags=['taste'])
 
@@ -89,6 +92,21 @@ def create_router(settings, store: Store, budgets: Budgets | None = None, signer
     @router.post('/profiles', status_code=201)
     def create(onboarding: Onboarding):
         return view(taste.create_profile(onboarding))
+
+    @router.get('/profiles/{ident}/share-image')
+    def share_image(ident: str, format: Literal['story', 'square'] = 'story'):
+        # The owner's moodboard as a picture to post (story 9:16 for Instagram / TikTok, square for X). Needs the
+        # profile id, which only the owner's browser has; share-link viewers never get it.
+        profile = built_profile(ident)
+        images = taste.images(ident)
+        key = (ident, profile.version, fingerprint(profile, images), format)
+        if key not in share_images:
+            if len(share_images) > 32:
+                share_images.clear()
+            share_images[key] = render_share(profile, images, lambda image: px.load(engine.jpeg(image)), format)
+        return Response(share_images[key], media_type='image/png', headers={
+            'Content-Disposition': f'attachment; filename="niche-moodboard-{format}.png"',
+            'Cache-Control': 'private, max-age=600'})
 
     @router.get('/profiles/{ident}')
     def get(ident: str):

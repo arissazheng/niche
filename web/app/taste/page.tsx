@@ -9,6 +9,7 @@ import { Drawer } from "@/components/drawer";
 import { EditLookbookButton } from "@/components/edit-lookbook";
 import { NoteEditor } from "@/components/note-editor";
 import { ProfilePanel } from "@/components/profile-panel";
+import { ShareSocials } from "@/components/share-socials";
 import { api } from "@/lib/api";
 import { getProfileId, setFriendView } from "@/lib/session";
 import { tables } from "@/lib/spacetime";
@@ -167,6 +168,11 @@ export default function TastePage() {
           </>
         ) : null}
       </div>
+      {isOwner && (
+        <div className="pb-2">
+          <ShareSocials profileId={id} />
+        </div>
+      )}
       {!isOwner && token && (
         // A friend's view: clearly someone else's board, read-only, with shopping as the one thing to do here.
         <div className="mx-4 mb-4 border border-ink px-4 py-5 grid gap-3 justify-items-center text-center">

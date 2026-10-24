@@ -14,6 +14,13 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 
 const json = (body: unknown) => JSON.stringify(body);
 
+/** The owner's moodboard as a PNG to post: "story" (9:16) for Instagram / TikTok, "square" for X. */
+export async function shareImage(profileId: string, format: "story" | "square"): Promise<Blob> {
+  const response = await fetch(`${API_URL}/v1/taste/profiles/${profileId}/share-image?format=${format}`);
+  if (!response.ok) throw new Error(`Couldn't make the image (${response.status})`);
+  return response.blob();
+}
+
 export const api = {
   sizingCatalog: () => request<SizeCatalog>("/v1/taste/sizing/catalog"),
   suggestSizes: (measurements: Measurements, system: SizeSystem) =>
