@@ -1,4 +1,4 @@
-import type { AgentReply, BrandSuggestion, Budget, ChatTurn, ClothingSizes, HeardOnboarding, ImageKind, ImportJob, Measurements, NearbyShops, Onboarding, ProfileView, SearchJob, SizeCatalog, SizeSystem, Source, TasteImage } from "./types";
+import type { AgentReply, BrandSuggestion, Budget, ChatTurn, ClothingSizes, HeardOnboarding, ImageKind, ImportJob, Measurements, NearbyShops, Onboarding, ProfileView, SearchJob, SizeCatalog, SizeSystem, Source, TasteImage, PriceCheck } from "./types";
 
 export const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://127.0.0.1:8000";
 
@@ -63,6 +63,8 @@ export const api = {
     request<ProfileView>(`/v1/taste/profiles/${id}/edit`, { method: "POST", body: json({ instruction, source }) }),
   setPrompt: (id: string, prompt: string) =>
     request<ProfileView>(`/v1/taste/profiles/${id}/prompt`, { method: "PUT", body: json({ prompt }) }),
+  priceCheck: (searchId: string, listingId: string) =>
+    request<PriceCheck>(`/v1/searches/${searchId}/listings/${encodeURIComponent(listingId)}/price-check`),
   search: (
     id: string,
     query: string,

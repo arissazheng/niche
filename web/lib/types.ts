@@ -323,3 +323,14 @@ export interface NearbyShops {
   unavailable?: boolean;
   shops: { name: string; why: string; maps_url: string }[];
 }
+
+/** Snowflake market check: this listing's price against similar listings seen before (Cortex writes the sentence). */
+export interface PriceCheck {
+  verdict: "deal" | "fair" | "high" | "unknown";
+  n: number;
+  low: number | null;
+  median: number | null;
+  high: number | null;
+  sentence: string;
+  comparables: { title: string; price: number; marketplace: string | null }[];
+}

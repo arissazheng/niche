@@ -4,6 +4,7 @@ import Link from "next/link";
 import { use, useEffect, useRef, useState } from "react";
 import { SectionTitle } from "@/components/chrome";
 import { Drawer } from "@/components/drawer";
+import { MarketCheck } from "@/components/market-check";
 import { api } from "@/lib/api";
 import { useAssistant, useAssistantSkill } from "@/lib/assistant";
 import { setFriendView } from "@/lib/session";
@@ -176,6 +177,7 @@ export default function GiftPage({ params }: { params: Promise<{ token: string }
                 ))}
               </div>
             )}
+            {search && <MarketCheck searchId={search.id} listingId={selected.id} />}
             <div className="grid gap-1">
               <span className="label">Why {name} would like it</span>
               <p className="text-sm">{selected.reason}</p>

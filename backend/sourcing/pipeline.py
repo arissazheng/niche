@@ -183,8 +183,9 @@ def diversify(items, limit):
     return sorted(selected,key=lambda x: x.score or 0,reverse=True)
 
 class Pipeline:
-    def __init__(self, settings, store, sources=None, model=None, live=None):
+    def __init__(self, settings, store, sources=None, model=None, live=None, market=None):
         self.settings,self.store = settings,store
+        self.market = market  # market.service.Market: keeps public listing history in Snowflake (optional)
         self.sources = sources or (FixtureSources() if settings.sourcing_mode=='fixture' else ApifySources(settings,store))
         self.model = model or Claude(settings,store)
         self.live = live or Live(settings)
@@ -262,10 +263,12 @@ class Pipeline:
                 item.reason = 'Text keyword overlap only; visual taste matching has not been evaluated.'
 
         shortlisted = set()
+        seen_listings = []  # every eligible listing, shown or not (for market history)
 
         async def take(source, items):
             candidates = [x for x in eligible(items,request,counts['left_out']) if x.url not in seen_urls]
             seen_urls.update(x.url for x in candidates)
+            seen_listings.extend(candidates)
             counts['retrieved'] += len(items)
             counts['eligible'] += len(candidates)
             # Cheap lexical shortlist limits image-token consumption. A source's later batches (each marketplace in
@@ -323,6 +326,8 @@ class Pipeline:
                     task.cancel()
             await asyncio.gather(*tasks,*rankers,return_exceptions=True)
         result['counts'] = counts
+        if self.market:
+            self.market.ingest_soon(seen_listings)  # price history for later checks; runs after, never blocks
         if methods:
             if 'lexical_fallback' in methods:
                 result['warnings'].append('Claude ranking unavailable for some results; lexical fallback used')

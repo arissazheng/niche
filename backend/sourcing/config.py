@@ -43,6 +43,13 @@ class Settings(BaseSettings):
     mainstream_queries: int = Field(default=1, ge=1, le=3)
     mainstream_items_per_query: int = Field(default=10, ge=10, le=60)
     upload_dir: str = 'data/uploads'
+    # Snowflake (SQL API + Cortex REST): public listing history for the market price check. Off when unset.
+    snowflake_account_url: str = ''
+    snowflake_pat: str = ''
+    snowflake_warehouse: str = 'COMPUTE_WH'
+    snowflake_database: str = 'NICHE'
+    snowflake_embed_model: str = 'snowflake-arctic-embed-l-v2.0'  # 1024-dim; separated near/far items best in tests
+    snowflake_model: str = 'claude-sonnet-4-5'
     public_api_url: str = 'http://127.0.0.1:8000'
     nessie_api_key: str = ''
     # SpacetimeDB live state (blank URL disables publishing; the app still works by polling).
