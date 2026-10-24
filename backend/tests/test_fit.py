@@ -32,7 +32,7 @@ def test_measurements_reach_the_search_but_not_the_taste_profile(tmp_path):
     with TestClient(create_app(settings)) as client:
         preview = client.post('/v1/taste/sizes/suggest', json={'unit': 'cm', 'bust': 91, 'inseam': 84})
         assert preview.json()['top'] == 'M' and preview.json()['bottom_length'] == 'long'
-        pid = client.post('/v1/taste/profiles', json={'measurements': {'waist': 30, 'hips': 40, 'inseam': 28}}).json()['profile']['id']
+        pid = client.post('/v1/taste/profiles', json={'data_consent': True, 'measurements': {'waist': 30, 'hips': 40, 'inseam': 28}}).json()['profile']['id']
         client.post(f'/v1/taste/profiles/{pid}/images', files={'file': ('a.png', png((20, 20, 20)))})
         built = client.post(f'/v1/taste/profiles/{pid}/build').json()['profile']
         assert '30' not in built['prompt']

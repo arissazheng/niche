@@ -27,7 +27,7 @@ def client(tmp_path):
 
 
 def test_fixture_flow_profile_to_checkout(client):
-    profile = client.post('/v1/taste/profiles', json={'name': 'Ari', 'budget_max': 80}).json()['profile']
+    profile = client.post('/v1/taste/profiles', json={'data_consent': True, 'name': 'Ari', 'budget_max': 80}).json()['profile']
     pid = profile['id']
     upload = client.post(f'/v1/taste/profiles/{pid}/images', files={'file': ('a.png', png((120, 130, 60)))},
         data={'kind': 'outfit'})
@@ -59,11 +59,18 @@ def test_fixture_flow_profile_to_checkout(client):
 
 
 def test_rejects_bad_uploads_and_empty_builds(client):
-    pid = client.post('/v1/taste/profiles', json={}).json()['profile']['id']
+    pid = client.post('/v1/taste/profiles', json={'data_consent': True}).json()['profile']['id']
     assert client.post(f'/v1/taste/profiles/{pid}/build').status_code == 422
     assert client.post(f'/v1/taste/profiles/{pid}/searches', json={'query': 'x'}).status_code == 422
     bad = client.post(f'/v1/taste/profiles/{pid}/images', files={'file': ('a.png', b'not an image')})
     assert bad.status_code == 422
+
+
+def test_build_needs_consent(client):
+    pid = client.post('/v1/taste/profiles', json={}).json()['profile']['id']
+    assert client.post(f'/v1/taste/profiles/{pid}/build').status_code == 403
+    client.put(f'/v1/taste/profiles/{pid}/onboarding', json={'data_consent': True})
+    assert client.post(f'/v1/taste/profiles/{pid}/build').status_code == 422  # consented, but no photos yet
 
 
 def test_live_build_drops_invented_image_ids(tmp_path):
@@ -73,7 +80,7 @@ def test_live_build_drops_invented_image_ids(tmp_path):
     stages = []
 
     class FakeModel:
-        async def call(self, system, content, job_id, stage, max_tokens, schema=None):
+        async def call(self, system, content, job_id, stage, max_tokens, schema=None, effort=None):
             stages.append(stage)
             if stage == 'extract':
                 assert content[0]['type'] == 'image'
@@ -117,7 +124,7 @@ def test_live_build_redoes_fixture_analyses(tmp_path):
     stages = []
 
     class FakeModel:
-        async def call(self, system, content, job_id, stage, max_tokens, schema=None):
+        async def call(self, system, content, job_id, stage, max_tokens, schema=None, effort=None):
             stages.append(stage)
             if stage == 'extract':
                 return {'garments': [{'category': 'skirt', 'colors': ['black'], 'silhouette': 'mini', 'pattern': 'solid',
@@ -130,6 +137,42 @@ def test_live_build_redoes_fixture_analyses(tmp_path):
     asyncio.run(live.build(taste.profile(profile.id)))
     assert stages == ['extract', 'synthesize']
     assert taste.images(profile.id)[0].analysis.garments[0].category == 'skirt'
+
+    # Nothing changed: building again reuses the saved profile without calling Claude.
+    before = taste.profile(profile.id)
+    again = asyncio.run(live.build(before))
+    assert stages == ['extract', 'synthesize'] and again.version == before.version
+    # A new note changes the inputs, so the next build runs again.
+    before.lookbook_notes = ['more denim']
+    asyncio.run(live.build(taste.save_profile(before)))
+    assert stages[-1] == 'synthesize' and len(stages) == 3
+
+
+def test_photos_are_read_as_soon_as_they_are_added(tmp_path):
+    settings = Settings(database_path=str(tmp_path/'t.sqlite'), upload_dir=str(tmp_path/'u'), taste_mode='live')
+    taste = TasteStore(Store(settings.database_path))
+    stages = []
+
+    class FakeModel:
+        async def call(self, system, content, job_id, stage, max_tokens, schema=None, effort=None):
+            stages.append(stage)
+            if stage == 'extract':
+                return {'garments': [], 'aesthetic_tags': ['minimal'], 'liked_aspects': [], 'disliked_aspects': [],
+                        'confidence_notes': []}
+            return {'summary': 's', 'clusters': [], 'colors': [], 'silhouettes': [], 'patterns': [], 'materials': [],
+                    'designers': [], 'aesthetics': [], 'avoid': [], 'prompt': 'p'}
+
+    engine = TasteEngine(settings, taste, model=FakeModel())
+    profile = taste.create_profile(Onboarding())
+
+    async def add_then_build():
+        engine.add_image(profile.id, png((10, 20, 30)), 'outfit')
+        await asyncio.sleep(0.05)  # the background read finishes before Build is clicked
+        assert taste.images(profile.id)[0].analysis.aesthetic_tags == ['minimal']
+        await engine.build(taste.profile(profile.id))
+
+    asyncio.run(add_then_build())
+    assert stages == ['extract', 'synthesize']  # the photo was read once, in the background
 
 
 class RecordingLive:
@@ -193,7 +236,7 @@ def test_live_listing_row_carries_store_labels():
 
 
 def test_chat_proposes_then_searches_only_after_yes(client):
-    pid = client.post('/v1/taste/profiles', json={'budget_max': 80}).json()['profile']['id']
+    pid = client.post('/v1/taste/profiles', json={'data_consent': True, 'budget_max': 80}).json()['profile']['id']
     client.post(f'/v1/taste/profiles/{pid}/images', files={'file': ('a.png', png((20, 20, 20)))}, data={'kind': 'outfit'})
     assert client.post(f'/v1/taste/profiles/{pid}/chat', json={'messages': [{'role': 'user', 'text': 'tops'}]}).status_code == 422
     client.post(f'/v1/taste/profiles/{pid}/build')
@@ -246,7 +289,7 @@ def test_chat_sees_numbered_results_of_own_search_only(client, monkeypatch):
         seen.append(results)
         return chat_module.AgentTurn(reply='ok', action='reply', brief='', max_item_price=None, size=None, category='other')
     monkeypatch.setattr(chat_module.ShopAgent, 'respond', fake_respond)
-    pid = client.post('/v1/taste/profiles', json={}).json()['profile']['id']
+    pid = client.post('/v1/taste/profiles', json={'data_consent': True}).json()['profile']['id']
     client.post(f'/v1/taste/profiles/{pid}/images', files={'file': ('a.png', png((20, 20, 20)))})
     client.post(f'/v1/taste/profiles/{pid}/build')
     search = client.post(f'/v1/taste/profiles/{pid}/searches', json={'query': 'skirt', 'sources': ['etsy']}).json()
@@ -257,7 +300,7 @@ def test_chat_sees_numbered_results_of_own_search_only(client, monkeypatch):
     ask = {'messages': [{'role': 'user', 'text': 'what about #2?'}], 'search_id': search['search_id']}
     client.post(f'/v1/taste/profiles/{pid}/chat', json=ask)
     assert seen[-1][1]['n'] == 2 and seen[-1][1]['title'] and 'price' in seen[-1][1]
-    other = client.post('/v1/taste/profiles', json={}).json()['profile']['id']
+    other = client.post('/v1/taste/profiles', json={'data_consent': True}).json()['profile']['id']
     client.post(f'/v1/taste/profiles/{other}/images', files={'file': ('a.png', png((20, 20, 20)))})
     client.post(f'/v1/taste/profiles/{other}/build')
     client.post(f'/v1/taste/profiles/{other}/chat', json=ask)
@@ -282,14 +325,16 @@ def test_pipeline_drops_other_sizes_and_flags_unknown():
     for item, labels in zip(items, (['Small'], ['L'], [], ['US 6'])):
         item.sizes = labels
     request_data.request.size = 'S'
-    kept = {x.sizes[0] if x.sizes else None for x in eligible(items, request_data)}
+    left_out = {}
+    kept = {x.sizes[0] if x.sizes else None for x in eligible(items, request_data, left_out)}
     assert 'L' not in kept and 'Small' in kept
+    assert left_out == {'wrong_size': 1}  # shown to the shopper as "1 in the wrong size"
     flagged = [x for x in eligible([items[3]], request_data)]
     assert any(w.startswith('Size unverified (listed as US 6') for w in flagged[0].warnings)
 
 
 def test_chat_defaults_to_profile_size_for_the_garment(client):
-    pid = client.post('/v1/taste/profiles', json={'sizes': {'top': 'S', 'bottom': 'M'}}).json()['profile']['id']
+    pid = client.post('/v1/taste/profiles', json={'data_consent': True, 'sizes': {'top': 'S', 'bottom': 'M'}}).json()['profile']['id']
     client.post(f'/v1/taste/profiles/{pid}/images', files={'file': ('a.png', png((20, 20, 20)))})
     client.post(f'/v1/taste/profiles/{pid}/build')
     top = client.post(f'/v1/taste/profiles/{pid}/chat', json={'messages': [{'role': 'user', 'text': 'black halter top'}]}).json()
@@ -299,7 +344,7 @@ def test_chat_defaults_to_profile_size_for_the_garment(client):
 
 
 def test_chat_accepts_history_with_linked_pages(client):
-    pid = client.post('/v1/taste/profiles', json={}).json()['profile']['id']
+    pid = client.post('/v1/taste/profiles', json={'data_consent': True}).json()['profile']['id']
     client.post(f'/v1/taste/profiles/{pid}/images', files={'file': ('a.png', png((20, 20, 20)))})
     client.post(f'/v1/taste/profiles/{pid}/build')
     history = [{'role': 'user', 'text': 'like this?'},
@@ -310,7 +355,7 @@ def test_chat_accepts_history_with_linked_pages(client):
 
 
 def test_notes_only_lookbook_builds_and_own_fits_upload(client):
-    pid = client.post('/v1/taste/profiles', json={'name': 'Ari'}).json()['profile']['id']
+    pid = client.post('/v1/taste/profiles', json={'data_consent': True, 'name': 'Ari'}).json()['profile']['id']
     assert client.post(f'/v1/taste/profiles/{pid}/build').status_code == 422  # nothing yet
     saved = client.put(f'/v1/taste/profiles/{pid}/notes', json={'notes': [' cropped brown leather jacket ', '', 'cropped brown leather jacket']})
     assert saved.json()['profile']['lookbook_notes'] == ['cropped brown leather jacket']
@@ -321,11 +366,35 @@ def test_notes_only_lookbook_builds_and_own_fits_upload(client):
 
 
 def test_numbered_bottom_size_and_length_reach_the_search(client):
-    bad = client.post('/v1/taste/profiles', json={'sizes': {'bottom': '7'}})
+    bad = client.post('/v1/taste/profiles', json={'data_consent': True, 'sizes': {'bottom': '7'}})
     assert bad.status_code == 422
-    pid = client.post('/v1/taste/profiles', json={'sizes': {'top': 'S', 'bottom': '00', 'bottom_length': 'long'}}).json()['profile']['id']
+    pid = client.post('/v1/taste/profiles', json={'data_consent': True, 'sizes': {'top': 'S', 'bottom': '00', 'bottom_length': 'long'}}).json()['profile']['id']
     client.post(f'/v1/taste/profiles/{pid}/images', files={'file': ('a.png', png((20, 20, 20)))})
     client.post(f'/v1/taste/profiles/{pid}/build')
     skirt = client.post(f'/v1/taste/profiles/{pid}/chat', json={'messages': [{'role': 'user', 'text': 'pleated midi skirt'}]}).json()
     top = client.post(f'/v1/taste/profiles/{pid}/chat', json={'messages': [{'role': 'user', 'text': 'black halter top'}]}).json()
     assert (skirt['size'], skirt['length']) == ('00', 'long') and top['length'] is None
+
+
+def test_photos_need_a_signed_link_and_deleting_removes_the_file(client, tmp_path):
+    from urllib.parse import urlsplit
+    pid = client.post('/v1/taste/profiles', json={'data_consent': True}).json()['profile']['id']
+    image = client.post(f'/v1/taste/profiles/{pid}/images', files={'file': ('a.png', png((20, 20, 20)))}).json()
+    url = urlsplit(image['url'])
+    assert client.get(f'{url.path}?{url.query}').status_code == 200
+    assert client.get(url.path).status_code == 404  # bare link
+    assert client.get(f'{url.path}?{url.query[:-4]}0000').status_code == 404  # tampered signature
+    client.delete(f'/v1/taste/images/{image["id"]}')
+    assert not (tmp_path/'uploads'/f'{image["id"]}.jpg').exists()
+
+
+def test_delete_my_data_removes_profile_photos_and_searches(client, tmp_path):
+    pid = client.post('/v1/taste/profiles', json={'data_consent': True}).json()['profile']['id']
+    image = client.post(f'/v1/taste/profiles/{pid}/images', files={'file': ('a.png', png((20, 20, 20)))}).json()
+    client.post(f'/v1/taste/profiles/{pid}/build')
+    search_id = client.post(f'/v1/taste/profiles/{pid}/searches', json={'query': 'black boots'}).json()['search_id']
+    assert client.delete(f'/v1/taste/profiles/{pid}').status_code == 204
+    assert client.get(f'/v1/taste/profiles/{pid}').status_code == 404
+    assert not (tmp_path/'uploads'/f'{image["id"]}.jpg').exists()
+    assert client.get(f'/v1/searches/{search_id}').status_code == 404
+    assert client.delete(f'/v1/taste/profiles/{pid}').status_code == 404

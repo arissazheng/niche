@@ -82,7 +82,7 @@ def test_chat_caps_search_at_remaining_budget_and_demo_purchase(tmp_path):
     with TestClient(app) as client:
         budgets = app.state.budgets
         budgets.nessie = FakeNessie()
-        pid = client.post('/v1/taste/profiles', json={'budget_max': 80}).json()['profile']['id']
+        pid = client.post('/v1/taste/profiles', json={'data_consent': True, 'budget_max': 80}).json()['profile']['id']
         out = io.BytesIO(); Image.new('RGB', (40, 40), (10, 10, 10)).save(out, format='PNG')
         client.post(f'/v1/taste/profiles/{pid}/images', files={'file': ('a.png', out.getvalue())})
         client.post(f'/v1/taste/profiles/{pid}/build')

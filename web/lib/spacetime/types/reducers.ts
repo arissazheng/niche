@@ -6,6 +6,7 @@
 import { type Infer as __Infer } from "spacetimedb";
 
 // Import all reducer arg schemas
+import ForgetProfileReducer from "../forget_profile_reducer";
 import LeaveBoardReducer from "../leave_board_reducer";
 import MoveCursorReducer from "../move_cursor_reducer";
 import MovePieceReducer from "../move_piece_reducer";
@@ -15,6 +16,7 @@ import SetProfileVersionReducer from "../set_profile_version_reducer";
 import UpsertListingsReducer from "../upsert_listings_reducer";
 import UpsertSearchReducer from "../upsert_search_reducer";
 
+export type ForgetProfileParams = __Infer<typeof ForgetProfileReducer>;
 export type LeaveBoardParams = __Infer<typeof LeaveBoardReducer>;
 export type MoveCursorParams = __Infer<typeof MoveCursorReducer>;
 export type MovePieceParams = __Infer<typeof MovePieceReducer>;

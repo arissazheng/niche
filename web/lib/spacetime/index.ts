@@ -34,6 +34,7 @@ import {
 } from "spacetimedb";
 
 // Import all reducer arg schemas
+import ForgetProfileReducer from "./forget_profile_reducer";
 import LeaveBoardReducer from "./leave_board_reducer";
 import MoveCursorReducer from "./move_cursor_reducer";
 import MovePieceReducer from "./move_piece_reducer";
@@ -142,6 +143,7 @@ const tablesSchema = __schema({
 
 /** The schema information for all reducers in this module. This is defined the same way as the reducers would have been defined in the server, except the body of the reducer is omitted in code generation. */
 const reducersSchema = __reducers(
+  __reducerSchema("forget_profile", ForgetProfileReducer),
   __reducerSchema("leave_board", LeaveBoardReducer),
   __reducerSchema("move_cursor", MoveCursorReducer),
   __reducerSchema("move_piece", MovePieceReducer),

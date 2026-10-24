@@ -84,12 +84,12 @@ export default function HowItWorks() {
           <div className="grid gap-2 content-start">
             <p className="label">What Niche keeps</p>
             <ul className="grid gap-1 text-sm">
-              <li>— Your profile answers: sizes, budget, the shops and brands you like</li>
+              <li>— Your profile answers: sizes, body measurements if you add them, budget, the shops and brands you like</li>
               <li>— Photos and notes you add to your lookbook, and the taste profile built from them</li>
               <li>— Your searches and their results</li>
               <li>— If you connect a bank (demo): balance, this month&apos;s clothing spend, upcoming bills. Read only; Niche can&apos;t move money.</li>
               <li>— Your chat history stays in this browser</li>
-              <li>— If you import a public Pinterest board or Instagram profile, its link is fetched through Bright Data</li>
+              <li>— If you import a public Pinterest, Instagram or TikTok link, it may be fetched through Bright Data</li>
             </ul>
           </div>
           <div className="grid gap-2 content-start">
@@ -98,17 +98,16 @@ export default function HowItWorks() {
               <li>— Your photos and notes, to build your taste profile</li>
               <li>— Your taste profile, sizes, budget and the conversation, to plan searches and reply</li>
               <li>— Listing photos and details, to rank them for you</li>
+              <li>— Your body measurements, if you added them, to check a listing&apos;s stated garment measurements (never used for your taste profile)</li>
               <li>— Your budget summary, if you&apos;ve connected a bank</li>
-              <li>— Photos imported from Pinterest or Instagram (photos only: no account names or captions)</li>
+              <li>— Photos imported from Pinterest, Instagram or TikTok (images only: no account names or captions)</li>
               <li className="font-medium">Never your name, email or age.</li>
             </ul>
           </div>
         </div>
         <p className="text-sm mt-6">
-          Niche shows no ads and doesn&apos;t sell your data.{" "}
-          <span className="text-muted">
-            Demo limitation: there are no accounts yet, so uploaded photos can be opened by anyone who has their link.
-          </span>
+          Niche shows no ads and doesn&apos;t sell your data. Your photos open only through links that expire within two
+          hours. You can delete everything from your <Link href="/onboard" className="underline">Profile page</Link>.
         </p>
       </section>
 

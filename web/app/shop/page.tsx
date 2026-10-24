@@ -10,10 +10,12 @@ import { VoiceButton } from "@/components/voice";
 import { api } from "@/lib/api";
 import { getProfileId } from "@/lib/session";
 import { tables } from "@/lib/spacetime";
-import { TIER_LABELS, type Budget, type ChatTurn, type Listing, type SearchJob } from "@/lib/types";
+import { TIER_LABELS, type Budget, type ChatTurn, type Listing, type SearchCounts, type SearchJob } from "@/lib/types";
 
 const DONE = new Set(["completed", "partial", "failed", "interrupted"]);
-const EXAMPLES = ["an asymmetrical buttoned top", "black knee-high boots under $120", "a vintage leather jacket"];
+// Tap-to-ask starters in the chat: before the first message, then once results are on screen.
+const STARTERS = ["Find me black knee-high boots under $120", "Find me a vintage leather jacket", "Find me an asymmetrical buttoned top"];
+const FOLLOW_UPS = ["Compare #1 and #2", "Which is the best value?", "Which fits my style best?"];
 
 interface Thread {
   messages: ChatTurn[];
@@ -200,13 +202,6 @@ export default function ShopPage() {
               Then keep talking: &ldquo;less formal&rdquo;, &ldquo;only black&rdquo;, &ldquo;under $60&rdquo;. Each reply refines the
               search.
             </p>
-            <div className="flex flex-wrap gap-2 mt-4">
-              {EXAMPLES.map((example) => (
-                <button key={example} onClick={() => send(example)} className="label border border-ink px-3 py-2">
-                  {example}
-                </button>
-              ))}
-            </div>
           </div>
         ) : (
           <>
@@ -216,6 +211,7 @@ export default function ShopPage() {
               No sponsored results · ranked by fit to your taste, size and budget ·{" "}
               <Link href="/how-it-works" className="underline">How ranking works</Link>
             </p>
+            {finished && job.counts && <Impact counts={job.counts} results={allResults} />}
             <MixFilter results={allResults} kind={kind} onChange={setKind} />
             {status && !DONE.has(status) && (
               <p className="label mb-3 animate-pulse">
@@ -233,7 +229,7 @@ export default function ShopPage() {
                   <div className="bg-plinth aspect-[3/4] flex items-center justify-center overflow-hidden">
                     {item.image_urls[0] ? (
                       // eslint-disable-next-line @next/next/no-img-element
-                      <img src={item.image_urls[0]} alt="" className="max-h-full max-w-full object-contain" />
+                      <img src={item.image_urls[0]} alt="" className="h-full w-full object-contain" />
                     ) : (
                       <span className="label text-muted">{item.is_fixture ? "Demo item" : "No photo"}</span>
                     )}
@@ -259,6 +255,7 @@ export default function ShopPage() {
         onSend={send}
         onAccept={accept}
         onReset={reset}
+        hasResults={finished && allResults.length > 1}
         className="order-1 lg:order-2"
       />
 
@@ -279,6 +276,7 @@ function ChatPanel({
   onSend,
   onAccept,
   onReset,
+  hasResults,
   className,
 }: {
   budget: Budget | null;
@@ -288,12 +286,22 @@ function ChatPanel({
   onSend: (text: string) => void;
   onAccept: (proposal: ChatTurn) => void;
   onReset: () => void;
+  hasResults: boolean;
   className?: string;
 }) {
   const [draft, setDraft] = useState("");
   const end = useRef<HTMLDivElement>(null);
   const input = useRef<HTMLTextAreaElement>(null);
   const pending = outstandingProposal(messages);
+  const last = messages.at(-1);
+  // Starters until the shopper types; follow-ups right after a search finishes, until they ask something else.
+  const suggestions = thinking
+    ? []
+    : messages.length === 0
+      ? STARTERS
+      : hasResults && last?.role === "agent" && last.brief
+        ? FOLLOW_UPS
+        : [];
   useEffect(() => {
     // Braces matter: newer browsers return a Promise from scrollIntoView, which React rejects as a cleanup.
     end.current?.scrollIntoView({ block: "end" });
@@ -348,6 +356,15 @@ function ChatPanel({
               </div>
             </div>
           ),
+        )}
+        {suggestions.length > 0 && (
+          <div className="flex flex-wrap gap-2">
+            {suggestions.map((text) => (
+              <button key={text} onClick={() => onSend(text)} className="label border border-ink px-3 py-1.5 text-left">
+                {text}
+              </button>
+            ))}
+          </div>
         )}
         {thinking && <p className="label animate-pulse">Niche is thinking…</p>}
         {error && <p className="text-sm">{error}</p>}
@@ -426,6 +443,25 @@ function BudgetStrip({ budget }: { budget: Budget }) {
       </p>
     </div>
   );
+}
+
+// "Looked through 214 listings · left out 31 in the wrong size and 18 over $60 · average $38, $22 under your cap".
+function Impact({ counts, results }: { counts: SearchCounts; results: Listing[] }) {
+  const out = counts.left_out ?? {};
+  const cap = counts.max_item_price;
+  const reasons = [
+    out.wrong_size && `${out.wrong_size} in the wrong size`,
+    out.over_price && `${out.over_price} over ${cap ? money(cap) : "your cap"}`,
+    out.sold && `${out.sold} already sold`,
+    out.excluded_brand && `${out.excluded_brand} from Shein labels`,
+  ].filter(Boolean) as string[];
+  const average = results.length ? results.reduce((sum, item) => sum + item.price, 0) / results.length : 0;
+  const parts = [
+    `Looked through ${counts.retrieved.toLocaleString()} listings`,
+    reasons.length > 0 && `left out ${reasons.length > 1 ? `${reasons.slice(0, -1).join(", ")} and ${reasons.at(-1)}` : reasons[0]}`,
+    results.length > 0 && `average ${money(average)}${cap && cap > average ? `, ${money(cap - average)} under your cap` : ""}`,
+  ].filter(Boolean);
+  return <p className="label mb-3">{parts.join(" · ")}</p>;
 }
 
 // "Loading matches" → "3 matches so far" → "20 matches".

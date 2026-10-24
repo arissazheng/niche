@@ -17,4 +17,14 @@ export function setProfileId(id: string) {
   }
 }
 
+/** After "Delete my data": forget the profile and its saved chat in this browser too. */
+export function clearProfile(id: string) {
+  try {
+    localStorage.removeItem(KEY);
+    localStorage.removeItem(`shop-chat:${id}`);
+  } catch {
+    // Nothing stored to clear.
+  }
+}
+
 export const APP_NAME = process.env.NEXT_PUBLIC_APP_NAME ?? "Niche";

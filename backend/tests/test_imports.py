@@ -185,7 +185,7 @@ def test_import_endpoint_starts_a_background_job(tmp_path, monkeypatch):
     monkeypatch.setattr(BrightData, 'collect', no_photos)
     settings = Settings(database_path=str(tmp_path / 'a.sqlite'), upload_dir=str(tmp_path / 'up'))
     with TestClient(create_app(settings)) as client:
-        pid = client.post('/v1/taste/profiles', json={}).json()['profile']['id']
+        pid = client.post('/v1/taste/profiles', json={'data_consent': True}).json()['profile']['id']
         bad = client.post(f'/v1/taste/profiles/{pid}/imports', json={'url': 'https://www.pinterest.com/ideas/x/'})
         assert bad.status_code == 422 and 'board, pin or profile' in bad.json()['detail']
         started = client.post(f'/v1/taste/profiles/{pid}/imports', json={'url': 'https://www.pinterest.com/jane/'})

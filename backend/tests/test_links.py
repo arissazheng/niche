@@ -98,7 +98,7 @@ def client(tmp_path):
 
 
 def built_profile(client):
-    pid = client.post('/v1/taste/profiles', json={}).json()['profile']['id']
+    pid = client.post('/v1/taste/profiles', json={'data_consent': True}).json()['profile']['id']
     client.post(f'/v1/taste/profiles/{pid}/images', files={'file': ('a.png', png((20, 20, 20)))})
     client.post(f'/v1/taste/profiles/{pid}/build')
     return pid

@@ -22,9 +22,9 @@ export default function LookbookPage() {
   const [building, setBuilding] = useState(false);
   const [uploading, setUploading] = useState(0);
   const [error, setError] = useState<string | null>(null);
+  const [buildError, setBuildError] = useState<string | null>(null);
   const [noteFor, setNoteFor] = useState<TasteImage | null>(null);
   const [imports, setImports] = useState<ImportJob[]>([]);
-  const [notice, setNotice] = useState<string | null>(null);
   const router = useRouter();
 
   // Resolves to an error message, or null on success, so callers can show inline feedback.
@@ -94,7 +94,6 @@ export default function LookbookPage() {
       setError("Those weren't photos. Add JPG, PNG or HEIC images.");
       return 0;
     }
-    setNotice(null);
     setUploading(photos.length);
     const failed = await run(async () => {
       for (const file of photos) await api.uploadImage(id, file, kind);
@@ -122,7 +121,7 @@ export default function LookbookPage() {
   }
 
   // Images pasted or dragged in from a web page often arrive as an address (or inline data), not a file.
-  async function addFromWeb(urls: string[], verb: string) {
+  async function addFromWeb(urls: string[]) {
     setError(null);
     let added = 0;
     const errors: string[] = [];
@@ -143,7 +142,6 @@ export default function LookbookPage() {
     setUploading(0);
     if (added) await run(refresh); // before the messages: run() clears the error line
     if (errors.length) setError([...new Set(errors)].join(" "));
-    if (added) setNotice(`Added ${added} ${verb} photo${added > 1 ? "s" : ""}.`);
   }
 
   /** Everything a paste or a drop can carry: image files, web images, Pinterest/Instagram/TikTok links. */
@@ -151,7 +149,7 @@ export default function LookbookPage() {
     if (!data) return false;
     const files = Array.from(data.files).filter((f) => f.type.startsWith("image/"));
     if (files.length) {
-      upload(files, "outfit").then((n) => n && setNotice(`Added ${n} ${verb} photo${n > 1 ? "s" : ""}.`));
+      upload(files, "outfit");
       return true;
     }
     if (typing) return false; // pasting text into the link or note box: leave it alone
@@ -167,7 +165,7 @@ export default function LookbookPage() {
     const direct = text.split(/\s+/).filter((u) => IMAGE_URL.test(u) || (verb === "dropped" && /^https?:\/\//.test(u)));
     const web = [...new Set([...images, ...direct])].slice(0, 12);
     if (web.length) {
-      addFromWeb(web, verb);
+      addFromWeb(web);
       return true;
     }
     return false;
@@ -179,12 +177,23 @@ export default function LookbookPage() {
     if (take(e.clipboardData, "pasted", typing)) e.preventDefault();
   };
 
+  // Build errors show next to the button, not at the top of the page where they'd be missed.
   async function build() {
+    if (view?.up_to_date) return router.push("/taste"); // nothing changed since the last build
+    setBuildError(null);
     setBuilding(true);
-    const error = await run(() => api.build(id));
-    if (!error) return router.push("/taste");
-    setBuilding(false);
+    try {
+      await api.build(id);
+      router.push("/taste");
+    } catch (err) {
+      setBuildError((err as Error).message);
+      setBuilding(false);
+    }
   }
+
+  const consented = !!profile.onboarding.data_consent;
+  const setConsent = (data_consent: boolean) =>
+    run(() => api.updateOnboarding(id, { ...profile.onboarding, data_consent }));
 
   if (building) {
     return (
@@ -204,7 +213,7 @@ export default function LookbookPage() {
           words.
         </p>
         <div className="grid gap-4 lg:grid-cols-3">
-          <DropZone uploading={uploading} notice={notice} onFiles={upload} onDrop={(data) => take(data, "dropped")} />
+          <DropZone uploading={uploading} onFiles={upload} onDrop={(data) => take(data, "dropped")} />
           <ImportBox jobs={imports} onImport={startImport} />
           <NotesBox notes={notes} onChange={(next) => run(() => api.setLookbookNotes(id, next))} />
         </div>
@@ -229,13 +238,30 @@ export default function LookbookPage() {
       )}
 
       {(images.length > 0 || notes.length > 0) && (
-        <section>
-          <button onClick={build} disabled={importing || uploading > 0} className="rule-t rule-b text-display py-2 w-full disabled:text-muted">
-            {importing ? "Waiting for your import…" : profile.version ? "Rebuild my taste profile" : "Build my taste profile"}
-          </button>
-          {profile.version > 0 && (
-            <Link href="/taste" className="label underline block text-right mt-2">Open your moodboard →</Link>
+        <section className="grid gap-3">
+          {!consented && (
+            <label className="flex items-start gap-3 text-sm">
+              <input type="checkbox" className="mt-1 accent-ink" checked={consented} onChange={(e) => setConsent(e.target.checked)} />
+              <span>
+                I agree that my photos and notes are sent to Claude (Anthropic) to build my taste profile. My name, email
+                and age never are. <Link href="/how-it-works#data" className="underline">What Niche keeps</Link>
+              </span>
+            </label>
           )}
+          <button
+            onClick={build}
+            disabled={!consented || importing || uploading > 0}
+            className="rule-t rule-b text-display py-2 w-full disabled:text-muted"
+          >
+            {importing
+              ? "Waiting for your import…"
+              : view.up_to_date
+                ? "View my taste profile"
+                : profile.version
+                  ? "Rebuild my taste profile"
+                  : "Build my taste profile"}
+          </button>
+          {buildError && <p className="text-sm" role="alert">{buildError}</p>}
         </section>
       )}
 
@@ -266,12 +292,10 @@ export default function LookbookPage() {
 
 function DropZone({
   uploading,
-  notice,
   onFiles,
   onDrop,
 }: {
   uploading: number;
-  notice: string | null;
   onFiles: (files: File[], kind: ImageKind) => void;
   onDrop: (data: DataTransfer) => boolean;
 }) {
@@ -303,7 +327,6 @@ function DropZone({
           <kbd className="label border border-ink px-1">{mac ? "⌘V" : "Ctrl+V"}</kbd> anywhere on this page. No need to
           download it. Screenshots work too.
         </p>
-        {notice && !uploading && <p className="text-sm mt-2" role="status">{notice}</p>}
       </div>
       <button type="button" onClick={() => picker.current?.click()} className="label bg-ink text-paper px-3 py-2 self-start">
         + Add to my lookbook

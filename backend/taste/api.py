@@ -12,15 +12,17 @@ from .chat import ChatRequest, ShopAgent, guess_category, profile_size, result_c
 from .fit import effective_sizes, inches, suggest
 from .imports import Importer, LinkError
 from .links import extract_urls, read_link
-from .engine import TasteEngine
+from .engine import TasteEngine, fingerprint
 from .models import EditInstruction, ImageFromUrl, ImageKind, ImportRequest, Measurements, LookbookNotes, NoteUpdate, Onboarding, ProfileSearch, PromptUpdate
+from .signing import Signer
 from .store import TasteStore
 
 MAX_UPLOAD_BYTES = 15 * 1024 * 1024
 
 
-def create_router(settings, store: Store, budgets: Budgets | None = None):
+def create_router(settings, store: Store, budgets: Budgets | None = None, signer: Signer | None = None):
     taste = TasteStore(store)
+    signer = signer or Signer(settings)
     engine = TasteEngine(settings, taste)
     prefetcher = Prefetcher(settings, store)
     importer = Importer(settings, taste, engine)
@@ -33,8 +35,11 @@ def create_router(settings, store: Store, budgets: Budgets | None = None):
         return profile
 
     def view(profile):
+        images = taste.images(profile.id)
+        # up_to_date: built, and nothing in the lookbook or preferences changed since, so Build can just show it.
         return {'profile': profile.model_dump(mode='json'),
-                'images': [x.model_dump(mode='json') for x in taste.images(profile.id)]}
+                'images': [signer.image(x.model_dump(mode='json')) for x in images],
+                'up_to_date': bool(profile.version and profile.built_from == fingerprint(profile, images))}
 
     @router.post('/sizes/suggest')
     def suggest_sizes(measurements: Measurements):
@@ -48,6 +53,16 @@ def create_router(settings, store: Store, budgets: Budgets | None = None):
     @router.get('/profiles/{ident}')
     def get(ident: str):
         return view(profile_or_404(ident))
+
+    @router.delete('/profiles/{ident}', status_code=204)
+    async def forget(ident: str):
+        # Delete my data: photo files first, then every record tied to the profile, then the live (SpacetimeDB) copy.
+        # The mock bank (Nessie) keeps its own demo transactions; Niche only drops the link to it.
+        profile_or_404(ident)
+        for image in taste.images(ident):
+            engine.remove_image_file(image.id)
+        taste.forget(ident)
+        await engine.publish.forget_profile(ident)
 
     @router.put('/profiles/{ident}/onboarding')
     def onboarding(ident: str, onboarding: Onboarding):
@@ -63,7 +78,7 @@ def create_router(settings, store: Store, budgets: Budgets | None = None):
         if len(data) > MAX_UPLOAD_BYTES:
             raise HTTPException(413, 'Image larger than 15 MB')
         try:
-            return engine.add_image(ident, data, kind, note).model_dump(mode='json')
+            return signer.image(engine.add_image(ident, data, kind, note).model_dump(mode='json'))
         except (UnidentifiedImageError, OSError):
             raise HTTPException(422, 'Unsupported image')
 
@@ -98,27 +113,33 @@ def create_router(settings, store: Store, budgets: Budgets | None = None):
         if not fetched:
             raise HTTPException(422, "Couldn't load that image. Try saving it and adding it from your computer.")
         try:
-            return engine.add_image(ident, fetched[0], body.kind).model_dump(mode='json')
+            return signer.image(engine.add_image(ident, fetched[0], body.kind).model_dump(mode='json'))
         except (UnidentifiedImageError, OSError):
             raise HTTPException(422, "That link isn't an image. Copy the image itself, or paste a page link above.")
 
     @router.put('/images/{ident}/note')
-    def note(ident: str, update: NoteUpdate):
+    async def note(ident: str, update: NoteUpdate):
         # Long-press details ("I like the color, not the frills"). Clears analysis so the next build re-reads it.
         image = taste.image(ident)
         if not image:
             raise HTTPException(404, 'Image not found')
         image.note, image.analysis = update.note, None
-        return taste.save_image(image).model_dump(mode='json')
+        saved = taste.save_image(image)
+        engine.read_soon(saved)
+        return signer.image(saved.model_dump(mode='json'))
 
     @router.delete('/images/{ident}', status_code=204)
     def delete(ident: str):
+        engine.remove_image_file(ident)
         taste.delete_image(ident)
 
     @router.post('/profiles/{ident}/build')
     async def build(ident: str):
+        profile = profile_or_404(ident)
+        if not profile.onboarding.data_consent:
+            raise HTTPException(403, 'Agree to send your photos to Claude on your Profile page first')
         try:
-            profile = await engine.build(profile_or_404(ident))
+            profile = await engine.build(profile)
         except ValueError as exc:
             raise HTTPException(422, str(exc))
         # Start scraping this taste's core pieces now, so the first search has results ready to rank.

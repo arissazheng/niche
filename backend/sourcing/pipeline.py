@@ -20,16 +20,29 @@ def excluded(item):
     return any(f and EXCLUDED_BRANDS.search(f) for f in fields)
 
 
-def eligible(items, request):
+def eligible(items, request, left_out=None):
+    """Listings that pass the hard filters. left_out, when given, tallies why others were dropped (shown to the shopper)."""
     result, seen = [], set()
     r = request.request
+
+    def tally(reason):
+        if left_out is not None:
+            left_out[reason] = left_out.get(reason, 0) + 1
+
     for item in items:
         if item.id in seen or item.url in seen:
             continue
         seen.update((item.id,item.url))
         if excluded(item):
+            tally('excluded_brand')
             continue
-        if item.available is False or item.currency != r.currency or item.price > r.max_item_price:
+        if item.available is False:
+            tally('sold')
+            continue
+        if item.currency != r.currency:
+            continue
+        if item.price > r.max_item_price:
+            tally('over_price')
             continue
         unknown = []
         if item.available is None:
@@ -37,6 +50,7 @@ def eligible(items, request):
         if r.size:
             fits = sizes.match(r.size, item.sizes)
             if fits is False:
+                tally('wrong_size')
                 continue
             if fits is None:
                 unknown.append(f'Size unverified (listed as {", ".join(item.sizes)})' if item.sizes else 'Size unverified')
@@ -150,7 +164,7 @@ class Pipeline:
         # sources (and the fast marketplaces inside the secondhand actor) while the slow ones are still scraping.
         # Each source can fill the whole page on its own: mainstream often keeps only a handful of results.
         per_source = max(request.limit,24//len(sources))
-        counts = {'retrieved':0,'eligible':0}
+        counts = {'retrieved':0,'eligible':0,'left_out':{},'max_item_price':request.request.max_item_price}
         seen_urls, ranked, provisional, methods, rankers = set(), [], {}, [], []
 
         def scored_rows():
@@ -189,7 +203,7 @@ class Pipeline:
         shortlisted = set()
 
         async def take(source, items):
-            candidates = [x for x in eligible(items,request) if x.url not in seen_urls]
+            candidates = [x for x in eligible(items,request,counts['left_out']) if x.url not in seen_urls]
             seen_urls.update(x.url for x in candidates)
             counts['retrieved'] += len(items)
             counts['eligible'] += len(candidates)

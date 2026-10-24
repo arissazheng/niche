@@ -54,6 +54,7 @@ class Onboarding(StrictModel):
     currency: str = Field(default='USD', pattern=r'^[A-Z]{3}$')
     usual_shops: list[str] = Field(default_factory=list, max_length=20)
     favorite_brands: list[str] = Field(default_factory=list, max_length=30)
+    data_consent: bool = False  # agreed that photos and notes go to Claude to build the taste profile
 
 
 class Garment(StrictModel):
@@ -113,6 +114,8 @@ class Profile(StrictModel):
     # The editable "taste prompt": the backend text fed into sourcing and chat agents.
     prompt: str = ''
     mode: Literal['empty', 'fixture', 'claude'] = 'empty'
+    # Fingerprint of the photos, notes and preferences the last build used; unchanged means no rebuild is needed.
+    built_from: str = ''
     updated_at: str = ''
 
     def to_sourcing(self) -> SourcingProfile:
