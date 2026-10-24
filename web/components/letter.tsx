@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 
 // Click the landing envelopes and a glassine sleeve opens (rectangular, like the landing photo): the straight flap
-// folds back, then the shopper pulls the landscape letter card up and out to read it. Swipe or drag it up, or tap it.
+// folds back, then the shopper swipes up (trackpad, wheel or touch) to pull the landscape letter card out.
 // The page behind is locked while open. Reduced-motion users get the letter already out.
 
 const PROBLEM = [
@@ -53,8 +53,44 @@ export function Letter({ onClose }: { onClose: () => void }) {
     };
   }, [onClose]);
 
+  // Trackpad / mouse-wheel swipe up, anywhere on the screen: the card follows the swipe, and comes out once it's
+  // pulled far enough; if the swipe stops short it settles back into the sleeve.
+  const overlay = useRef<HTMLDivElement>(null);
+  const stageRef = useRef(stage);
+  stageRef.current = stage;
+  useEffect(() => {
+    const el = overlay.current;
+    if (!el) return;
+    let pulled = 0;
+    let settle: ReturnType<typeof setTimeout> | undefined;
+    const onWheel = (e: WheelEvent) => {
+      e.preventDefault(); // never scroll the page behind
+      if (stageRef.current !== "open") return;
+      const height = card.current?.offsetHeight ?? 300;
+      pulled = Math.min(0, pulled - e.deltaY);
+      if (-pulled > height * PULL_OUT) {
+        pulled = 0;
+        setDrag(0);
+        setStage("out");
+        return;
+      }
+      setDrag(Math.max(pulled, -height * 0.9));
+      clearTimeout(settle);
+      settle = setTimeout(() => {
+        pulled = 0;
+        setDrag(0);
+      }, 180);
+    };
+    el.addEventListener("wheel", onWheel, { passive: false });
+    return () => {
+      el.removeEventListener("wheel", onWheel);
+      clearTimeout(settle);
+    };
+  }, []);
+
+  // Touch: a finger swipe up on the card does the same. (Mouse click-and-drag isn't used.)
   function startPull(e: React.PointerEvent) {
-    if (stage === "closed") return;
+    if (stage === "closed" || e.pointerType === "mouse") return;
     e.preventDefault();
     e.stopPropagation();
     const start = e.clientY;
@@ -75,12 +111,8 @@ export function Letter({ onClose }: { onClose: () => void }) {
       target.removeEventListener("pointerup", onUp);
       target.removeEventListener("pointercancel", onUp);
       setDrag(0);
-      // A tap, or a pull past the threshold, takes the card out; a short pull springs back.
-      if (
-        stage === "open" &&
-        (Math.abs(moved) < 4 || -moved > height * PULL_OUT)
-      )
-        setStage("out");
+      // A pull past the threshold takes the card out; a short pull springs back.
+      if (stage === "open" && -moved > height * PULL_OUT) setStage("out");
     };
     target.addEventListener("pointermove", onMove);
     target.addEventListener("pointerup", onUp);
@@ -96,6 +128,7 @@ export function Letter({ onClose }: { onClose: () => void }) {
 
   return (
     <div
+      ref={overlay}
       role="dialog"
       aria-modal="true"
       aria-label="Why we built Niche"
@@ -123,7 +156,7 @@ export function Letter({ onClose }: { onClose: () => void }) {
           <article
             ref={card}
             onPointerDown={startPull}
-            className={`absolute left-[3.5%] top-[7%] w-[93%] h-[88%] overflow-hidden bg-[#f8f5ee] text-ink px-[5%] py-[3.5%] shadow-[0_2px_14px_rgba(0,0,0,.25)] select-none touch-none ${stage === "closed" ? "" : "cursor-grab active:cursor-grabbing"} ${drag ? "" : "transition-transform duration-700 ease-[cubic-bezier(.2,.8,.2,1)]"}`}
+            className={`absolute left-[3.5%] top-[7%] w-[93%] h-[88%] overflow-hidden bg-[#f8f5ee] text-ink px-[5%] py-[3.5%] shadow-[0_2px_14px_rgba(0,0,0,.25)] select-none touch-none ${stage === "closed" ? "" : ""} ${drag ? "" : "transition-transform duration-700 ease-[cubic-bezier(.2,.8,.2,1)]"}`}
             style={{
               backgroundImage: LETTER_GRAIN,
               transform: `translateY(calc(${resting} + ${drag}px))`,
@@ -164,7 +197,7 @@ export function Letter({ onClose }: { onClose: () => void }) {
         <p
           className={`label absolute -bottom-10 left-1/2 -translate-x-1/2 whitespace-nowrap text-paper/70 transition-opacity ${stage === "open" ? "opacity-100" : "opacity-0"}`}
         >
-          Pull the letter up ↑
+          Swipe up to take out the letter ↑
         </p>
         <button
           onClick={onClose}
