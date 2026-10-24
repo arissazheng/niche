@@ -37,7 +37,7 @@ cd .. && .venv/bin/pytest -q                                                  # 
 - Typical search: mainstream ~10 s, secondhand ~50 s (Etsy is the slow one).
 - Costs per result on the free plan: Google Shopping **$0.02** ($0.005 on paid plans), Depop ~$0.006, Vinted ~$0.002, Poshmark and Etsy ~$0.001, plus a small start fee per run. Google Shopping returns at least 10 results per phrase, so the backend sends mainstream one phrase × 10 results by default (`MAINSTREAM_QUERIES`, `MAINSTREAM_ITEMS_PER_QUERY`): about $0.23 for mainstream plus ~$0.10 for secondhand per search.
 - Mainstream links open Google Shopping's page for the product (which lists the stores selling it), not the store's own product page.
-- niche-indie: ~15 s for 35 shops, no per-result cost (only the run's compute). Shopify's edge throttles one IP that
+- niche-indie: ~15 s for 38 shops, no per-result cost (only the run's compute). Shopify's edge throttles one IP that
   reads many stores quickly (429, `retry-after: 60`), so it reads 4 shops at a time and waits once on a 429; Apify Proxy
   is tried first if the plan allows it. Catalogs have no search endpoint, so matching happens in the actor: a phrase
   that names an item type (dress, jacket...) only matches that type, a colour alone never matches, and one shop can
