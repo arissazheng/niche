@@ -12,7 +12,7 @@ export function SiteHeader() {
   return (
     <header>
       <div className="bg-ink text-paper label py-2 text-center">
-        Independent &amp; secondhand sellers only — no sponsored placements
+        Major retailers, small shops &amp; secondhand — no sponsored placements
       </div>
       <nav className="label flex justify-center gap-4 py-2">
         <Link href="/">{APP_NAME}</Link>

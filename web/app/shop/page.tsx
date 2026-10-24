@@ -8,7 +8,7 @@ import { Drawer } from "@/components/drawer";
 import { VoiceButton } from "@/components/voice";
 import { api } from "@/lib/api";
 import { getProfileId } from "@/lib/session";
-import type { Listing, SearchJob } from "@/lib/types";
+import { TIER_LABELS, type Listing, type SearchJob } from "@/lib/types";
 
 const DONE = new Set(["completed", "partial", "failed", "interrupted"]);
 
@@ -68,7 +68,7 @@ export default function ShopPage() {
       </form>
 
       {error && <p className="text-sm mt-3">{error}</p>}
-      {job && !DONE.has(job.status) && <p className="label mt-3">Searching independent sellers… ({job.status})</p>}
+      {job && !DONE.has(job.status) && <p className="label mt-3">Searching stores and secondhand sellers… ({job.status})</p>}
       {job?.warnings?.map((w) => (
         <p key={w} className="label mt-2 text-muted">{w}</p>
       ))}
@@ -89,7 +89,7 @@ export default function ShopPage() {
                 </div>
                 <div className="flex justify-between mt-1">
                   <span className="text-display">{i + 1}</span>
-                  <span className="label pt-1">{item.source}</span>
+                  <span className="label pt-1">{storeLabel(item)}</span>
                 </div>
                 <p className="text-sm">{item.title}</p>
                 <p className="text-sm">{item.price.toFixed(2)} {item.currency}</p>
@@ -106,12 +106,18 @@ export default function ShopPage() {
   );
 }
 
+// "Nordstrom · Department store", "Depop · Secondhand"; older single-marketplace results fall back to seller/source.
+function storeLabel(listing: Listing) {
+  if (!listing.retailer) return listing.seller ?? listing.source;
+  return listing.tier ? `${listing.retailer} · ${TIER_LABELS[listing.tier]}` : listing.retailer;
+}
+
 function ListingDetail({ listing, searchId }: { listing: Listing; searchId: string }) {
   return (
     <div className="grid gap-4">
       <div>
         <p className="text-display">{listing.title}</p>
-        <p className="text-display">{listing.seller ?? listing.source}</p>
+        <p className="text-display">{storeLabel(listing)}</p>
         <p className="text-display">{listing.price.toFixed(2)} {listing.currency}</p>
       </div>
       <div className="grid gap-1">
@@ -123,7 +129,7 @@ function ListingDetail({ listing, searchId }: { listing: Listing; searchId: stri
         {listing.is_fixture ? (
           <p className="label mt-1">Synthetic demo item</p>
         ) : (
-          <a href={listing.url} target="_blank" rel="noreferrer" className="label underline mt-1">View on {listing.source} ↗</a>
+          <a href={listing.url} target="_blank" rel="noreferrer" className="label underline mt-1">View on {listing.retailer ?? listing.source} ↗</a>
         )}
       </div>
       <div className="rule-t pt-3">

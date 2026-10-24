@@ -27,6 +27,7 @@ class Onboarding(StrictModel):
     budget_max: float = Field(default=150, gt=0, le=100000)
     currency: str = Field(default='USD', pattern=r'^[A-Z]{3}$')
     usual_shops: list[str] = Field(default_factory=list, max_length=20)
+    favorite_brands: list[str] = Field(default_factory=list, max_length=30)
 
 
 class Garment(StrictModel):
@@ -86,8 +87,12 @@ class Profile(StrictModel):
     updated_at: str = ''
 
     def to_sourcing(self) -> SourcingProfile:
+        ob = self.onboarding
         return SourcingProfile(summary=(self.prompt or self.summary)[:3000], colors=self.colors[:20],
-            silhouettes=self.silhouettes[:20], materials=(self.materials + self.patterns)[:20], avoid=self.avoid[:20])
+            silhouettes=self.silhouettes[:20], materials=(self.materials + self.patterns)[:20], avoid=self.avoid[:20],
+            # Visible designers in liked photos count as brand preferences alongside the ones the user named.
+            preferred_brands=list(dict.fromkeys(ob.favorite_brands + self.designers))[:30],
+            preferred_stores=ob.usual_shops[:30])
 
 
 class NoteUpdate(StrictModel):
@@ -107,6 +112,6 @@ class ProfileSearch(StrictModel):
     query: str = Field(min_length=1, max_length=500)
     max_item_price: float | None = Field(default=None, gt=0, le=100000)
     size: str | None = Field(default=None, max_length=30)
-    sources: list[Literal['etsy', 'depop', 'poshmark', 'grailed']] = ['etsy', 'depop', 'poshmark', 'grailed']
+    sources: list[Literal['mainstream', 'secondhand', 'etsy', 'depop', 'poshmark', 'grailed']] = ['mainstream', 'secondhand']
     limit: int = Field(default=12, ge=1, le=24)
 

@@ -1,0 +1,63 @@
+{
+  "actorSpecification": 1,
+  "name": "niche-mainstream",
+  "title": "Niche: mainstream retailers",
+  "description": "Google Shopping results from stores in Niche's retailer bank, labelled by store and type. Sponsored results and unknown stores are dropped.",
+  "version": "0.1",
+  "dockerfile": "./Dockerfile",
+  "input": {
+    "title": "Mainstream retailer search",
+    "type": "object",
+    "schemaVersion": 1,
+    "properties": {
+      "queries": {
+        "title": "Search queries",
+        "type": "array",
+        "editor": "stringList",
+        "description": "1 to 3 search phrases, e.g. from Claude's query planner.",
+        "prefill": [
+          "womens wool coat"
+        ]
+      },
+      "maxPrice": {
+        "title": "Max price (USD)",
+        "type": "integer",
+        "editor": "number",
+        "description": "Items above this price are dropped."
+      },
+      "itemsPerQuery": {
+        "title": "Items per query",
+        "type": "integer",
+        "editor": "number",
+        "default": 20,
+        "minimum": 1,
+        "maximum": 60,
+        "description": "How many results to read per search phrase (per marketplace for secondhand)."
+      },
+      "tiers": {
+        "title": "Store types",
+        "type": "array",
+        "editor": "stringList",
+        "description": "Optional: department, mainstream, athletic, outdoor, premium, luxury, fast_fashion, off_price, big_box, marketplace, resale."
+      },
+      "includeUnlisted": {
+        "title": "Include stores outside the bank",
+        "type": "boolean",
+        "default": false,
+        "description": "Keep results from stores that are not in the retailer bank, labelled as small shops."
+      },
+      "maxConcurrentRuns": {
+        "title": "Max scraper runs at once",
+        "type": "integer",
+        "editor": "number",
+        "default": 2,
+        "minimum": 1,
+        "maximum": 10,
+        "description": "Sub-scraper runs this actor starts at the same time. Apify's free plan allows 5 runs account-wide, including this one."
+      }
+    },
+    "required": [
+      "queries"
+    ]
+  }
+}

@@ -1,6 +1,6 @@
 import asyncio
 import re
-from .sources import ApifySources, FixtureSources
+from .sources import NICHE, ApifySources, FixtureSources
 from .claude import Claude
 
 
@@ -44,8 +44,10 @@ def lexical_score(item, request):
     query_terms = set(re.findall(r'\w+',request.request.query.lower())) - {'find','me','a','some','everyday','please'}
     profile = request.taste_profile
     positive = profile.colors + profile.silhouettes + profile.materials
-    return max(0,min(100, 20 + 15*sum(t in text for t in query_terms) +
-        10*sum(t.lower() in text for t in positive) - 30*sum(t.lower() in text for t in profile.avoid)))
+    labels = ' '.join(x for x in (item.brand, item.retailer, item.seller) if x).lower()
+    preferred = sum(t.lower() in text or t.lower() in labels for t in profile.preferred_brands + profile.preferred_stores)
+    return max(0,min(100, 20 + 15*sum(t in text for t in query_terms) + 10*sum(t.lower() in text for t in positive)
+        + 10*min(preferred, 1) - 30*sum(t.lower() in text for t in profile.avoid)))
 
 
 def diversify(items, limit):
@@ -79,14 +81,20 @@ class Pipeline:
         result['queries'] = queries
         # One bounded run per marketplace for MVP. Rotate query variants across marketplaces.
         sources = list(dict.fromkeys(request.sources))
+        if not request.request.allow_secondhand and len(sources) > 1:
+            # New-only requests skip the resale actor's paid runs; condition filtering still applies below.
+            sources = [s for s in sources if s != 'secondhand']
         async def fetch(source, query):
             try:
-                items,status = await self.sources.fetch(source,query,request.candidates_per_source,job_id)
+                items,status = await self.sources.fetch(source,query,request.candidates_per_source,job_id,
+                                                        request.request.max_item_price)
                 return source,items,status
             except Exception as exc:
                 self.store.event(job_id,'source_failed',{'source':source,'type':type(exc).__name__})
                 return source,[],{'status':'failed','error':'Source unavailable; see server events'}
-        tasks = [asyncio.create_task(fetch(s,queries[i%len(queries)])) for i,s in enumerate(sources)]
+        # Niche actors take every query variant in one run; single-marketplace adapters rotate through them.
+        tasks = [asyncio.create_task(fetch(s,queries if s in NICHE else queries[i%len(queries)]))
+                 for i,s in enumerate(sources)]
         collected = []
         try:
             for task in asyncio.as_completed(tasks):
