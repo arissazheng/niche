@@ -26,87 +26,128 @@ def evens(start, stop):
 
 W_ALPHA = ['XXS', 'XS', 'S', 'M', 'L', 'XL', 'XXL', '1X', '2X', '3X']
 M_ALPHA = ['XXS', 'XS', 'S', 'M', 'L', 'XL', 'XXL', '3XL', '4XL']
-US_NUMERIC = ['00', '0'] + evens(2, 24)
 ACCESSORY_ALPHA = ['XS', 'S', 'M', 'L', 'XL']
 WIDTHS = ['Narrow', 'Standard', 'Wide', 'Extra wide']
+# Size regions: which country charts show first. US is the default. Letter sizes and most body measurements
+# belong to every region; numbered charts belong to theirs.
+REGIONS = [{'id': 'us', 'label': 'US'}, {'id': 'uk', 'label': 'UK'}, {'id': 'eu', 'label': 'EU'},
+           {'id': 'asia', 'label': 'Asia (Japan)'}]
+Region = Literal['us', 'uk', 'eu', 'asia']
+INCHES, CENTIMETRES = ['us', 'uk'], ['eu', 'asia']
 
 
-def fmt(id, label, options, custom=None):
-    """A size format. `custom` = (min, max) allows typed values in that range beyond the listed options."""
-    return {'id': id, 'label': label, 'options': options, **({'custom': list(custom)} if custom else {})}
-
-
-def extra(id, label, options, custom=None, formats=None, tucked=None):
-    """An optional add-on to a category (inseam, fit, width...); `formats` limits it to those formats, and
-    `tucked` names a small link that reveals it, for details few people need (dress shirt neck and sleeve)."""
+def fmt(id, label, options, custom=None, regions=None):
+    """A size format. `custom` = (min, max) allows typed values in that range beyond the listed options; `regions`
+    limits it to those size regions (none = every region)."""
     return {'id': id, 'label': label, 'options': options, **({'custom': list(custom)} if custom else {}),
-            **({'formats': formats} if formats else {}), **({'tucked': tucked} if tucked else {})}
+            **({'regions': regions} if regions else {})}
+
+
+def extra(id, label, options, custom=None, formats=None, tucked=None, regions=None):
+    """An optional add-on to a category (inseam, fit, width...); `formats` limits it to those formats, `regions` to
+    those size regions, and `tucked` names a small link that reveals it, for details few people need."""
+    return {'id': id, 'label': label, 'options': options, **({'custom': list(custom)} if custom else {}),
+            **({'formats': formats} if formats else {}), **({'tucked': tucked} if tucked else {}),
+            **({'regions': regions} if regions else {})}
+
+
+def womens_numbered():
+    """Women's numbered clothing sizes per region (they don't convert one-to-one across brands)."""
+    return [fmt('us', 'US numeric', ['00', '0'] + evens(2, 24), regions=['us']),
+            fmt('uk', 'UK numeric', evens(4, 28), regions=['uk']),
+            fmt('eu', 'EU numeric', evens(30, 56), regions=['eu']),
+            fmt('jp', 'Japan numeric', [str(n) for n in range(3, 24, 2)], regions=['asia'])]
 
 
 def shoes(us, uk, eu, cm):
-    return {'label': 'Shoes', 'formats': [fmt('us', 'US', halves(*us)), fmt('uk', 'UK', halves(*uk)),
-                                           fmt('eu', 'EU', halves(*eu)), fmt('cm', 'JP / cm', halves(*cm))],
+    # Every shoe chart stays available in any region; the region only picks which opens first.
+    return {'label': 'Shoes', 'every_region': True,
+            'formats': [fmt('us', 'US', halves(*us), regions=['us']), fmt('uk', 'UK', halves(*uk), regions=['uk']),
+                        fmt('eu', 'EU', halves(*eu), regions=['eu']), fmt('cm', 'JP / cm', halves(*cm), regions=['asia'])],
             'extras': [extra('width', 'Width', WIDTHS)]}
 
 
 TOPS_HINT = 'T-shirts, blouses, shirts, knitwear, sweaters, cardigans, hoodies'
 BOTTOMS_HINT = 'Jeans, pants, trousers, shorts'
 OUTERWEAR_HINT = 'Jackets, coats, blazers, trench, leather, puffers'
-INSEAM = extra('inseam', 'Inseam (in)', ['28', '30', '32', '34', '36'], custom=(24, 38))
+INSEAMS = [extra('inseam', 'Inseam (in)', ['28', '30', '32', '34', '36'], custom=(24, 38), regions=INCHES),
+           extra('inseam_cm', 'Inseam (cm)', ['71', '76', '81', '86', '91'], custom=(60, 97), regions=CENTIMETRES)]
+CHEST = [fmt('chest', 'Chest (in)', evens(34, 52), (30, 60), regions=INCHES),
+         fmt('chest_cm', 'Chest (cm)', [str(n) for n in range(86, 135, 4)], (76, 152), regions=CENTIMETRES)]
+DRESS_FIT = extra('fit', 'Fit', ['Petite', 'Regular', 'Tall'])
 
 CATALOG = {
+    'regions': REGIONS,
     'womens': {
-        'tops': {'label': 'Tops', 'hint': TOPS_HINT,
-                 'formats': [fmt('alpha', 'Letter', W_ALPHA), fmt('us', 'US numeric', US_NUMERIC)]},
+        'tops': {'label': 'Tops', 'hint': TOPS_HINT, 'formats': [fmt('alpha', 'Letter', W_ALPHA), *womens_numbered()]},
         'bottoms': {'label': 'Bottoms', 'hint': BOTTOMS_HINT,
-                    'formats': [fmt('us', 'US numeric', US_NUMERIC), fmt('waist', 'Waist (in)', [str(n) for n in range(24, 41)], (22, 50)),
+                    'formats': [*womens_numbered(),
+                                fmt('waist', 'Waist (in)', [str(n) for n in range(24, 41)], (22, 50), regions=INCHES),
+                                fmt('waist_cm', 'Waist (cm)', [str(n) for n in range(60, 105, 4)], (55, 127), regions=CENTIMETRES),
                                 fmt('alpha', 'Letter', W_ALPHA)],
-                    'extras': [INSEAM]},
-        'dresses': {'label': 'Dresses & skirts',
-                    'formats': [fmt('us', 'US numeric', US_NUMERIC), fmt('alpha', 'Letter', W_ALPHA)],
-                    'extras': [extra('fit', 'Fit', ['Petite', 'Regular', 'Tall'])]},
+                    'extras': INSEAMS},
+        'dresses': {'label': 'Dresses & skirts', 'formats': [*womens_numbered(), fmt('alpha', 'Letter', W_ALPHA)],
+                    'extras': [DRESS_FIT]},
         'outerwear': {'label': 'Outerwear', 'hint': OUTERWEAR_HINT,
-                      'formats': [fmt('alpha', 'Letter', W_ALPHA), fmt('us', 'US numeric', US_NUMERIC)]},
+                      'formats': [fmt('alpha', 'Letter', W_ALPHA), *womens_numbered()]},
         'shoes': shoes((4, 13), (2, 11), (34, 44), (21, 30)),
     },
     'mens': {
-        'tops': {'label': 'Tops', 'hint': TOPS_HINT,
-                 'formats': [fmt('alpha', 'Letter', M_ALPHA), fmt('chest', 'Chest (in)', evens(34, 52), (30, 60))],
-                 'extras': [extra('neck', 'Dress shirt neck (in)', halves(14, 18.5), (13, 22), tucked='Dress shirt neck & sleeve'),
+        'tops': {'label': 'Tops', 'hint': TOPS_HINT, 'formats': [fmt('alpha', 'Letter', M_ALPHA), *CHEST],
+                 'extras': [extra('neck', 'Dress shirt neck (in)', halves(14, 18.5), (13, 22), tucked='Dress shirt neck & sleeve',
+                                  regions=INCHES),
                             extra('sleeve', 'Dress shirt sleeve (in)', [str(n) for n in range(32, 38)], (30, 40),
-                                  tucked='Dress shirt neck & sleeve')]},
+                                  tucked='Dress shirt neck & sleeve', regions=INCHES),
+                            extra('neck_cm', 'Dress shirt collar (cm)', [str(n) for n in range(36, 47)], (33, 52),
+                                  tucked='Dress shirt collar', regions=CENTIMETRES)]},
         'bottoms': {'label': 'Bottoms', 'hint': BOTTOMS_HINT,
-                    'formats': [fmt('waist', 'Waist (in)', [str(n) for n in range(26, 37)] + ['38', '40', '42', '44'], (24, 54)),
+                    'formats': [fmt('waist', 'Waist (in)', [str(n) for n in range(26, 37)] + ['38', '40', '42', '44'], (24, 54),
+                                    regions=INCHES),
+                                fmt('eu', 'EU numeric', evens(42, 62), regions=['eu']),
+                                fmt('waist_cm', 'Waist (cm)', [str(n) for n in range(66, 115, 4)], (60, 140), regions=['asia']),
                                 fmt('alpha', 'Letter', M_ALPHA)],
-                    'extras': [INSEAM]},
+                    'extras': INSEAMS},
         # Not shown by default for men's sizing, but available to add.
         'dresses': {'label': 'Dresses & skirts', 'optional': True,
-                    'formats': [fmt('us', 'US numeric', US_NUMERIC), fmt('alpha', 'Letter', W_ALPHA)],
-                    'extras': [extra('fit', 'Fit', ['Petite', 'Regular', 'Tall'])]},
+                    'formats': [*womens_numbered(), fmt('alpha', 'Letter', W_ALPHA)], 'extras': [DRESS_FIT]},
         'outerwear': {'label': 'Outerwear', 'hint': OUTERWEAR_HINT,
-                      'formats': [fmt('alpha', 'Letter', M_ALPHA[1:]), fmt('chest', 'Chest (in)', evens(34, 52), (30, 60))],
-                      # Tailoring length (40R): a suffix on a chest size, not a letter size.
-                      'extras': [extra('length', 'Jacket length', ['S', 'R', 'L'], formats=['chest'])]},
+                      'formats': [fmt('alpha', 'Letter', M_ALPHA[1:]), CHEST[0],
+                                  fmt('eu', 'EU numeric', evens(44, 60), regions=['eu']), CHEST[1] | {'regions': ['asia']}],
+                      # Tailoring length (40R, 50L): a suffix on a chest or EU size, not a letter size.
+                      'extras': [extra('length', 'Jacket length', ['S', 'R', 'L'], formats=['chest', 'eu'])]},
         'shoes': shoes((5, 16), (4, 15), (38, 50), (23, 33)),
     },
-    'bra': {'label': 'Bra size', 'notation': 'US',
-            'bands': evens(28, 46), 'band_custom': [26, 56],
-            'cups': ['AA', 'A', 'B', 'C', 'D', 'DD', 'DDD', 'G', 'H', 'I', 'J'], 'cups_extended': ['K', 'L', 'M', 'N']},
+    # Band and cup per region. Cup letters differ by region (a US DDD is not a UK E), so they are never converted.
+    'bra': {'label': 'Bra size', 'regions': {
+        'us': {'bands': evens(28, 46), 'band_custom': [26, 56],
+               'cups': ['AA', 'A', 'B', 'C', 'D', 'DD', 'DDD', 'G', 'H', 'I', 'J'], 'cups_extended': ['K', 'L', 'M', 'N']},
+        'uk': {'bands': evens(28, 46), 'band_custom': [26, 56],
+               'cups': ['AA', 'A', 'B', 'C', 'D', 'DD', 'E', 'F', 'FF', 'G', 'GG', 'H', 'HH', 'J'], 'cups_extended': ['JJ', 'K', 'KK', 'L']},
+        'eu': {'bands': [str(n) for n in range(60, 111, 5)], 'band_custom': [55, 130],
+               'cups': ['AA', 'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J'], 'cups_extended': ['K', 'L', 'M', 'N']},
+        'asia': {'bands': [str(n) for n in range(60, 111, 5)], 'band_custom': [55, 130],
+                 'cups': ['AA', 'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J'], 'cups_extended': ['K', 'L']},
+    }},
     'accessories': {
         'belts': {'label': 'Belts',
-                  'formats': [fmt('in', 'Inches', evens(26, 46), (20, 60)), fmt('cm', 'cm', [str(n) for n in range(70, 121, 5)], (50, 150)),
-                              fmt('alpha', 'Letter', ACCESSORY_ALPHA)],
+                  'formats': [fmt('in', 'Inches', evens(26, 46), (20, 60), regions=INCHES),
+                              fmt('cm', 'cm', [str(n) for n in range(70, 121, 5)], (50, 150)), fmt('alpha', 'Letter', ACCESSORY_ALPHA)],
                   # A waist measurement and a belt's own length differ (a belt runs a few inches longer).
                   'extras': [extra('measures', 'This number is', ['My waist', 'Belt length'], formats=['in', 'cm'])]},
         'hats': {'label': 'Hats',
                  'formats': [fmt('alpha', 'Letter', ACCESSORY_ALPHA),
-                             fmt('fitted', 'US fitted', ['6 3/4', '6 7/8', '7', '7 1/8', '7 1/4', '7 3/8', '7 1/2', '7 5/8', '7 3/4']),
+                             fmt('fitted', 'US fitted', ['6 3/4', '6 7/8', '7', '7 1/8', '7 1/4', '7 3/8', '7 1/2', '7 5/8', '7 3/4'],
+                                 regions=['us']),
                              fmt('cm', 'Head (cm)', [str(n) for n in range(53, 63)], (48, 66))]},
         'gloves': {'label': 'Gloves',
-                   'formats': [fmt('alpha', 'Letter', ACCESSORY_ALPHA), fmt('in', 'Hand (in)', halves(6, 10), (5, 12)),
+                   'formats': [fmt('alpha', 'Letter', ACCESSORY_ALPHA), fmt('in', 'Hand (in)', halves(6, 10), (5, 12), regions=INCHES),
                                fmt('cm', 'Hand (cm)', [str(n) for n in range(15, 27)], (12, 30))]},
         'rings': {'label': 'Rings',
-                  'formats': [fmt('us', 'US', halves(3, 13), (1, 16)), fmt('mm', 'Finger (mm)', [str(n) for n in range(44, 72, 2)], (38, 80))]},
+                  'formats': [fmt('us', 'US', halves(3, 13), (1, 16), regions=['us']),
+                              fmt('uk', 'UK', [chr(c) for c in range(ord('F'), ord('Z') + 1)], regions=['uk']),
+                              fmt('jp', 'Japan', [str(n) for n in range(1, 28)], regions=['asia']),
+                              # EU ring sizes are the finger's circumference in mm.
+                              fmt('mm', 'EU / finger (mm)', [str(n) for n in range(44, 72, 2)], (38, 80))]},
     },
 }
 CLOTHING = ('tops', 'bottoms', 'dresses', 'outerwear', 'shoes')
@@ -130,7 +171,9 @@ class Pick(Strict):
 
 
 class Bra(Strict):
-    """US band and cup kept separately, plus the combined size. US cup letters aren't UK or EU ones."""
+    """Band and cup kept separately, in one region's notation, plus the combined size ("34C"). Cup letters are
+    never converted between regions."""
+    notation: Region = 'us'
     band: str | None = None
     cup: str | None = None
     size: str | None = None
@@ -188,6 +231,7 @@ def _check(pick: Pick, spec: dict, where: str):
 
 class Sizing(Strict):
     system: System | None = None
+    region: Region = 'us'  # which country charts show first
     womens: ClothingSizes = Field(default_factory=ClothingSizes)
     mens: ClothingSizes = Field(default_factory=ClothingSizes)
     accessories: AccessorySizes = Field(default_factory=AccessorySizes)
@@ -199,12 +243,12 @@ class Sizing(Strict):
             for category in CLOTHING:
                 _check(getattr(sizes, category), CATALOG[system][category], f'{system} {category}')
         bra = self.womens.bra
-        spec = CATALOG['bra']
+        spec = CATALOG['bra']['regions'][bra.notation]
         if bra.band and bra.band not in spec['bands'] and not (
                 _number(bra.band) and spec['band_custom'][0] <= _number(bra.band) <= spec['band_custom'][1]):
-            raise ValueError(f'bra band {bra.band!r} is not a US band size')
+            raise ValueError(f'bra band {bra.band!r} is not a {bra.notation.upper()} band size')
         if bra.cup and bra.cup not in spec['cups'] + spec['cups_extended']:
-            raise ValueError(f'bra cup {bra.cup!r} is not a US cup size')
+            raise ValueError(f'bra cup {bra.cup!r} is not a {bra.notation.upper()} cup size')
         for category in ACCESSORIES:
             _check(getattr(self.accessories, category), CATALOG['accessories'][category], category)
         return self
@@ -222,8 +266,9 @@ def legacy(sizes: dict) -> dict:
 
     def keep(category, value):
         for chart in charts[category]['formats']:
-            # Old pants sizes were US numeric or letters, never a waist in inches.
-            if value in chart['options'] and not (category == 'bottoms' and chart['id'] == 'waist'):
+            # Old sizes were US charts or letters (pants never a waist in inches), so other regions' charts don't count.
+            us = 'us' in chart.get('regions', ['us'])
+            if us and value in chart['options'] and not (category == 'bottoms' and chart['id'] == 'waist'):
                 picks[category] = {'format': chart['id'], 'values': [value]}
                 return
     for category, key in (('tops', 'top'), ('outerwear', 'outerwear'), ('bottoms', 'bottom'), ('shoes', 'shoe')):
@@ -277,7 +322,9 @@ def for_search(sizing: Sizing, category: str, text: str = '', suggested: Clothin
         spec = CATALOG['accessories'][kind] if kind else None
     elif category == 'bra':
         if sizes.bra.size:
-            out.update(size=sizes.bra.size, size_note=f'Bra {sizes.bra.size} (US band and cup)')
+            notation = sizes.bra.notation.upper() if sizes.bra.notation != 'asia' else 'Japan'
+            out.update(size=sizes.bra.size if sizes.bra.notation == 'us' else None,
+                       size_note=f'Bra {sizes.bra.size} ({notation} band and cup)')
         return out
     elif category in SEARCH_CATEGORIES:
         kind = SEARCH_CATEGORIES[category]
@@ -295,7 +342,8 @@ def for_search(sizing: Sizing, category: str, text: str = '', suggested: Clothin
     if category == 'shoes':
         out['shoe_size_system'] = system if pick.format == 'us' else None
     fit = pick.extras.get('fit')
-    inseam = _number(pick.extras.get('inseam', '')) if pick.extras.get('inseam') else None
+    inseam = _number(pick.extras['inseam']) if pick.extras.get('inseam') else (
+        _number(pick.extras['inseam_cm']) / 2.54 if pick.extras.get('inseam_cm') else None)
     if fit:
         out['length'] = {'Petite': 'short', 'Regular': 'regular', 'Tall': 'long'}[fit]
     elif inseam:
@@ -310,7 +358,7 @@ def summary(sizing: Sizing) -> str:
     lines = [f'{CATALOG[system][c]["label"]}: {describe(getattr(sizes, c), CATALOG[system][c])}'
              for c in CLOTHING if getattr(sizes, c).values]
     if sizes.bra.size:
-        lines.append(f'Bra: {sizes.bra.size} (US)')
+        lines.append(f'Bra: {sizes.bra.size} ({sizes.bra.notation.upper()})')
     lines += [f'{CATALOG["accessories"][c]["label"]}: {describe(getattr(sizing.accessories, c), CATALOG["accessories"][c])}'
               for c in ACCESSORIES if getattr(sizing.accessories, c).values]
     return ('Shops in ' + {'womens': "women's", 'mens': "men's"}[system] + ' sizing. ' if sizing.system else '') + '; '.join(lines)

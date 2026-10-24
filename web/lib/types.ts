@@ -29,6 +29,7 @@ export interface Measurements {
 }
 
 export type SizeSystem = "womens" | "mens";
+export type SizeRegion = "us" | "uk" | "eu" | "asia";
 /** Sizes in one category: the chart, acceptable sizes in it (several allowed), and extras like inseam or width. */
 export interface SizePick {
   format?: string | null;
@@ -41,13 +42,15 @@ export interface ClothingSizes {
   dresses: SizePick;
   outerwear: SizePick;
   shoes: SizePick;
-  bra: { band?: string | null; cup?: string | null; size?: string | null };
+  bra: { notation?: SizeRegion; band?: string | null; cup?: string | null; size?: string | null };
 }
 export type ClothingCategory = Exclude<keyof ClothingSizes, "bra">;
 export type AccessoryCategory = "belts" | "hats" | "gloves" | "rings";
 /** backend/taste/sizing.py. Women's and men's are kept side by side; the system only picks which charts show. */
 export interface Sizing {
   system: SizeSystem | null;
+  /** Which country charts show first; US by default. */
+  region: SizeRegion;
   womens: ClothingSizes;
   mens: ClothingSizes;
   accessories: Record<AccessoryCategory, SizePick>;
@@ -57,6 +60,8 @@ export interface SizeFormat {
   label: string;
   options: string[];
   custom?: [number, number];
+  /** Only shown in these size regions (none = every region). */
+  regions?: SizeRegion[];
 }
 export interface SizeExtra extends SizeFormat {
   formats?: string[];
@@ -67,13 +72,22 @@ export interface SizeCategorySpec {
   label: string;
   hint?: string;
   optional?: boolean;
+  /** Every chart stays available (shoes); the region only picks which opens first. */
+  every_region?: boolean;
   formats: SizeFormat[];
   extras?: SizeExtra[];
+}
+export interface BraChart {
+  bands: string[];
+  band_custom: [number, number];
+  cups: string[];
+  cups_extended: string[];
 }
 export interface SizeCatalog {
   womens: Record<ClothingCategory, SizeCategorySpec>;
   mens: Record<ClothingCategory, SizeCategorySpec>;
-  bra: { label: string; bands: string[]; band_custom: [number, number]; cups: string[]; cups_extended: string[] };
+  regions: { id: SizeRegion; label: string }[];
+  bra: { label: string; regions: Record<SizeRegion, BraChart> };
   accessories: Record<AccessoryCategory, SizeCategorySpec>;
 }
 

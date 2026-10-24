@@ -95,3 +95,20 @@ def test_catalog_and_sizes_flow_through_the_api(tmp_path):
         with sqlite3.connect(tmp_path / 'f.sqlite') as db:
             request = json.loads(db.execute('SELECT request FROM jobs WHERE id=?', (job['search_id'],)).fetchone()[0])
         assert request['request']['size_note'] == 'Bottoms: 6 or 8' and request['request']['measurements'] == {'bust': 35.0}
+
+
+def test_size_regions_have_their_own_charts_and_us_is_the_default():
+    assert Sizing().region == 'us' and [r['id'] for r in CATALOG['regions']] == ['us', 'uk', 'eu', 'asia']
+    uk = Sizing(region='uk', womens={'dresses': {'format': 'uk', 'values': ['12']},
+                                      'bra': {'notation': 'uk', 'band': '34', 'cup': 'FF'}})
+    assert uk.womens.bra.size == '34FF'
+    with pytest.raises(ValidationError):  # FF is a UK cup, not a US one
+        Sizing(womens={'bra': {'notation': 'us', 'band': '34', 'cup': 'FF'}})
+    eu = Sizing(region='eu', system='mens', mens={'bottoms': {'format': 'eu', 'values': ['50'], 'extras': {'inseam_cm': '81'}},
+                                                  'outerwear': {'format': 'eu', 'values': ['50'], 'extras': {'length': 'L'}}})
+    pants = for_search(eu, 'bottom')
+    assert pants['size'] is None and pants['length'] == 'regular' and 'EU numeric' in pants['size_note']  # 81 cm ≈ 32 in
+    bra = for_search(uk, 'bra')
+    assert bra['size'] is None and bra['size_note'] == 'Bra 34FF (UK band and cup)'  # only US cups filter listings
+    jp_ring = Sizing(region='asia', accessories={'rings': {'format': 'jp', 'values': ['11']}})
+    assert 'Japan' in for_search(jp_ring, 'accessory', 'silver ring')['size_note']
