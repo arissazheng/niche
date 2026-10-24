@@ -10,6 +10,7 @@ import type {
   SizeCatalog,
   SizeCategorySpec,
   SizePick,
+  SizeRegion,
   SizeSystem,
   Sizing,
 } from "@/lib/types";
@@ -20,6 +21,7 @@ const emptyClothing = (): ClothingSizes => ({
 });
 export const emptySizing = (): Sizing => ({
   system: null,
+  region: "us",
   womens: emptyClothing(),
   mens: emptyClothing(),
   accessories: { belts: EMPTY, hats: EMPTY, gloves: EMPTY, rings: EMPTY },
@@ -31,6 +33,7 @@ export function withDefaults(sizing?: Partial<Sizing> | null): Sizing {
   const clothing = (c?: Partial<ClothingSizes>) => ({ ...emptyClothing(), ...c });
   return {
     system: sizing?.system ?? null,
+    region: sizing?.region ?? "us",
     womens: clothing(sizing?.womens),
     mens: clothing(sizing?.mens),
     accessories: { ...base.accessories, ...sizing?.accessories },
@@ -94,6 +97,27 @@ export function SizingSection({ value, onChange }: { value: Sizing; onChange: (n
         </div>
       </div>
 
+      {system && catalog && (
+        <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1">
+          <span className="label">Size region</span>
+          <div className="flex flex-wrap gap-x-3 text-sm" role="radiogroup" aria-label="Size region">
+            {catalog.regions.map((r) => (
+              <button
+                key={r.id}
+                type="button"
+                role="radio"
+                aria-checked={value.region === r.id}
+                onClick={() => onChange({ ...value, region: r.id })}
+                className={value.region === r.id ? "underline underline-offset-4 decoration-1" : "text-muted hover:text-ink"}
+              >
+                {r.label}
+              </button>
+            ))}
+          </div>
+          <span className="text-xs text-muted basis-full">Shows that country&apos;s size charts first. Letter sizes work everywhere.</span>
+        </div>
+      )}
+
       {system && sizes && catalog && (
         <div className="grid">
           {CLOTHING.map((category) => {
@@ -103,6 +127,7 @@ export function SizingSection({ value, onChange }: { value: Sizing; onChange: (n
             return (
               <CategoryRow
                 key={`${system}-${category}`}
+                region={value.region}
                 spec={spec}
                 pick={sizes[category]}
                 onChange={(pick) => setClothing(category, pick)}
@@ -116,7 +141,9 @@ export function SizingSection({ value, onChange }: { value: Sizing; onChange: (n
           )}
           {system === "womens" && (
             <BraRow
-              spec={catalog.bra}
+              charts={catalog.bra.regions}
+              region={value.region}
+              regionLabel={catalog.regions.find((r) => r.id === value.region)?.label ?? "US"}
               value={sizes.bra}
               onChange={(bra) => onChange({ ...value, womens: { ...value.womens, bra } })}
             />
@@ -144,6 +171,7 @@ export function SizingSection({ value, onChange }: { value: Sizing; onChange: (n
                 <CategoryRow
                   key={category}
                   compact
+                  region={value.region}
                   spec={catalog.accessories[category]}
                   pick={value.accessories[category]}
                   onChange={(pick) => setAccessory(category, pick)}
@@ -161,17 +189,25 @@ export function SizingSection({ value, onChange }: { value: Sizing; onChange: (n
 function CategoryRow({
   spec,
   pick,
+  region,
   onChange,
   compact = false,
 }: {
   spec: SizeCategorySpec;
   pick: SizePick;
+  region: SizeRegion;
   onChange: (pick: SizePick) => void;
   compact?: boolean;
 }) {
-  const format = spec.formats.find((f) => f.id === pick.format) ?? spec.formats[0];
+  // This region's charts, plus any chart already holding the shopper's sizes (so a region change never hides them).
+  const inRegion = (f: { regions?: SizeRegion[] }) => !f.regions || f.regions.includes(region);
+  const formats = spec.formats.filter((f) => spec.every_region || inRegion(f) || f.id === pick.format);
+  const opening = (spec.every_region && formats.find((f) => f.regions?.includes(region))) || formats[0];
+  const format = formats.find((f) => f.id === pick.format) ?? opening;
   const values = pick.format === format.id ? pick.values : [];
-  const extras = (spec.extras ?? []).filter((e) => !e.formats || e.formats.includes(format.id));
+  const extras = (spec.extras ?? []).filter(
+    (e) => (!e.formats || e.formats.includes(format.id)) && (inRegion(e) || pick.extras[e.id]),
+  );
   const typed = values.filter((v) => !format.options.includes(v));
   const filled = values.length > 0 || Object.keys(pick.extras).length > 0;
   const [opened, setOpened] = useState<string[]>([]);
@@ -205,9 +241,9 @@ function CategoryRow({
         )}
       </div>
       <div className="grid gap-1.5">
-        {spec.formats.length > 1 && (
+        {formats.length > 1 && (
           <div className="flex flex-wrap gap-x-3 text-xs" role="tablist" aria-label={`${spec.label} size chart`}>
-            {spec.formats.map((f) => (
+            {formats.map((f) => (
               <button
                 key={f.id}
                 type="button"
@@ -250,22 +286,35 @@ function CategoryRow({
 }
 
 function BraRow({
-  spec,
+  charts,
+  region,
+  regionLabel,
   value,
   onChange,
 }: {
-  spec: SizeCatalog["bra"];
+  charts: SizeCatalog["bra"]["regions"];
+  region: SizeRegion;
+  regionLabel: string;
   value: ClothingSizes["bra"];
   onChange: (bra: ClothingSizes["bra"]) => void;
 }) {
+  // A saved size keeps its own notation (cups aren't converted between regions); an empty one follows the region.
+  const notation = value.band || value.cup ? value.notation ?? "us" : region;
+  const spec = charts[notation];
   const [more, setMore] = useState(spec.cups_extended.includes(value.cup ?? ""));
   const cups = more ? [...spec.cups, ...spec.cups_extended] : spec.cups;
-  const set = (key: "band" | "cup", v: string) => onChange({ ...value, [key]: value[key] === v ? null : v });
+  const set = (key: "band" | "cup", v: string) =>
+    onChange({ ...value, notation, [key]: value[key] === v ? null : v });
   return (
     <div className="grid sm:grid-cols-[11rem_1fr] gap-x-4 gap-y-1 rule-t py-3 text-sm">
       <div>
         <p className="text-sm text-muted">Bra size (optional)</p>
-        {value.band && value.cup && <p className="text-xs mt-0.5">{value.band}{value.cup} US</p>}
+        {value.band && value.cup && <p className="text-xs mt-0.5">{value.band}{value.cup} {notation === "asia" ? "Japan" : notation.toUpperCase()}</p>}
+        {notation !== region && (
+          <button type="button" onClick={() => onChange({ notation: region })} className="text-xs text-muted underline hover:text-ink mt-0.5 text-left">
+            Use {regionLabel} sizes
+          </button>
+        )}
       </div>
       <div className="grid gap-1">
         <div className="flex flex-wrap items-center gap-x-2">
