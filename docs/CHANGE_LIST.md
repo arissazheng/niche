@@ -1,22 +1,22 @@
 # Change list
 
-Requested changes, not started yet. Newest at the bottom.
+## Done
 
-## Onboarding: sizing
+- Numbered sizes (00-40) for pants and skirts, plus length: Short (petite) / Regular / Long (tall)
+- Lookbook: one "Add to my lookbook" button, drag and drop, own-fit photos, notes ("Can't find the right pic?")
+- Pinterest import (public profiles; boards once a Bright Data Web Unlocker zone is set) and Instagram import
+  (public profiles; outfit photos only, never the person)
+- Pencil-and-eraser "Edit lookbook" button on the moodboard; visible x to remove photos
+- Speed: results stream in per marketplace (first results ~15 s), warm-up search after a profile build (matching
+  results in ~3 s), fonts bundled locally
+- New vs secondhand: guaranteed mix when both have good matches, counts and a filter on the shop page
 
-1. **Numbered sizes for pants and skirts.** Let people pick either letter sizes (XS–XXL) or numbered sizes. Numbered sizes run from 00 up into the 40s; pick the right top end (e.g. 00–40 for women's numbered sizes, or a plus range).
-2. **Length.** Add a length choice for pants and skirts: Short (petite), Regular, Long (tall).
+## Next
 
-## Upload / lookbook
+- Elastic: index every scraped listing; search it instantly (semantic + keyword) before the live scrape
+- Fetch.ai: Niche as an agent on Agentverse, usable from ASI:One (find + rank + link; no checkout)
+- Pinterest board links: create a Web Unlocker zone and set BRIGHTDATA_UNLOCKER_ZONE
 
-3. **One button.** Replace the separate pieces/outfits buttons with one button: "Add to my lookbook."
-4. **Lower the barrier to adding inspiration.** Many people won't have photos saved on their computer. Keep:
-   - upload from computer
-   - drag and drop
-5. **Text notes.** A box to describe what they want in words, prompted with: "Can't find the right pic? Leave a short note of what you're thinking." Notes feed the taste profile like photos do.
-6. **Link a Pinterest board** (priority), then **reference an Instagram account** (later).
-7. **Encourage people to add their own outfit pics** (their own fits), not just inspiration.
+## On hold
 
-## After the taste profile is built
-
-8. **Make editing obvious.** People should easily add more photos or delete ones they changed their mind about. The option exists but isn't clear. Idea: a cute eraser-and-pen icon in a corner that takes them back to the add/remove photos screen.
+- Checkout
