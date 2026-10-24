@@ -1,11 +1,12 @@
 # Niche Apify actors
 
-Three private actors on the team Apify account. The backend runs all three for every search, merges the rows, and Claude ranks them as one list (`backend/sourcing`).
+Three private actors on the team Apify account, plus `independent-labels`, a standalone actor meant for the Apify Store. The backend runs the first three for every search, merges the rows, and Claude ranks them as one list (`backend/sourcing`).
 
 | Actor | Searches | Labels |
 |---|---|---|
 | `niche-mainstream` | Google Shopping (`burbn/google-shopping-scraper`), kept only for stores in the retailer bank | store name + type, e.g. `Nordstrom · Department store` |
 | `niche-secondhand` | Depop (`abotapi/depop-scraper`), Poshmark (`piotrv1001/poshmark-listings-scraper`), Vinted (`epicscrapers/vinted-search-scraper`), Etsy (`one_dollar_store/etsy-listings-scraper`); Grailed opt-in | `Depop · Secondhand`, `Etsy · Small shop` |
+| `independent-labels` | Standalone: brand names or websites in; each label's Shopify store found, verified (real store, independent, own label, small, established) and its in-stock products out. Shares its resolution and checks with the backend (`taste/shops.py`, `taste/brands.py`). Store page: `labels/README.md` | `Batul The Collection · verified` |
 | `niche-indie` | Independent labels' own Shopify stores, read directly from each store's public `/products.json` (no third-party scrapers); seed list in `indie_shops.py`, plus the shopper's own shops (below) | `Christy Dawn · Small shop` |
 
 All three drop sold items, promoted/sponsored listings, items over `maxPrice` and duplicates. Every row has the same fields as the backend `Listing` (`id, marketplace, retailer, tier, title, url, price, currency, image_urls, sizes, condition, brand, seller, ...`).

@@ -1,6 +1,6 @@
-"""Create or update the private Apify actors from this folder, then build them.
+"""Create or update the Apify actors (created private; publishing to the Store is done in the Apify console) from this folder, then build them.
 
-    python deploy.py            # all three
+    python deploy.py            # all four
     python deploy.py secondhand
 
 Uses APIFY_TOKEN if set; otherwise relies on a proxy that injects the Authorization header.
@@ -14,7 +14,7 @@ from pathlib import Path
 import httpx
 
 HERE = Path(__file__).parent
-MODES = ['mainstream', 'secondhand', 'indie']
+MODES = ['mainstream', 'secondhand', 'indie', 'labels']
 
 
 def files(mode):
@@ -22,6 +22,8 @@ def files(mode):
     dockerfile = (HERE / 'Dockerfile').read_text().replace('ARG ACTOR_MODULE=mainstream', f'ARG ACTOR_MODULE={mode}')
     out = [{'name': '.actor/actor.json', 'format': 'TEXT', 'content': json.dumps(spec, indent=2)},
            {'name': 'Dockerfile', 'format': 'TEXT', 'content': dockerfile}]
+    if (HERE / mode / 'README.md').exists():  # the actor's Apify Store page
+        out.append({'name': 'README.md', 'format': 'TEXT', 'content': (HERE / mode / 'README.md').read_text()})
     for path in sorted((HERE / 'niche_actors').glob('*.py')):
         out.append({'name': f'niche_actors/{path.name}', 'format': 'TEXT', 'content': path.read_text()})
     return spec, out

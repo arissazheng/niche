@@ -15,35 +15,14 @@ import json
 import re
 from urllib.parse import quote_plus, urlsplit, urlunsplit
 import httpx
-from actors.niche_actors import retailers
+from actors.niche_actors.labels import host, independent  # shared with the independent-labels actor
 from .models import Listing
 from .store import now
 
 API = 'https://api.brightdata.com/'
 MAX_PAGES = 12
 AT_ONCE = 6
-# Not independent labels: marketplaces, big retailers' own domains, social sites and press. Retailer-bank names are
-# checked too (retailers.py), so nordstrom.com or zara.com never count as small shops.
-NOT_INDIE = re.compile(r'(^|\.)(amazon|ebay|etsy|depop|poshmark|grailed|vinted|mercari|therealreal|vestiairecollective|'
-    r'shein|temu|aliexpress|alibaba|walmart|target|asos|revolve|farfetch|ssense|net-a-porter|mytheresa|shopbop|'
-    r'nordstrom|nordstromrack|saksfifthavenue|neimanmarcus|bloomingdales|macys|zara|hm|uniqlo|urbanoutfitters|'
-    r'anthropologie|freepeople|abercrombie|lulus|princesspolly|fashionnova|boohoo|prettylittlething|lyst|shopstyle|'
-    r'pinterest|instagram|facebook|tiktok|youtube|reddit|twitter|x|wikipedia|vogue|elle|harpersbazaar|whowhatwear|'
-    r'refinery29|cosmopolitan|nytimes|buzzfeed|google|shopmy|ltk|liketoknow|substack|medium|tumblr)\.[a-z.]+$')
 PRODUCT_TYPES = {'product', 'productgroup', 'individualproduct'}
-
-
-def host(url):
-    h = (urlsplit(url).hostname or '').lower()
-    return h[4:] if h.startswith('www.') else h
-
-
-def independent(url):
-    h = host(url)
-    if not h or NOT_INDIE.search(h):
-        return False
-    stem = retailers.key(h.rsplit('.', 1)[0].replace('shop', '').replace('store', ''))
-    return stem not in retailers.INDEX
 
 
 def queries_for(query, shops=()):

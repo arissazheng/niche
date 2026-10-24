@@ -15,8 +15,9 @@ from sourcing.store import Store
 from sourcing.webshops import WebShops
 from actors.niche_actors.indie_shops import SHOPS as INDIE_SHOPS
 import json
-from .chat import ChatRequest, ShopAgent, find_cards, guess_category, result_cards, search_sizes
+from .chat import ChatRequest, ShopAgent, find_cards, label_cards, guess_category, result_cards, search_sizes
 from .finds import Finds
+from .labels import Labels
 from .fit import inches, suggest
 from .sizing import CATALOG
 from .imports import Importer, LinkError
@@ -234,6 +235,7 @@ def create_router(settings, store: Store, budgets: Budgets | None = None, signer
             if shop.domain not in have and len(profile.indie_shops) < MAX_SHOPS:
                 have.add(shop.domain)
                 profile.indie_shops.append(shop)
+        labels.index_soon(profile.indie_shops)
         profile.shop_lookups = list(dict.fromkeys(profile.shop_lookups + [n.strip().lower() for n in names]))[-100:]
         return await engine.save(profile)
 
@@ -250,6 +252,7 @@ def create_router(settings, store: Store, budgets: Budgets | None = None, signer
         if all(x.domain != shop.domain for x in profile.indie_shops):
             profile.indie_shops.append(await brands.verify(shop))
             profile = await engine.save(profile)
+            labels.index_soon([shop])  # its catalog into Moss, for instant recall in the assistant
         return view(profile)
 
     discovered = {}  # (profile id, version, its shops) -> suggestions, so reopening the page doesn't ask again
@@ -321,6 +324,7 @@ def create_router(settings, store: Store, budgets: Budgets | None = None, signer
 
     agent = ShopAgent(settings, engine.model)
     finds = Finds(settings, store)  # earlier finds in Moss, for "the green one from before"
+    labels = Labels(settings, store)  # the shopper's saved independent labels' catalogs in Moss
 
     def on_screen(ident, search_id):
         # Loaded server-side (not sent by the browser), and only for this profile's own searches.
@@ -399,15 +403,21 @@ def create_router(settings, store: Store, budgets: Budgets | None = None, signer
         results = on_screen(ident, chat.search_id)
         if results is not None:
             finds.remember_soon(ident, chat.search_id)  # what's on screen now becomes an earlier find
-        earlier = await finds.recall(ident, chat.messages[-1].text, skip_search=chat.search_id)
+        earlier, mine = await asyncio.gather(
+            finds.recall(ident, chat.messages[-1].text, skip_search=chat.search_id),
+            labels.recall_labels(profile.indie_shops, chat.messages[-1].text, profile.onboarding.budget_max))
+        labels.index_soon(profile.indie_shops)  # catalogs not read in the last day are refreshed in the background
         turn = await agent.respond(profile, chat.messages, steer, results, linked,
-                                   **({'earlier': find_cards(earlier)} if earlier else {}))
+                                   **({'earlier': find_cards(earlier)} if earlier else {}),
+                                   **({'labels': label_cards(mine)} if mine else {}))
         out = {'reply': turn.reply, 'action': turn.action, 'brief': turn.brief,
                'budget': budget.model_dump() if budget else None}
         by_ref = {f'E{n}': x for n, x in enumerate(earlier, start=1)}
+        by_ref.update({f'L{n}': {**x, 'source': 'indie'} for n, x in enumerate(mine, start=1)})
         if recalled := [by_ref[r] for r in dict.fromkeys(turn.recall) if r in by_ref][:5]:
             out['recalled'] = [{'title': x['title'], 'url': x['url'], 'price': x['price'], 'currency': x['currency'],
-                                'store': x.get('retailer') or x.get('seller') or x['source']} for x in recalled]
+                                'store': x.get('store') or x.get('retailer') or x.get('seller') or x['source']}
+                               for x in recalled]
         if linked:
             out['linked'] = [{'url': x.url, 'site': x.site, 'title': x.title, 'readable': x.readable} for x in linked]
         return plan(profile, turn, chat, out, budget, steer)

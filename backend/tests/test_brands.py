@@ -6,6 +6,7 @@ from app import create_app
 from sourcing.config import Settings
 from sourcing.models import IndieShop
 from taste import brands, shops
+from actors.niche_actors.labels import SMALL_CATALOG
 
 TODAY = datetime(2026, 10, 24, tzinfo=timezone.utc)
 LABEL = IndieShop(domain='velathelabel.com', name='Vela')
@@ -24,11 +25,11 @@ def test_a_small_established_label_passes_every_check():
 def test_each_check_catches_its_case():
     new_store = brands.checks(LABEL, [product(1, published='2026-09-30T00:00:00Z')], TODAY)
     assert not new_store['established']  # a month old: often a drop-shipping store
-    boutique = brands.checks(LABEL, [product(i, vendor=f'Brand {i}') for i in range(6)], TODAY)
-    assert not boutique['own_label']  # resells six labels
+    boutique = brands.checks(LABEL, [product(i, vendor=f'Brand {"ABCDEFGHIJKL"[i]}') for i in range(12)], TODAY)
+    assert not boutique['own_label']  # resells twelve labels
     sold_out = brands.checks(LABEL, [product(1, available=False)], TODAY)
     assert not sold_out['real_store']
-    huge = brands.checks(LABEL, [product(i) for i in range(brands.SMALL_CATALOG)], TODAY)
+    huge = brands.checks(LABEL, [product(i) for i in range(SMALL_CATALOG)], TODAY)
     assert not huge['small']
     chain = brands.checks(IndieShop(domain='zara.com', name='Zara'), [product(1)], TODAY)
     assert not chain['independent']
