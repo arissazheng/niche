@@ -1,31 +1,22 @@
 """Verified independent labels: the checks a shop passes before Niche calls it independent, and brand discovery.
 
-Checks read the store's public Shopify catalog (/products.json), so they cost nothing and run in a second or two:
-  real_store   it sells something with a price, in stock
-  independent  not a marketplace, chain or retailer-bank store (sourcing/webshops.py)
-  own_label    one label's store, not a boutique or reseller of many brands (few distinct `vendor`s)
-  small        a modest catalog (under SMALL_CATALOG products)
-  established  selling for a while (oldest product over ESTABLISHED_DAYS old), which drop-shipping stores rarely are
-A shop is verified when every check passes. Stores on other platforms can't be checked this way yet (None).
+Checks read the store's public Shopify catalog (/products.json), so they cost nothing and run in a second or two;
+they live in backend/actors/niche_actors/labels.py, shared with the public independent-labels actor (real store,
+independent, own label, small catalog, established). A shop is verified when every check passes. Stores on other platforms can't be checked this way yet (None).
 
 Discovery: Claude names independent labels close to the shopper's taste and favorite brands, with each one's website;
 only those whose site is a real store that passes every check are shown. Claude's names are never shown unverified.
 """
 import asyncio
 import json
-from datetime import datetime, timezone
 from pydantic import BaseModel, Field
 from sourcing import safe_fetch
 from sourcing.models import IndieShop
-from sourcing.webshops import independent
+from actors.niche_actors.labels import CHECKS, checks as label_checks  # shared with the actor
 from . import shops
 
-SMALL_CATALOG = 1000
-ESTABLISHED_DAYS = 180
-MAX_VENDORS = 3
 PAGES = 4  # 250 products a page: enough to tell a small catalog from a big one
 SUGGESTIONS = 12
-CHECKS = ('real_store', 'independent', 'own_label', 'small', 'established')
 
 
 class Suggestion(BaseModel):
@@ -65,20 +56,7 @@ async def catalog(http, domain):
 def checks(shop: IndieShop, products, today=None):
     if shop.platform != 'shopify':
         return {k: None for k in CHECKS}
-    today = today or datetime.now(timezone.utc)
-    variants = [v for p in products for v in p.get('variants') or [] if isinstance(v, dict)]
-    vendors = {str(p.get('vendor') or '').strip().lower() for p in products} - {''}
-    dates = []
-    for p in products:
-        try:
-            dates.append(datetime.fromisoformat(str(p.get('published_at') or p.get('created_at'))))
-        except ValueError:
-            continue
-    return {'real_store': any(v.get('available') and v.get('price') for v in variants),
-            'independent': independent(f'https://{shop.domain}/'),
-            'own_label': bool(products) and len(vendors) <= MAX_VENDORS,
-            'small': bool(products) and len(products) < SMALL_CATALOG,
-            'established': bool(dates) and (today - min(dates)).days >= ESTABLISHED_DAYS}
+    return label_checks(shop.domain, products, today)
 
 
 async def verify(shop: IndieShop, http=None):

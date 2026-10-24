@@ -10,36 +10,12 @@ import asyncio
 import html
 import json
 import re
-from urllib.parse import urlsplit
 from sourcing import safe_fetch
 from sourcing.models import IndieShop
 
+from actors.niche_actors.labels import FILLER, domain_of, guesses, slug  # shared with the independent-labels actor
+
 MAX_BYTES = 2_000_000
-# Words labels add to a domain or drop from it: "Batul The Collection" -> batul, batulthecollection, ...
-FILLER = re.compile(r'\b(the|collection|label|studio|official|shop|store|clothing|brand)\b')
-SUFFIXES = ('thelabel', 'thecollection', 'label', 'studio', 'clothing', 'official')
-PREFIXES = ('shop', 'the', 'wear')
-
-
-def slug(text):
-    return re.sub(r'[^a-z0-9]', '', text.lower())
-
-
-def domain_of(text):
-    """'https://www.Batul.com/collections/x' -> 'batul.com'; None when it isn't a website."""
-    text = text.strip()
-    if not re.search(r'\.[a-z]{2,}(/|$)', text.lower()):
-        return None
-    host = (urlsplit(text if '://' in text else f'https://{text}').hostname or '').lower()
-    host = host[4:] if host.startswith('www.') else host
-    return host if re.fullmatch(r'[a-z0-9-]+(\.[a-z0-9-]+)+', host) else None
-
-
-def guesses(name):
-    """Likely shop domains for a brand name, most likely first."""
-    full, base = slug(name), slug(FILLER.sub(' ', name.lower())) or slug(name)
-    names = list(dict.fromkeys([full, base] + [base + s for s in SUFFIXES] + [p + base for p in PREFIXES]))
-    return [f'{n}.{tld}' for n in names if 2 < len(n) <= 40 for tld in ('com', 'co')][:24]
 
 
 async def read_json(http, url):
