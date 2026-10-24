@@ -365,7 +365,8 @@ function ImportBox({ jobs, onImport }: { jobs: ImportJob[]; onImport: (url: stri
         Links must be public. Secret boards and private accounts can&apos;t be read. We only keep the outfit photos
         (for TikToks, a few frames), never who posted them.
       </p>
-      {jobs.slice(0, 3).map((job) => (
+      {/* Finished imports speak for themselves (the photos appear below); only progress and problems get a line. */}
+      {jobs.filter((job) => job.status !== "done").slice(0, 3).map((job) => (
         <p key={job.id} className={`text-sm ${job.status === "running" ? "animate-pulse" : ""}`} role="status">
           {job.status === "running"
             ? `Importing from ${SITE_NAMES[job.site]}… ${job.kind === "post" ? "usually under a minute" : "profiles and boards can take a few minutes"}. You can keep adding looks.`
