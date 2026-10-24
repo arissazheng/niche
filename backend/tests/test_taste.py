@@ -315,3 +315,14 @@ def test_notes_only_lookbook_builds_and_own_fits_upload(client):
     assert 'cropped brown leather jacket' in built['profile']['prompt']
     own = client.post(f'/v1/taste/profiles/{pid}/images', files={'file': ('me.png', png((90, 60, 40)))}, data={'kind': 'own'})
     assert own.status_code == 201 and own.json()['kind'] == 'own' and own.json()['source'] == 'upload'
+
+
+def test_numbered_bottom_size_and_length_reach_the_search(client):
+    bad = client.post('/v1/taste/profiles', json={'sizes': {'bottom': '7'}})
+    assert bad.status_code == 422
+    pid = client.post('/v1/taste/profiles', json={'sizes': {'top': 'S', 'bottom': '00', 'bottom_length': 'long'}}).json()['profile']['id']
+    client.post(f'/v1/taste/profiles/{pid}/images', files={'file': ('a.png', png((20, 20, 20)))})
+    client.post(f'/v1/taste/profiles/{pid}/build')
+    skirt = client.post(f'/v1/taste/profiles/{pid}/chat', json={'messages': [{'role': 'user', 'text': 'pleated midi skirt'}]}).json()
+    top = client.post(f'/v1/taste/profiles/{pid}/chat', json={'messages': [{'role': 'user', 'text': 'black halter top'}]}).json()
+    assert (skirt['size'], skirt['length']) == ('00', 'long') and top['length'] is None

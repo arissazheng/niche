@@ -128,7 +128,7 @@ def create_router(settings, store: Store, budgets: Budgets | None = None):
         return SearchRequest(taste_profile=profile.to_sourcing(), sources=search.sources, limit=search.limit,
             profile_id=profile.id,
             request=ShoppingRequest(query=search.query, max_item_price=search.max_item_price or ob.budget_max,
-                currency=ob.currency, size=search.size))
+                currency=ob.currency, size=search.size, length=search.length))
 
     def start_search(profile, search: ProfileSearch):
         job = store.create(search_request(profile, search).model_dump(mode='json'))
@@ -174,6 +174,7 @@ def create_router(settings, store: Store, budgets: Budgets | None = None):
             # Unless the user named a size, search in their saved size for this kind of garment.
             category = turn.category if turn.category != 'other' else guess_category(turn.brief)
             out['size'] = turn.size or profile_size(profile, category)
+            out['length'] = profile.onboarding.sizes.bottom_length if category == 'bottom' else None
             out['category'] = category
             price = turn.max_item_price
             if price is None and budget and budget.remaining >= 1:
@@ -182,7 +183,7 @@ def create_router(settings, store: Store, budgets: Budgets | None = None):
             out['max_item_price'] = price
         if turn.action == 'search':
             out.update(start_search(profile, ProfileSearch(query=turn.brief, max_item_price=out['max_item_price'],
-                                                           size=out['size'])))
+                                                           size=out['size'], length=out['length'])))
         return out
 
     return router

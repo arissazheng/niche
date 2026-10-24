@@ -10,11 +10,24 @@ class StrictModel(BaseModel):
     model_config = ConfigDict(extra='forbid')
 
 
+# Pants and skirts: letters or US numbered sizes, 00 up to 40 (misses through plus).
+NUMBERED_SIZES = ['00', '0'] + [str(n) for n in range(2, 41, 2)]
+Length = Literal['short', 'regular', 'long']  # petite / regular / tall inseam
+
+
 class Sizes(StrictModel):
     top: SizeLabel | None = None
-    bottom: SizeLabel | None = None
+    bottom: str | None = None
+    bottom_length: Length | None = None
     outerwear: SizeLabel | None = None
     shoe: str | None = Field(default=None, max_length=10)
+
+    @field_validator('bottom')
+    @classmethod
+    def letter_or_number(cls, size):
+        if size is not None and size not in ('XS', 'S', 'M', 'L', 'XL', 'XXL', *NUMBERED_SIZES):
+            raise ValueError('bottom size must be XS-XXL or a numbered size from 00 to 40')
+        return size
 
 
 class Onboarding(StrictModel):
@@ -129,6 +142,7 @@ class ProfileSearch(StrictModel):
     query: str = Field(min_length=1, max_length=500)
     max_item_price: float | None = Field(default=None, gt=0, le=100000)
     size: str | None = Field(default=None, max_length=30)
+    length: Length | None = None
     sources: list[Literal['mainstream', 'secondhand', 'etsy', 'depop', 'poshmark', 'grailed']] = ['mainstream', 'secondhand']
     limit: int = Field(default=20, ge=1, le=24)
 

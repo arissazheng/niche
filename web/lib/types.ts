@@ -3,6 +3,7 @@
 
 export type SizeLabel = "XS" | "S" | "M" | "L" | "XL" | "XXL";
 // own: the shopper wearing their own clothes, the strongest signal of what they actually wear.
+export type Length = "short" | "regular" | "long";
 export type ImageKind = "outfit" | "item" | "own";
 // mainstream / secondhand are the two Niche Apify actors (backend/actors); the rest are single-marketplace adapters.
 export type Source = "mainstream" | "secondhand" | "etsy" | "depop" | "poshmark" | "grailed";
@@ -20,7 +21,14 @@ export interface Onboarding {
   name: string;
   age: number | null;
   email: string;
-  sizes: { top: SizeLabel | null; bottom: SizeLabel | null; outerwear: SizeLabel | null; shoe: string | null };
+  sizes: {
+    top: SizeLabel | null;
+    /** Pants and skirts: a letter size, or a US numbered size from "00" to "40". */
+    bottom: string | null;
+    bottom_length?: Length | null;
+    outerwear: SizeLabel | null;
+    shoe: string | null;
+  };
   budget_min: number;
   budget_max: number;
   currency: string;
