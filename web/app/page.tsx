@@ -1,5 +1,5 @@
-import Image from "next/image";
 import Link from "next/link";
+import { HeroEnvelope } from "@/components/hero-envelope";
 
 const CATEGORIES = ["Outerwear", "Knitwear", "Trousers", "Dresses", "Shoes", "Bags", "Vintage", "Handmade"];
 
@@ -8,15 +8,8 @@ export default function Home() {
     <div className="px-4">
       <p className="text-display text-center my-2">{CATEGORIES.join(", ")}</p>
       {/* Full-width black band with the envelopes (cropped from niche-front.webp) centred on it. */}
-      <section className="relative -mx-4 my-4 bg-ink flex flex-col items-center gap-6 py-10">
-        <Image
-          src="/niche-front-envelopes.webp"
-          alt="Niche"
-          width={802}
-          height={708}
-          priority
-          className="h-[60dvh] min-h-[320px] w-auto max-w-[92%] object-contain"
-        />
+      <section className="relative -mx-4 my-4 bg-ink flex flex-col items-center gap-12 py-10">
+        <HeroEnvelope />
         <Link href="/onboard" className="text-display bg-paper text-ink px-10 py-4 hover:bg-plinth transition-colors">
           Find your niche
         </Link>
