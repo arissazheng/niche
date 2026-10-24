@@ -89,7 +89,7 @@ export default function HowItWorks() {
               <li>— Your searches and their results</li>
               <li>— If you connect a bank (demo): balance, this month&apos;s clothing spend, upcoming bills. Read only; Niche can&apos;t move money.</li>
               <li>— Your chat history stays in this browser</li>
-              <li>— If you import a public Pinterest board or Instagram profile, its link is fetched through Bright Data</li>
+              <li>— If you import a public Pinterest, Instagram or TikTok link, it may be fetched through Bright Data</li>
             </ul>
           </div>
           <div className="grid gap-2 content-start">
@@ -99,7 +99,7 @@ export default function HowItWorks() {
               <li>— Your taste profile, sizes, budget and the conversation, to plan searches and reply</li>
               <li>— Listing photos and details, to rank them for you</li>
               <li>— Your budget summary, if you&apos;ve connected a bank</li>
-              <li>— Photos imported from Pinterest or Instagram (photos only: no account names or captions)</li>
+              <li>— Photos imported from Pinterest, Instagram or TikTok (images only: no account names or captions)</li>
               <li className="font-medium">Never your name, email or age.</li>
             </ul>
           </div>

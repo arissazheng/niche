@@ -12,7 +12,8 @@ import { api } from "@/lib/api";
 import { getProfileId } from "@/lib/session";
 import type { ImageKind, ImportJob, ProfileView, TasteImage } from "@/lib/types";
 
-const SITE_NAMES = { pinterest: "Pinterest", instagram: "Instagram" };
+const SITE_NAMES = { pinterest: "Pinterest", instagram: "Instagram", tiktok: "TikTok" };
+const URLS = /(?:https?:\/\/)?(?:[\w-]+\.)*(?:pinterest\.[a-z.]+|pin\.it|instagram\.com|tiktok\.com)\/[^\s,]*/gi;
 
 export default function LookbookPage() {
   const [view, setView] = useState<ProfileView | null>(null);
@@ -44,6 +45,14 @@ export default function LookbookPage() {
     api.imports(id).then(setImports, () => setImports([]));
   }, [run]);
 
+  // ⌘V anywhere on the page: pasted images are added, pasted Pinterest/Instagram/TikTok links are imported.
+  const onPaste = useRef<(e: ClipboardEvent) => void>(() => {});
+  useEffect(() => {
+    const handler = (e: ClipboardEvent) => onPaste.current(e);
+    window.addEventListener("paste", handler);
+    return () => window.removeEventListener("paste", handler);
+  }, []);
+
   // While an import runs in the background, check on it and pull in its photos when it finishes.
   const profileId = view?.profile.id;
   const importing = imports.some((x) => x.status === "running");
@@ -52,8 +61,12 @@ export default function LookbookPage() {
     const timer = setInterval(async () => {
       const next = await api.imports(profileId).catch(() => null);
       if (!next) return;
-      setImports(next);
-      if (!next.some((x) => x.status === "running")) run(() => api.getProfile(profileId));
+      setImports((before) => {
+        // Show each import's photos as soon as it finishes, not only when the last one does.
+        const finished = next.some((x) => x.status !== "running" && before.find((b) => b.id === x.id)?.status === "running");
+        if (finished) run(() => api.getProfile(profileId));
+        return next;
+      });
     }, 3000);
     return () => clearInterval(timer);
   }, [profileId, importing, run]);
@@ -83,17 +96,38 @@ export default function LookbookPage() {
     setUploading(0);
   }
 
-  async function startImport(url: string) {
+  // Takes one link or several (pasted together); each runs as its own background import.
+  async function startImport(text: string) {
     setError(null);
-    try {
-      const job = await api.importLink(id, url);
-      setImports((list) => [job, ...list]);
-      return true;
-    } catch (err) {
-      setError((err as Error).message);
-      return false;
+    const links = text.match(URLS) ?? [text.trim()];
+    const errors: string[] = [];
+    for (const link of links) {
+      try {
+        const job = await api.importLink(id, link);
+        setImports((list) => [job, ...list]);
+      } catch (err) {
+        errors.push((err as Error).message);
+      }
     }
+    if (errors.length) setError([...new Set(errors)].join(" "));
+    return errors.length < links.length;
   }
+
+  onPaste.current = (e: ClipboardEvent) => {
+    const files = Array.from(e.clipboardData?.files ?? []).filter((f) => f.type.startsWith("image/"));
+    if (files.length) {
+      e.preventDefault();
+      upload(files, "outfit");
+      return;
+    }
+    const target = e.target as HTMLElement | null;
+    if (target?.closest("input, textarea")) return; // typing a link or note: leave it alone
+    const text = e.clipboardData?.getData("text") ?? "";
+    if (text.match(URLS)) {
+      e.preventDefault();
+      startImport(text);
+    }
+  };
 
   async function build() {
     setBuilding(true);
@@ -116,8 +150,8 @@ export default function LookbookPage() {
       <section>
         <SectionTitle aside={count}>Your lookbook</SectionTitle>
         <p className="text-sm max-w-xl mb-4">
-          Collect looks you love, from anywhere. Photos, a Pinterest board, an Instagram you admire, or just a few words.
-          We build your taste profile from all of it.
+          Collect looks you love, from anywhere: photos, a Pinterest board, Instagram posts, TikToks, or just a few
+          words. Tip: copy an image or a link anywhere and press ⌘V on this page.
         </p>
         <div className="grid gap-4 lg:grid-cols-3">
           <DropZone uploading={uploading} onFiles={upload} />
@@ -224,23 +258,23 @@ function ImportBox({ jobs, onImport }: { jobs: ImportJob[]; onImport: (url: stri
       }}
       className="border border-ink p-4 flex flex-col gap-3 min-h-56"
     >
-      <p className="text-display">Import from Pinterest or Instagram</p>
-      <input
-        className="input"
+      <p className="text-display">Import from Pinterest, Instagram or TikTok</p>
+      <textarea
+        className="input min-h-12"
         value={url}
         onChange={(e) => setUrl(e.target.value)}
-        placeholder="pinterest.com/you/your-board"
-        aria-label="Pinterest or Instagram link"
+        placeholder="Paste a board, pin, post, reel, TikTok or profile link. Several at once is fine."
+        aria-label="Pinterest, Instagram or TikTok links"
       />
       <button type="submit" className="label border border-ink px-3 py-2 self-start">Import</button>
       <p className="text-sm">
-        The board or profile must be public. Secret boards and private accounts can&apos;t be read.
-        From Instagram we only keep the outfit photos, never who posted them.
+        Links must be public. Secret boards and private accounts can&apos;t be read. We only keep the outfit photos
+        (for TikToks, a few frames), never who posted them.
       </p>
       {jobs.slice(0, 3).map((job) => (
         <p key={job.id} className={`text-sm ${job.status === "running" ? "animate-pulse" : ""}`} role="status">
           {job.status === "running"
-            ? `Importing from ${SITE_NAMES[job.site]}… this takes 1–3 minutes. You can keep adding looks.`
+            ? `Importing from ${SITE_NAMES[job.site]}… ${job.kind === "post" ? "usually under a minute" : "profiles and boards can take a few minutes"}. You can keep adding looks.`
             : job.message}
         </p>
       ))}

@@ -67,7 +67,7 @@ class TasteImage(StrictModel):
     profile_id: str
     kind: ImageKind
     url: str
-    source: Literal['upload', 'pinterest', 'instagram'] = 'upload'
+    source: Literal['upload', 'pinterest', 'instagram', 'tiktok'] = 'upload'
     note: str = ''
     palette: list[str] = []  # Hex colors measured from pixels, not model output.
     analysis: ImageAnalysis | None = None
