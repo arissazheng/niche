@@ -131,6 +131,30 @@ def test_claude_rejects_hallucinated_id(request_data,store):
         asyncio.run(BadModel(Settings(),store).rank(request_data,items,'job'))
 
 
+def test_claude_ranker_sends_photos_inline(monkeypatch,request_data,store):
+    import httpx
+    from sourcing.claude import Claude
+    original=httpx.AsyncClient
+    jpeg=b'\xff\xd8\xff\xe0'+b'0'*20
+    def handler(request):
+        if 'gstatic' in request.url.host:
+            return httpx.Response(200,content=jpeg,headers={'content-type':'text/html'})
+        return httpx.Response(404)
+    monkeypatch.setattr(httpx,'AsyncClient',lambda **kw: original(transport=httpx.MockTransport(handler),**kw))
+    sent=[]
+    class Model(Claude):
+        async def call(self,system,content,*args):
+            sent.extend(content)
+            return {'rankings':[{'id':x.id,'score':50,'dimensions':{'color':50,'silhouette':50,'aesthetic':50},
+                'reason':'ok','uncertainties':[]} for x in items]}
+    items,_=asyncio.run(FixtureSources().fetch('etsy','',2,''))
+    items[0].image_urls=['https://encrypted-tbn0.gstatic.com/shopping?q=tbn:abc']
+    items[1].image_urls=['https://i.etsystatic.com/missing.jpg']
+    asyncio.run(Model(Settings(),store).rank(request_data,items,'job'))
+    images=[x for x in sent if x['type']=='image']
+    assert len(images)==1 and images[0]['source']['type']=='base64' and images[0]['source']['media_type']=='image/jpeg'
+
+
 def test_apify_http_contract_and_cache(monkeypatch,store):
     import httpx
     original=httpx.AsyncClient

@@ -70,7 +70,7 @@ Feedback is persisted for future evaluation; it does not automatically retrain o
 1. Claude proposes up to three concrete queries. MVP executes one query per source, rotating variants; it does not exhaustively search every query everywhere.
 2. Marketplace workers run concurrently. Each run has a timeout and spending setting. Run-start POSTs are not retried because a lost response could otherwise create duplicate paid runs.
 3. Normalize, validate marketplace URL, deduplicate IDs/URLs, and apply budget/currency/size/condition/availability rules. Cross-site duplicates are not inferred.
-4. Build a source-balanced lexical shortlist of up to 24 items. Claude compares one image per listing and up to three user reference images, using validated JSON outputs.
+4. Build a source-balanced lexical shortlist of up to 24 items. Claude compares one image per listing and up to three user reference images, using validated JSON outputs. The backend downloads each photo and sends it inline (Claude can't fetch Google Shopping thumbnails by URL), so the server needs outbound access to image hosts; a photo that fails to download makes that listing text-only.
 5. Validate returned IDs, scores and explanations. If Claude fails, return a clearly labeled lexical fallback with a warning, never pretend visual ranking succeeded.
 6. Return at most two results per seller per marketplace. Seller type remains `unknown`; neither marketplace presence nor model judgment verifies small-business status. Ad flags are retained but never used to boost ranking.
 

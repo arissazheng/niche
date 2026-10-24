@@ -1,6 +1,9 @@
+import asyncio
+import base64
 import json
 import logging
 import anthropic
+import httpx
 from .sources import public_url
 
 log = logging.getLogger(__name__)
@@ -21,6 +24,28 @@ it never lifts a poor fit. Say so in the reason when it applies.
 Assess supplied images when present, otherwise explicitly state that the assessment is text-only.
 Ground reasons in supplied evidence. Never infer fit, authenticity, material certainty, shipping or seller business size from appearance.
 Scores are relative relevance, not calibrated probabilities. Do not invent listing IDs or change facts.'''
+
+MAX_IMAGE_BYTES = 5*1024*1024
+SIGNATURES = ((b'\xff\xd8\xff','image/jpeg'),(b'\x89PNG','image/png'),(b'GIF8','image/gif'))
+
+def media_type(data):
+    # From the bytes, not the header: Claude rejects an image whose declared type doesn't match.
+    if data[:4]==b'RIFF' and data[8:12]==b'WEBP':
+        return 'image/webp'
+    return next((kind for sig,kind in SIGNATURES if data.startswith(sig)),None)
+
+async def fetch_image(client, url):
+    # Photos are sent inline because Claude can't fetch some hosts by URL: Google Shopping thumbnails are
+    # disallowed by robots.txt, and one unfetchable URL fails the whole request. A failed download is skipped.
+    try:
+        response = await client.get(url)
+        response.raise_for_status()
+    except httpx.HTTPError:
+        return None
+    kind = media_type(response.content)
+    if not kind or len(response.content)>MAX_IMAGE_BYTES:
+        return None
+    return {'type':'image','source':{'type':'base64','media_type':kind,'data':base64.b64encode(response.content).decode()}}
 
 def output_schema(stage):
     if stage == 'planner':
@@ -67,13 +92,19 @@ class Claude:
     async def rank(self, request, listings, job_id):
         content = [{'type':'text','text':json.dumps({'taste':request.taste_profile.model_dump(mode='json',exclude={'reference_image_urls'}),
                     'request':request.request.model_dump()})}]
-        for url in request.taste_profile.reference_image_urls:
-            if public_url(str(url)):
-                content += [{'type':'text','text':'User taste reference image'}, {'type':'image','source':{'type':'url','url':str(url)}}]
-        for item in listings:
+        references = [str(url) for url in request.taste_profile.reference_image_urls if public_url(str(url))]
+        urls = references+[item.image_urls[0] if item.image_urls else None for item in listings]
+        async with httpx.AsyncClient(timeout=10,follow_redirects=True,headers={'User-Agent':'Mozilla/5.0 (Niche)'}) as client:
+            images = await asyncio.gather(*(fetch_image(client,url) if url else asyncio.sleep(0) for url in urls))
+        self.store.event(job_id,'ranker_images',{'sent':sum(x is not None for x in images),
+            'failed':sum(x is None for url,x in zip(urls,images) if url)})
+        for image in images[:len(references)]:
+            if image:
+                content += [{'type':'text','text':'User taste reference image'}, image]
+        for item,image in zip(listings,images[len(references):]):
             content.append({'type':'text','text':json.dumps(item.model_dump(exclude={'provenance','image_urls'}))})
-            if item.image_urls:
-                content.append({'type':'image','source':{'type':'url','url':item.image_urls[0]}})
+            if image:
+                content.append(image)
         result = await self.call(RANKER,content,job_id,'ranker',16000)
         rows = result.get('rankings')
         if not isinstance(rows,list):
