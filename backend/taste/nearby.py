@@ -4,6 +4,7 @@ Only the shopper's ZIP code and the search brief are sent, and only when they tu
 store inventory, so these are shops whose kind fits the search (vintage, consignment, boutiques), not stock checks.
 Each shop keeps the Google Maps place link Gemini cites for it; Google's terms require showing it next to the shop.
 """
+import asyncio
 import logging
 import re
 import time
@@ -26,6 +27,16 @@ class Nearby:
     def __init__(self, settings):
         self.settings = settings
         self.cache: dict[tuple, tuple[float, list]] = {}
+        self.running: dict[tuple, asyncio.Task] = {}  # lookups started with the search, awaited by the results page
+
+    def warm(self, zip_code, brief):
+        """Start the lookup as the search starts, so it's ready when the results are."""
+        try:
+            asyncio.get_running_loop()
+        except RuntimeError:
+            return  # called outside the event loop: the results page starts it instead
+        task = asyncio.ensure_future(self.shops(zip_code, brief))
+        task.add_done_callback(lambda t: t.exception() if not t.cancelled() else None)  # errors surface on await
 
     @property
     def enabled(self):
@@ -36,6 +47,12 @@ class Nearby:
         hit = self.cache.get(key)
         if hit and time.time() - hit[0] < CACHE_SECONDS:
             return hit[1]
+        if key not in self.running:
+            self.running[key] = asyncio.ensure_future(self._lookup(key, zip_code, brief))
+            self.running[key].add_done_callback(lambda _: self.running.pop(key, None))
+        return await asyncio.shield(self.running[key])
+
+    async def _lookup(self, key, zip_code, brief):
         async with httpx.AsyncClient(timeout=60) as http:
             response = await http.post(API, headers={'x-goog-api-key': self.settings.gemini_api_key}, json={
                 'model': self.settings.gemini_model,

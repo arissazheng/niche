@@ -1,3 +1,4 @@
+import asyncio
 import pytest
 from fastapi.testclient import TestClient
 from app import create_app
@@ -48,3 +49,24 @@ def test_nearby_is_off_unless_opted_in_with_a_zip(client, monkeypatch):
     assert 'Ari' not in str(sent)  # only the ZIP and the brief leave Niche
     other = client.post('/v1/taste/profiles', json={'data_consent': True}).json()['profile']['id']
     assert client.get(f'/v1/taste/profiles/{other}/nearby', params={'search_id': search_id}).json()['enabled'] is False
+
+
+def test_lookup_starts_with_the_search_and_is_shared(monkeypatch):
+    from taste.nearby import Nearby
+    calls = []
+
+    async def lookup(self, key, zip_code, brief):
+        calls.append(brief)
+        await asyncio.sleep(0.01)
+        self.cache[key] = (0, ['shop'])
+        return ['shop']
+
+    monkeypatch.setattr(Nearby, '_lookup', lookup)
+    nearby = Nearby(Settings(gemini_api_key='k'))
+
+    async def run():
+        nearby.warm('94704', 'black dress')  # started by the search
+        return await nearby.shops('94704', 'Black dress ')  # the results page joins it instead of asking again
+
+    assert asyncio.run(run()) == ['shop'] and len(calls) == 1  # one Gemini call for both
+    nearby.warm('94704', 'x')  # outside an event loop: a no-op, not an error

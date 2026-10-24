@@ -31,6 +31,7 @@ def create_router(settings, store: Store, budgets: Budgets | None = None, signer
     signer = signer or Signer(settings)
     engine = TasteEngine(settings, taste)
     prefetcher = Prefetcher(settings, store)
+    nearby = Nearby(settings)
     importer = Importer(settings, taste, engine)
     router = APIRouter(prefix='/v1/taste', tags=['taste'])
 
@@ -187,14 +188,16 @@ def create_router(settings, store: Store, budgets: Budgets | None = None, signer
 
     def start_search(profile, search: ProfileSearch):
         job = store.create(search_request(profile, search).model_dump(mode='json'))
+        ob = profile.onboarding
+        if ob.nearby_shops and ob.zip_code and nearby.enabled:
+            nearby.warm(ob.zip_code, search.query)  # Shops near you, looked up alongside the search
         return {'search_id': job, 'status': 'queued', 'status_url': f'/v1/searches/{job}'}
 
     @router.post('/profiles/{ident}/searches', status_code=202)
-    def search(ident: str, search: ProfileSearch):
+    async def search(ident: str, search: ProfileSearch):
         return start_search(built_profile(ident), search)
 
     agent = ShopAgent(settings, engine.model)
-    nearby = Nearby(settings)
 
     def on_screen(ident, search_id):
         # Loaded server-side (not sent by the browser), and only for this profile's own searches.

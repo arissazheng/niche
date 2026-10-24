@@ -262,7 +262,8 @@ export default function ShopPage() {
                 </button>
               ))}
             </div>
-            {finished && searchId && <NearbyShopsSection key={searchId} profileId={profileId} searchId={searchId} />}
+            {/* Fetched as soon as the search starts (the backend looks it up alongside), shown once results are in. */}
+            {searchId && <NearbyShopsSection key={searchId} profileId={profileId} searchId={searchId} show={finished} />}
           </>
         )}
       </section>
@@ -492,12 +493,12 @@ function BudgetStrip({
 }
 
 /** Opt-in local shops for this search, from Gemini with Google Maps; hidden when off or unavailable. */
-function NearbyShopsSection({ profileId, searchId }: { profileId: string; searchId: string }) {
+function NearbyShopsSection({ profileId, searchId, show }: { profileId: string; searchId: string; show: boolean }) {
   const [data, setData] = useState<NearbyShops | null>(null);
   useEffect(() => {
     api.nearby(profileId, searchId).then(setData, () => setData(null));
   }, [profileId, searchId]);
-  if (!data?.enabled || !data.shops.length) return null;
+  if (!show || !data?.enabled || !data.shops.length) return null;
   return (
     <section className="mt-10">
       <SectionTitle aside={data.zip_code ? `Near ${data.zip_code}` : undefined}>Shops near you</SectionTitle>
