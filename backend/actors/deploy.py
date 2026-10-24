@@ -22,6 +22,9 @@ def files(mode):
     dockerfile = (HERE / 'Dockerfile').read_text().replace('ARG ACTOR_MODULE=mainstream', f'ARG ACTOR_MODULE={mode}')
     out = [{'name': '.actor/actor.json', 'format': 'TEXT', 'content': json.dumps(spec, indent=2)},
            {'name': 'Dockerfile', 'format': 'TEXT', 'content': dockerfile}]
+    for path in sorted((HERE / mode / '.actor').glob('*.json')):  # output / dataset schemas next to actor.json
+        if path.name != 'actor.json':
+            out.append({'name': f'.actor/{path.name}', 'format': 'TEXT', 'content': path.read_text()})
     if (HERE / mode / 'README.md').exists():  # the actor's Apify Store page
         out.append({'name': 'README.md', 'format': 'TEXT', 'content': (HERE / mode / 'README.md').read_text()})
     for path in sorted((HERE / 'niche_actors').glob('*.py')):

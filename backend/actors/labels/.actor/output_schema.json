@@ -1,0 +1,16 @@
+{
+  "actorOutputSchemaVersion": 1,
+  "title": "Independent labels output",
+  "properties": {
+    "products": {
+      "type": "string",
+      "title": "Products from verified labels",
+      "template": "{{links.apiDefaultDatasetUrl}}/items"
+    },
+    "brands": {
+      "type": "string",
+      "title": "Brands, stores found and checks",
+      "template": "{{links.apiDefaultKeyValueStoreUrl}}/records/OUTPUT"
+    }
+  }
+}

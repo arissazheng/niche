@@ -1,0 +1,96 @@
+{
+  "actorSpecification": 1,
+  "fields": {
+    "type": "object",
+    "properties": {
+      "title": {
+        "type": "string"
+      },
+      "retailer": {
+        "type": "string"
+      },
+      "price": {
+        "type": "number"
+      },
+      "currency": {
+        "type": "string"
+      },
+      "url": {
+        "type": "string"
+      },
+      "image_urls": {
+        "type": "array"
+      },
+      "sizes": {
+        "type": "array"
+      },
+      "available": {
+        "type": "boolean"
+      },
+      "domain": {
+        "type": "string"
+      },
+      "verified": {
+        "type": "boolean"
+      },
+      "checks": {
+        "type": "object"
+      },
+      "brand": {
+        "type": "string"
+      },
+      "description": {
+        "type": "string"
+      }
+    }
+  },
+  "views": {
+    "overview": {
+      "title": "Products",
+      "transformation": {
+        "fields": [
+          "image_urls",
+          "title",
+          "retailer",
+          "price",
+          "currency",
+          "verified",
+          "url"
+        ]
+      },
+      "display": {
+        "component": "table",
+        "properties": {
+          "image_urls": {
+            "label": "Photo",
+            "format": "image"
+          },
+          "title": {
+            "label": "Product",
+            "format": "text"
+          },
+          "retailer": {
+            "label": "Label",
+            "format": "text"
+          },
+          "price": {
+            "label": "Price",
+            "format": "number"
+          },
+          "currency": {
+            "label": "Currency",
+            "format": "text"
+          },
+          "verified": {
+            "label": "Verified independent",
+            "format": "boolean"
+          },
+          "url": {
+            "label": "Link",
+            "format": "link"
+          }
+        }
+      }
+    }
+  }
+}
