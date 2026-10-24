@@ -72,7 +72,7 @@ export function SizingSection({ value, onChange }: { value: Sizing; onChange: (n
     onChange({ ...value, accessories: { ...value.accessories, [category]: pick } });
 
   return (
-    <div className="grid gap-6">
+    <div className="sizing-section grid gap-6">
       <div>
         <p className="text-display">Which sizing do you usually shop in?</p>
         <p className="text-sm mt-1 max-w-lg">
@@ -119,7 +119,7 @@ export function SizingSection({ value, onChange }: { value: Sizing; onChange: (n
       )}
 
       {system && sizes && catalog && (
-        <div className="grid">
+        <div className="sizing-categories grid">
           {CLOTHING.map((category) => {
             const spec = catalog[system][category];
             const hidden = spec.optional && !showDresses && !sizes[category].values.length;
@@ -230,7 +230,7 @@ function CategoryRow({
   };
 
   return (
-    <div className={`grid sm:grid-cols-[11rem_1fr] gap-x-4 gap-y-1 rule-t ${compact ? "py-2" : "py-3"}`}>
+    <div className={`sizing-category grid sm:grid-cols-[11rem_1fr] gap-x-4 gap-y-1 rule-t ${compact ? "py-2" : "py-3"}`}>
       <div>
         <p className={compact ? "label" : "label pt-0.5"}>{spec.label}</p>
         {spec.hint && !compact && <p className="text-xs text-muted mt-0.5 max-w-[11rem]">{spec.hint}</p>}
@@ -306,7 +306,7 @@ function BraRow({
   const set = (key: "band" | "cup", v: string) =>
     onChange({ ...value, notation, [key]: value[key] === v ? null : v });
   return (
-    <div className="grid sm:grid-cols-[11rem_1fr] gap-x-4 gap-y-1 rule-t py-3 text-sm">
+    <div className="sizing-bra grid sm:grid-cols-[11rem_1fr] gap-x-4 gap-y-1 rule-t py-3 text-sm">
       <div>
         <p className="text-sm text-muted">Bra size (optional)</p>
         {value.band && value.cup && <p className="text-xs mt-0.5">{value.band}{value.cup} {notation === "asia" ? "Japan" : notation.toUpperCase()}</p>}

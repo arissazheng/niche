@@ -6,7 +6,7 @@ import { useEffect, useRef, useState } from "react";
 import { HandCircle } from "@/components/hand-circle";
 import { MeasurementsPanel } from "@/components/measurements";
 import { api } from "@/lib/api";
-import { SHOPPING, useAssistant, useAssistantSkill } from "@/lib/assistant";
+import { SHOPPING, useAssistantSkill } from "@/lib/assistant";
 import { clearProfile, getProfileId, setProfileId } from "@/lib/session";
 import { SizingSection, emptySizing, withDefaults } from "@/components/sizing";
 import "./profile-book.css";
@@ -27,14 +27,12 @@ export default function OnboardPage() {
     currency: "USD",
     usual_shops: [],
   });
-  const sizesDialog = useRef<HTMLDialogElement>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   // An existing profile is edited in place; creating a new one would detach its photos and moodboard.
   const [existing, setExisting] = useState<{ id: string; built: boolean } | null>(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [voiceNote, setVoiceNote] = useState<string | null>(null);
-  const assistant = useAssistant();
   const formEl = useRef<HTMLFormElement>(null);
   const latest = useRef(form);
   latest.current = form;
@@ -172,7 +170,7 @@ export default function OnboardPage() {
         <Book>
           <BookPage side="left" letter="P" number="01" footer="The Niche Profile">
             <Column>
-              <Plate caption="Fig. 1 — You, in a favourite outfit" />
+              <Plate />
             </Column>
             <Column ruled>
               <Entry title="About you">
@@ -200,52 +198,15 @@ export default function OnboardPage() {
             </Column>
             <Column wide>
               <Entry title="Sizes">
-                <div className="size-index">
-                  <p className="label">{form.sizing.system ? `${form.sizing.system === "womens" ? "Women's" : "Men's"} sizing · ${form.sizing.region.toUpperCase()}` : "Your fit, at a glance"}</p>
-                  <dl className="grid grid-cols-2 gap-x-5">
-                    {(["tops", "bottoms", "dresses", "outerwear", "shoes", "bra"] as const).map((category) => {
-                      const pick = form.sizing.system ? form.sizing[form.sizing.system][category] : null;
-                      const description = pick && ("values" in pick ? pick.values.join(" / ") : [pick.band, pick.cup].filter(Boolean).join(""));
-                      return <div key={category} className="flex justify-between gap-2 border-b border-ink/20 py-2 text-sm"><dt className="capitalize">{category}</dt><dd>{description || "—"}</dd></div>;
-                    })}
-                  </dl>
-                  <button type="button" className="label border border-ink px-3 py-2 justify-self-start" onClick={() => sizesDialog.current?.showModal()}>Edit sizes & measurements ↗</button>
-                  <p className="text-xs text-muted">Choose multiple sizes, regional charts, accessories and optional measurements.</p>
-                </div>
-                <dialog ref={sizesDialog} className="size-dialog" aria-labelledby="size-editor-title">
-                  <div className="sticky top-0 z-10 flex justify-between items-center gap-4 border-b border-ink bg-paper p-4">
-                    <h2 id="size-editor-title" className="font-sans text-xl">Sizes & measurements</h2>
-                    <button type="button" className="label border border-ink px-3 py-2" onClick={() => sizesDialog.current?.close()}>Done ×</button>
-                  </div>
-                  <div className="p-5 font-sans">
                 <SizingSection value={form.sizing} onChange={(sizing) => setForm((f) => ({ ...f, sizing }))} />
-                {form.sizing.system && (
-                  <MeasurementsPanel
-                    key={existing?.id ?? "new"} // remount once a saved profile loads, to show its measurements
-                    system={form.sizing.system}
-                    value={form.measurements ?? { unit: "in" }}
-                    onChange={(measurements) => setForm((f) => ({ ...f, measurements }))}
-                    onUseSizes={(suggested) =>
-                      setForm((f) => {
-                        const system = f.sizing.system!;
-                        // Only categories the measurements actually point to; everything else stays as picked.
-                        const filled = Object.fromEntries(
-                          Object.entries(suggested).filter(([k, p]) => k !== "bra" && ((p as SizePick).values?.length || Object.keys((p as SizePick).extras ?? {}).length)),
-                        ) as Partial<ClothingSizes>;
-                        return { ...f, sizing: { ...f.sizing, [system]: { ...f.sizing[system], ...filled } } };
-                      })
-                    }
-                  />
-                )}
-                  </div>
-                </dialog>
+
               </Entry>
             </Column>
           </BookPage>
 
           <BookPage side="right" letter="P" number="02" footer="An A–Z of Your Taste">
             <Column>
-              <Plate caption="Fig. 2 — The piece you'd save up for" />
+              <Plate />
               <Entry title="Everyday outfit budget">
                 <div className="flex items-center gap-4">
                   <span className="font-serif text-3xl tabular-nums">${form.budget_max}</span>
@@ -272,7 +233,7 @@ export default function OnboardPage() {
               </Entry>
             </Column>
             <Column ruled>
-              <Plate caption="Fig. 3 — Your corner of the city" />
+              <Plate />
               <Entry title="Shops near you">
                 <label className="flex items-start gap-3 text-sm">
                   <input
@@ -318,23 +279,34 @@ export default function OnboardPage() {
                 </label>
               </Entry>
             </Column>
+            <Column wide>
+              <Entry title="Measurements">
+                {form.sizing.system && (
+                  <MeasurementsPanel
+                    key={existing?.id ?? "new"} // remount once a saved profile loads, to show its measurements
+                    system={form.sizing.system}
+                    value={form.measurements ?? { unit: "in" }}
+                    onChange={(measurements) => setForm((f) => ({ ...f, measurements }))}
+                    onUseSizes={(suggested) =>
+                      setForm((f) => {
+                        const system = f.sizing.system!;
+                        // Only categories the measurements actually point to; everything else stays as picked.
+                        const filled = Object.fromEntries(
+                          Object.entries(suggested).filter(([k, p]) => k !== "bra" && ((p as SizePick).values?.length || Object.keys((p as SizePick).extras ?? {}).length)),
+                        ) as Partial<ClothingSizes>;
+                        return { ...f, sizing: { ...f.sizing, [system]: { ...f.sizing[system], ...filled } } };
+                      })
+                    }
+                  />
+                )}
+                {!form.sizing.system && <p className="text-xs text-muted">Choose a sizing system on the facing page to add optional measurements.</p>}
+              </Entry>
+            </Column>
           </BookPage>
         </Book>
 
-        {/* Beside the book: what this is, talking it through, and saving. */}
+        {/* Save controls sit below the full-width spread. */}
         <aside className="profile-aside">
-          <p className="text-base leading-snug">
-            <em>The Niche Profile</em> is the first page of your taste: who you are, what fits, what you spend and where
-            you shop. Talk it through with Niche, or fill it in by hand. You can change everything later.
-          </p>
-          {assistant.mode === "off" && (
-            <button type="button" onClick={() => assistant.start("voice")} className="label underline justify-self-start">
-              Talk it through
-            </button>
-          )}
-          <p className="text-xs text-muted">
-            {"Niche asks as you go. Try: \u201CI\u2019m Dana, I shop on Depop and thrift stores, budget up to $120.\u201D"}
-          </p>
           {voiceNote && (
             <p className="text-xs" role="status" aria-live="polite">
               {voiceNote}
@@ -425,14 +397,9 @@ function Entry({ title, children }: { title: string; children: React.ReactNode }
   );
 }
 
-/** A grey plate where a photo will go, with a small-caps caption. */
-function Plate({ caption, tall = false }: { caption: string; tall?: boolean }) {
-  return (
-    <figure className="book-plate grid gap-1.5">
-      <div className={`bg-[#cfcdc7] ${tall ? "aspect-[4/5]" : "aspect-[4/3]"}`} />
-      <figcaption className="text-center text-[11px] uppercase tracking-[.08em]">{caption}</figcaption>
-    </figure>
-  );
+/** Shared decorative imagery will replace these fixed grey placeholders. */
+function Plate() {
+  return <div aria-hidden="true" className="book-plate bg-[#cfcdc7]" />;
 }
 
 function SeeAlso({ children }: { children: React.ReactNode }) {
