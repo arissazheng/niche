@@ -25,6 +25,8 @@ class ShoppingRequest(StrictModel):
     size: str | None = Field(default=None, max_length=30)
     length: Literal['short', 'regular', 'long'] | None = None  # pants/skirts: petite, regular or tall
     shoe_size_system: Literal['womens', 'mens'] | None = None  # which shoe size chart `size` uses
+    # The shopper's sizes for this kind of item in words ("Bottoms: 30 or 31 (Waist (in)), inseam 32 (men's chart)").
+    size_note: str = Field(default='', max_length=500)
     # The shopper's body measurements in inches (any of shoulder, bust, waist, hips, inseam, arm), for fit checks.
     measurements: dict[str, float] = Field(default_factory=dict)
     ship_to_country: str = Field(default='US', pattern=r'^[A-Z]{2}$')

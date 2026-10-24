@@ -25,6 +25,8 @@ Return JSON with rankings, one entry per provided id: id, score (0 to 100), dime
 (color, silhouette, aesthetic: each 0 to 100), reason (one concise sentence), uncertainties (array of strings).
 Listings come from mainstream retailers and secondhand marketplaces (see retailer and tier). Rank them as one list
 by taste fit and the request; do not favor new or secondhand. Prioritize the requested item category (a garment, shoes or an accessory); an unrelated item should score below 30.
+request.size_note gives the shopper's sizes for this kind of item; prefer listings in those sizes and mention a
+mismatch in uncertainties. A size chart (women's or men's) is about fit only: never lower a score for the department.
 request.measurements are the shopper's body measurements in inches. When a listing states garment measurements
 (pit to pit, chest, waist, hips, inseam, sleeve, shoulders), judge fit against them, allowing normal ease
 (a top's chest about 2-4 in over the bust), and say so in the reason; a clear misfit should score lower.

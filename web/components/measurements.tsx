@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { api } from "@/lib/api";
-import type { Measurements, Sizes } from "@/lib/types";
+import type { ClothingSizes, Measurements, SizeSystem } from "@/lib/types";
 
 const FIELDS: [keyof Omit<Measurements, "unit">, string, string][] = [
   ["shoulder", "Shoulder to shoulder", "across the back"],
@@ -13,28 +13,37 @@ const FIELDS: [keyof Omit<Measurements, "unit">, string, string][] = [
   ["arm", "Arm length", "shoulder to wrist"],
 ];
 
-const SIZE_NAMES: [keyof Sizes, string][] = [["top", "Tops"], ["bottom", "Pants & skirts"], ["bottom_length", "Length"]];
-const LENGTH_NAMES: Record<string, string> = { short: "Short (petite)", regular: "Regular", long: "Long (tall)" };
+const SIZE_NAMES: [Exclude<keyof ClothingSizes, "bra">, string][] = [
+  ["tops", "Tops"], ["bottoms", "Bottoms"], ["dresses", "Dresses & skirts"],
+];
+
+/** "8, 31 in inseam" for one suggested category. */
+function described(pick: ClothingSizes["tops"]) {
+  const inseam = pick.extras?.inseam;
+  return [pick.values.join(" / "), inseam && `${inseam} in inseam`].filter(Boolean).join(", ");
+}
 
 /** Optional body measurements: any, not all. Previews the sizes they point to and can fill empty size picks. */
 export function MeasurementsPanel({
+  system,
   value,
   onChange,
   onUseSizes,
 }: {
+  system: SizeSystem;
   value: Measurements;
   onChange: (next: Measurements) => void;
-  onUseSizes: (sizes: Partial<Sizes>) => void;
+  onUseSizes: (sizes: ClothingSizes) => void;
 }) {
   const given = FIELDS.some(([key]) => value[key] != null);
   const [open, setOpen] = useState(given);
-  const [suggested, setSuggested] = useState<Partial<Sizes> | null>(null);
+  const [suggested, setSuggested] = useState<ClothingSizes | null>(null);
 
   useEffect(() => {
     if (!given) return setSuggested(null);
-    const timer = setTimeout(() => api.suggestSizes(value).then(setSuggested, () => setSuggested(null)), 300);
+    const timer = setTimeout(() => api.suggestSizes(value, system).then(setSuggested, () => setSuggested(null)), 300);
     return () => clearTimeout(timer);
-  }, [value, given]);
+  }, [value, given, system]);
 
   // What's typed is kept as text, so "36." stays on screen while someone is entering "36.5".
   const [text, setText] = useState<Record<string, string>>(() =>
@@ -45,7 +54,7 @@ export function MeasurementsPanel({
     const number = parseFloat(typed);
     onChange({ ...value, [key]: typed.trim() && number > 0 ? number : null });
   };
-  const picks = SIZE_NAMES.filter(([key]) => suggested?.[key]);
+  const picks = SIZE_NAMES.filter(([key]) => suggested && described(suggested[key]));
 
   if (!open) {
     return (
@@ -79,7 +88,7 @@ export function MeasurementsPanel({
       <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
         {FIELDS.map(([key, label, hint]) => (
           <label key={key} className="grid gap-1">
-            <span className="label">{label}</span>
+            <span className="label">{key === "bust" && system === "mens" ? "Chest" : label}</span>
             <span className="flex items-baseline gap-1">
               <input
                 className="input w-20"
@@ -101,7 +110,7 @@ export function MeasurementsPanel({
             {picks.map(([key, name], i) => (
               <span key={key}>
                 {i > 0 && " · "}
-                {name}: <strong>{key === "bottom_length" ? LENGTH_NAMES[suggested![key] as string] : suggested![key]}</strong>
+                {name}: <strong>{described(suggested![key])}</strong>
               </span>
             ))}
             . Charts vary by brand, so treat these as a starting point.

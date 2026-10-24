@@ -338,9 +338,9 @@ def test_chat_defaults_to_profile_size_for_the_garment(client):
     client.post(f'/v1/taste/profiles/{pid}/images', files={'file': ('a.png', png((20, 20, 20)))})
     client.post(f'/v1/taste/profiles/{pid}/build')
     top = client.post(f'/v1/taste/profiles/{pid}/chat', json={'messages': [{'role': 'user', 'text': 'black halter top'}]}).json()
-    skirt = client.post(f'/v1/taste/profiles/{pid}/chat', json={'messages': [{'role': 'user', 'text': 'pleated mini skirt'}]}).json()
+    pants = client.post(f'/v1/taste/profiles/{pid}/chat', json={'messages': [{'role': 'user', 'text': 'wide leg trousers'}]}).json()
     bag = client.post(f'/v1/taste/profiles/{pid}/chat', json={'messages': [{'role': 'user', 'text': 'black shoulder bag'}]}).json()
-    assert (top['size'], skirt['size'], bag['size']) == ('S', 'M', None)
+    assert (top['size'], pants['size'], bag['size']) == ('S', 'M', None)  # old flat sizes still work
 
 
 def test_chat_accepts_history_with_linked_pages(client):
@@ -366,9 +366,11 @@ def test_notes_only_lookbook_builds_and_own_fits_upload(client):
 
 
 def test_numbered_bottom_size_and_length_reach_the_search(client):
-    bad = client.post('/v1/taste/profiles', json={'data_consent': True, 'sizes': {'bottom': '7'}})
+    bad = client.post('/v1/taste/profiles', json={'data_consent': True, 'sizing': {'womens': {'bottoms': {'format': 'us', 'values': ['7']}}}})
     assert bad.status_code == 422
-    pid = client.post('/v1/taste/profiles', json={'data_consent': True, 'sizes': {'top': 'S', 'bottom': '00', 'bottom_length': 'long'}}).json()['profile']['id']
+    sizing = {'system': 'womens', 'womens': {'tops': {'format': 'alpha', 'values': ['S']},
+                                              'dresses': {'format': 'us', 'values': ['00'], 'extras': {'fit': 'Tall'}}}}
+    pid = client.post('/v1/taste/profiles', json={'data_consent': True, 'sizing': sizing}).json()['profile']['id']
     client.post(f'/v1/taste/profiles/{pid}/images', files={'file': ('a.png', png((20, 20, 20)))})
     client.post(f'/v1/taste/profiles/{pid}/build')
     skirt = client.post(f'/v1/taste/profiles/{pid}/chat', json={'messages': [{'role': 'user', 'text': 'pleated midi skirt'}]}).json()

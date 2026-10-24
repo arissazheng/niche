@@ -44,7 +44,8 @@ Keep cluster image ids unchanged. Rewrite prompt so it reflects the change and s
 
 FIXTURE_NOTE = 'Fixture mode: garments not extracted, palette only'
 EXTRACT_AT_ONCE = 12  # photos read in parallel during a build
-PREFERENCES = {'sizes', 'budget_min', 'budget_max', 'currency', 'usual_shops', 'favorite_brands'}
+# Sizes stay out: the women's/men's chart must not steer the taste profile.
+PREFERENCES = {'budget_min', 'budget_max', 'currency', 'usual_shops', 'favorite_brands'}
 log = logging.getLogger(__name__)
 
 
