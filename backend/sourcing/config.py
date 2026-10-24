@@ -30,7 +30,6 @@ class Settings(BaseSettings):
     mainstream_items_per_query: int = Field(default=10, ge=10, le=60)
     upload_dir: str = 'data/uploads'
     public_api_url: str = 'http://127.0.0.1:8000'
-    stripe_secret_key: str = ''
     nessie_api_key: str = ''
     # SpacetimeDB live state (blank URL disables publishing; the app still works by polling).
     spacetime_url: str = ''

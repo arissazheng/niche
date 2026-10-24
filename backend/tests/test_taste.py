@@ -48,10 +48,12 @@ def test_fixture_flow_profile_to_checkout(client):
             break
         time.sleep(.05)
     assert result['results'] and all(x['price'] <= 80 for x in result['results'])
-    intent = client.post('/v1/checkout/intents', json={'search_id': search.json()['search_id'],
-        'listing_id': result['results'][0]['id']}).json()
-    assert intent['mode'] == 'fixture' and intent['amount'] == round(result['results'][0]['price'] * 100)
-    assert client.post('/v1/checkout/intents', json={'search_id': search.json()['search_id'],
+    item = result['results'][0]
+    bought = client.post('/v1/checkout/mark-bought', json={'search_id': search.json()['search_id'], 'listing_id': item['id']})
+    assert bought.status_code == 200 and bought.json() == {'recorded': False, 'reason': 'no_linked_bank', 'ledger': None}
+    again = client.post('/v1/checkout/mark-bought', json={'search_id': search.json()['search_id'], 'listing_id': item['id']})
+    assert again.json()['reason'] == 'already_marked'
+    assert client.post('/v1/checkout/mark-bought', json={'search_id': search.json()['search_id'],
         'listing_id': 'invented'}).status_code == 404
 
 

@@ -117,15 +117,6 @@ export interface SearchJob {
   ranking_method?: string;
 }
 
-export interface CheckoutIntent {
-  listing_id: string;
-  title: string;
-  amount: number;
-  currency: string;
-  mode: "fixture" | "stripe";
-  client_secret: string | null;
-  payment_intent_id?: string;
-}
 
 export interface ChatTurn {
   role: "user" | "agent";

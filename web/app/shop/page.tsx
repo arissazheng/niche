@@ -443,7 +443,6 @@ function ListingDetail({
       <div>
         <p className="text-display">{listing.title}</p>
         <p className="text-display">{storeLabel(listing)}</p>
-        <p className="text-display">{listing.price.toFixed(2)} {listing.currency}</p>
       </div>
       <div className="grid gap-1">
         <span className="label">Why this matches</span>
@@ -451,11 +450,6 @@ function ListingDetail({
         {[...new Set(listing.warnings)].map((w) => (
           <p key={w} className="text-xs text-muted">— {w}</p>
         ))}
-        {listing.is_fixture ? (
-          <p className="label mt-1">Synthetic demo item</p>
-        ) : (
-          <a href={listing.url} target="_blank" rel="noreferrer" className="label underline mt-1">View on {listing.retailer ?? listing.source} ↗</a>
-        )}
       </div>
       <div className="rule-t pt-3">
         <Checkout searchId={searchId} listing={listing} onPurchased={onPurchased} />

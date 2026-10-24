@@ -102,6 +102,6 @@ def test_chat_caps_search_at_remaining_budget_and_demo_purchase(tmp_path):
                 break
             import time; time.sleep(.05); search = client.get(reply['status_url']).json()
         item = search['results'][0]
-        demo = client.post('/v1/checkout/demo-purchase', json={'search_id': reply['search_id'], 'listing_id': item['id']})
-        assert demo.status_code == 200 and demo.json()['ledger']['provider'] == 'nessie'
+        bought = client.post('/v1/checkout/mark-bought', json={'search_id': reply['search_id'], 'listing_id': item['id']})
+        assert bought.status_code == 200 and bought.json()['recorded'] and bought.json()['ledger']['provider'] == 'nessie'
         assert client.get(f'/v1/taste/profiles/{pid}/budget').json()['month_spent'] == 42 + round(item['price'])

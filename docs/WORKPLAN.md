@@ -4,9 +4,9 @@ The original plan had three owners. Person 3 (sourcing + checkout) left, but the
 
 | | **Zaara — real-time, voice & conversation** | **Arissa — taste, sourcing & checkout** |
 |---|---|---|
-| Owns | Voice agent, SpacetimeDB (core live backend), chat wrapper, onboarding flow | Taste engine, moodboard and profile UI, Apify sourcing (live validation), Stripe Link + Nessie checkout |
+| Owns | Voice agent, SpacetimeDB (core live backend), chat wrapper, onboarding flow | Taste engine, moodboard and profile UI, Apify sourcing (live validation), Nessie budget + "Mark as bought" |
 | Code | `web/components/voice.tsx`, `web/app/onboard/`, `web/app/shop/` (search bar + live results), `spacetime/`, a backend voice-token route | `backend/taste/`, `backend/sourcing/`, `backend/checkout/`, `web/app/taste/`, `web/components/checkout.tsx` |
-| Already scaffolded | Voice seam (`VoiceButton` + `onTranscript`), onboarding form, shop page with polling | Fixture + Claude taste pipeline, endpoints and tests; sourcing service (17 tests); Stripe/Nessie checkout in fixture mode |
+| Already scaffolded | Voice seam (`VoiceButton` + `onTranscript`), onboarding form, shop page with polling | Fixture + Claude taste pipeline, endpoints and tests; sourcing service (17 tests); Nessie budget-aware agent |
 
 ## Features → owner → tools / APIs to use
 
@@ -23,7 +23,7 @@ The original plan had three owners. Person 3 (sourcing + checkout) left, but the
 | Moodboard + taste-profile view | Arissa | Next.js; live updates via a **SpacetimeDB** subscription (Zaara exposes the hook) | Visa (UX), SpacetimeDB |
 | Sourcing: small-business and secondhand marketplaces | Arissa | **Apify** actors: Etsy, Depop/Poshmark, Grailed; Claude query planner + multimodal ranker | **Apify**, Visa (commerce impact) |
 | Chat wrapper: text/voice search, results stream into the moodboard | Zaara | **SpacetimeDB** (listings stream in as each Apify source finishes, replacing polling), **Cartesia/Moss** voice | SpacetimeDB, Cartesia/Moss, Visa |
-| One-click checkout, in-page (no separate tab) | Arissa | **Stripe** Payment Element + **Link** (test mode); server re-verifies the PaymentIntent | Visa |
+| Buying (on the store's site) + "Mark as bought" | Arissa | Purchases complete on the seller's own site; marking an item bought records it to **Nessie** so the budget-aware agent stays accurate. Stripe was dropped: Niche doesn't sell items (optional per team) | Visa, Capital One |
 | "Agentic finance" ledger | Arissa | **Capital One Nessie** mock bank: each purchase is mirrored to a mock account | Capital One |
 | Design | Both | **Figma** (say in the demo that the Figma connector in Claude was used) | Figma |
 | Post-MVP: saved taste profiles | Zaara | **SpacetimeDB** `taste_profile` rows per user | SpacetimeDB |
@@ -35,7 +35,7 @@ The original plan had three owners. Person 3 (sourcing + checkout) left, but the
 2. **Voice/text edits → taste engine.** `POST /v1/taste/profiles/{id}/edit` with `{ instruction, source: "voice" | "text" }`.
 3. **Taste → sourcing.** `POST /v1/taste/profiles/{id}/searches` with `{ query }`. It converts the profile into the sourcing `SearchRequest` and queues it.
 4. **Backend → live UI.** The SpacetimeDB tables and reducers in `spacetime/README.md`. The backend writes there; the web subscribes.
-5. **Results → checkout.** `POST /v1/checkout/intents` with `{ search_id, listing_id }`. The server looks up the price; the client never sends it.
+5. **Results → purchase record.** `POST /v1/checkout/mark-bought` with `{ search_id, listing_id }`. The server looks up the price; the client never sends it.
 
 ## How judges score this (from the ideas doc)
 
@@ -46,4 +46,3 @@ The original plan had three owners. Person 3 (sourcing + checkout) left, but the
 
 ## Open questions
 
-- Fulfillment: Stripe charges *us*, but we can't place the order on Etsy or Depop. For the demo, do we present this as a test-mode purchase plus the Nessie ledger, or take it further?
