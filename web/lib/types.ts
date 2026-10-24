@@ -17,18 +17,32 @@ export const TIER_LABELS: Record<Tier, string> = {
   big_box: "Big box", marketplace: "Marketplace", resale: "Secondhand", small_shop: "Small shop",
 };
 
+/** Optional body measurements, any or none (backend/taste/models.py Measurements). */
+export interface Measurements {
+  unit: "in" | "cm";
+  shoulder?: number | null;
+  bust?: number | null;
+  waist?: number | null;
+  hips?: number | null;
+  inseam?: number | null;
+  arm?: number | null;
+}
+
+export interface Sizes {
+  top: SizeLabel | null;
+  /** Pants and skirts: a letter size, or a US numbered size from "00" to "40". */
+  bottom: string | null;
+  bottom_length?: Length | null;
+  outerwear: SizeLabel | null;
+  shoe: string | null;
+}
+
 export interface Onboarding {
   name: string;
   age: number | null;
   email: string;
-  sizes: {
-    top: SizeLabel | null;
-    /** Pants and skirts: a letter size, or a US numbered size from "00" to "40". */
-    bottom: string | null;
-    bottom_length?: Length | null;
-    outerwear: SizeLabel | null;
-    shoe: string | null;
-  };
+  sizes: Sizes;
+  measurements?: Measurements;
   budget_min: number;
   budget_max: number;
   currency: string;

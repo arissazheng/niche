@@ -30,12 +30,24 @@ class Sizes(StrictModel):
         return size
 
 
+class Measurements(StrictModel):
+    """Optional body measurements, any or none. Used for sizes and fit checks, never for the taste profile."""
+    unit: Literal['in', 'cm'] = 'in'
+    shoulder: float | None = Field(default=None, gt=0, le=250)  # shoulder to shoulder
+    bust: float | None = Field(default=None, gt=0, le=250)
+    waist: float | None = Field(default=None, gt=0, le=250)
+    hips: float | None = Field(default=None, gt=0, le=250)
+    inseam: float | None = Field(default=None, gt=0, le=250)  # leg length
+    arm: float | None = Field(default=None, gt=0, le=250)  # shoulder to wrist
+
+
 class Onboarding(StrictModel):
     # Mirrors the voice/form setup questions in the design deck.
     name: str = Field(default='', max_length=100)
     age: int | None = Field(default=None, ge=13, le=120)
     email: str = Field(default='', max_length=254)
     sizes: Sizes = Field(default_factory=Sizes)
+    measurements: Measurements = Field(default_factory=Measurements)
     budget_min: float = Field(default=0, ge=0)
     budget_max: float = Field(default=150, gt=0, le=100000)
     currency: str = Field(default='USD', pattern=r'^[A-Z]{3}$')
