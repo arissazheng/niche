@@ -6,7 +6,7 @@ from sourcing.models import SearchRequest, ShoppingRequest
 from finance.budget import Budgets
 from sourcing.store import Store
 import json
-from .chat import ChatRequest, ShopAgent, result_cards
+from .chat import ChatRequest, ShopAgent, guess_category, profile_size, result_cards
 from .links import extract_urls, read_link
 from .engine import TasteEngine
 from .models import EditInstruction, ImageKind, NoteUpdate, Onboarding, ProfileSearch, PromptUpdate
@@ -140,6 +140,10 @@ def create_router(settings, store: Store, budgets: Budgets | None = None):
         if linked:
             out['linked'] = [{'url': x.url, 'site': x.site, 'title': x.title, 'readable': x.readable} for x in linked]
         if turn.action in ('propose', 'search'):
+            # Unless the user named a size, search in their saved size for this kind of garment.
+            category = turn.category if turn.category != 'other' else guess_category(turn.brief)
+            out['size'] = turn.size or profile_size(profile, category)
+            out['category'] = category
             price = turn.max_item_price
             if price is None and budget and budget.remaining >= 1:
                 # The agent should set a cap itself; if it didn't, keep the search inside what's left this month.
@@ -147,7 +151,7 @@ def create_router(settings, store: Store, budgets: Budgets | None = None):
             out['max_item_price'] = price
         if turn.action == 'search':
             out.update(start_search(profile, ProfileSearch(query=turn.brief, max_item_price=out['max_item_price'],
-                                                           size=turn.size)))
+                                                           size=out['size'])))
         return out
 
     return router

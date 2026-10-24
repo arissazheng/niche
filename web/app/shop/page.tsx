@@ -126,6 +126,7 @@ export default function ShopPage() {
       if (reply.action === "propose") {
         agentTurn.proposed = reply.brief;
         agentTurn.proposed_price = reply.max_item_price ?? null;
+        agentTurn.proposed_size = reply.size ?? null;
       }
       const withReply: ChatTurn[] = [...next, agentTurn];
       setMessages(withReply);
@@ -145,14 +146,18 @@ export default function ShopPage() {
     if (!profileId || !proposal.proposed || thinking) return;
     setError(null);
     const price = proposal.proposed_price ? ` under $${Math.round(proposal.proposed_price)}` : "";
+    const size = proposal.proposed_size ? ` in size ${proposal.proposed_size}` : "";
     const next: ChatTurn[] = [
       ...messages,
       { role: "user", text: "Yes, search for that" },
-      { role: "agent", text: `Searching for ${proposal.proposed}${price}.`, brief: proposal.proposed },
+      { role: "agent", text: `Searching for ${proposal.proposed}${size}${price}.`, brief: proposal.proposed },
     ];
     setMessages(next);
     try {
-      const { search_id } = await api.search(profileId, proposal.proposed, { maxItemPrice: proposal.proposed_price });
+      const { search_id } = await api.search(profileId, proposal.proposed, {
+        maxItemPrice: proposal.proposed_price,
+        size: proposal.proposed_size,
+      });
       saveThread(profileId, { messages: next, searchId: search_id });
       follow(search_id);
     } catch (err) {
