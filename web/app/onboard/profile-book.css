@@ -73,3 +73,10 @@
 .profile-book .book-entry .input { padding-block: 2px; line-height: 1.3; }
 .book-entry .mt-3.text-center { margin-top: 6px; }
 .book-leaves { min-height: min(740px, calc(100dvh - 270px)); }
+
+/* Stagger shared imagery through the entries rather than lining it up across the top. */
+.book-image-pair { display: grid; gap: 6px; }
+.book-image-pair .book-plate { height: clamp(60px, 7dvh, 85px); }
+.book-plate-landscape { height: clamp(100px, 13dvh, 160px); }
+.book-plate-portrait { height: clamp(140px, 19dvh, 210px); width: 82%; }
+.book-plate-strip { height: clamp(50px, 6dvh, 75px); margin-top: 12px; }

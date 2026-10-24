@@ -166,11 +166,11 @@ export default function OnboardPage() {
       </header>
 
       <div className="profile-spread">
-        {/* An open encyclopedia: two pages, two ruled columns each, figures as grey plates (photos come later). */}
+        {/* An open encyclopedia: two pages, two ruled columns each, shared decorative images interspersed with entries. */}
         <Book>
           <BookPage side="left" letter="P" number="01" footer="The Niche Profile">
             <Column>
-              <Plate />
+              <div className="book-image-pair"><Plate /><Plate /></div>
             </Column>
             <Column ruled>
               <Entry title="About you">
@@ -199,14 +199,13 @@ export default function OnboardPage() {
             <Column wide>
               <Entry title="Sizes">
                 <SizingSection value={form.sizing} onChange={(sizing) => setForm((f) => ({ ...f, sizing }))} />
-
+                <Plate variant="strip" />
               </Entry>
             </Column>
           </BookPage>
 
           <BookPage side="right" letter="P" number="02" footer="An A–Z of Your Taste">
             <Column>
-              <Plate />
               <Entry title="Everyday outfit budget">
                 <div className="flex items-center gap-4">
                   <span className="font-serif text-3xl tabular-nums">${form.budget_max}</span>
@@ -222,6 +221,7 @@ export default function OnboardPage() {
                   />
                 </div>
               </Entry>
+              <Plate variant="landscape" />
               <Entry title="Where you usually shop">
                 <div className="flex flex-wrap gap-2">
                   {SHOPS.map((shop) => (
@@ -233,7 +233,6 @@ export default function OnboardPage() {
               </Entry>
             </Column>
             <Column ruled>
-              <Plate />
               <Entry title="Shops near you">
                 <label className="flex items-start gap-3 text-sm">
                   <input
@@ -263,6 +262,7 @@ export default function OnboardPage() {
                   </div>
                 )}
               </Entry>
+              <Plate variant="portrait" />
               <Entry title="Before we begin">
                 <label className="flex items-start gap-3 text-sm">
                   <input
@@ -398,8 +398,8 @@ function Entry({ title, children }: { title: string; children: React.ReactNode }
 }
 
 /** Shared decorative imagery will replace these fixed grey placeholders. */
-function Plate() {
-  return <div aria-hidden="true" className="book-plate bg-[#cfcdc7]" />;
+function Plate({ variant = "default" }: { variant?: "default" | "landscape" | "portrait" | "strip" }) {
+  return <div aria-hidden="true" className={`book-plate book-plate-${variant} bg-[#cfcdc7]`} />;
 }
 
 function SeeAlso({ children }: { children: React.ReactNode }) {
