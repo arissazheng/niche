@@ -6,7 +6,7 @@ export type SizeLabel = "XS" | "S" | "M" | "L" | "XL" | "XXL";
 export type Length = "short" | "regular" | "long";
 export type ImageKind = "outfit" | "item" | "own";
 // mainstream / secondhand are the two Niche Apify actors (backend/actors); the rest are single-marketplace adapters.
-export type Source = "mainstream" | "secondhand" | "indie" | "etsy" | "depop" | "poshmark" | "grailed";
+export type Source = "mainstream" | "secondhand" | "indie" | "web" | "etsy" | "depop" | "poshmark" | "grailed";
 export type Tier =
   | "department" | "mainstream" | "athletic" | "outdoor" | "premium" | "luxury"
   | "fast_fashion" | "off_price" | "big_box" | "marketplace" | "resale" | "small_shop" | "brand";
@@ -183,6 +183,8 @@ export interface IndieShop {
   domain: string;
   name: string;
   currency: string;
+  /** shopify: its catalog is read directly. web: another platform, found and read through Bright Data. */
+  platform?: "shopify" | "web";
 }
 
 export interface ProfileView {

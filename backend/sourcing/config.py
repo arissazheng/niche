@@ -16,6 +16,9 @@ class Settings(BaseSettings):
         'NICHE_BRIGHTDATA_API_KEY', 'BRIGHTDATA_API_KEY', 'brightdata_api_key'))
     # A Web Unlocker zone (Bright Data dashboard) for Pinterest board links; blank turns board links off.
     brightdata_unlocker_zone: str = ''
+    # A SERP API zone: with the Web Unlocker zone, searches also find independent labels on any shop platform
+    # (sourcing/webshops.py). Blank turns that source off.
+    brightdata_serp_zone: str = ''
     # Not read from ANTHROPIC_BASE_URL on purpose: hosts can set that to their own gateway.
     anthropic_base_url: str = Field(default='https://api.anthropic.com', validation_alias='NICHE_ANTHROPIC_BASE_URL')
     claude_model: str = 'claude-opus-5-5'

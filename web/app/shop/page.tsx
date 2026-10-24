@@ -290,15 +290,16 @@ function Impact({ counts, results }: { counts: SearchCounts; results: Listing[] 
 }
 
 // "Loading matches" → "3 matches so far" → "20 matches".
-// "new" covers every store in the retailer bank (the mainstream actor); "secondhand" covers resale apps, small shops
-// and independent labels' own stores (the indie actor).
-type Kind = "all" | "secondhand" | "new";
-const kindOf = (item: Listing): Kind => (item.source === "mainstream" ? "new" : "secondhand");
+// "new" covers every store in the retailer bank (the mainstream actor); "indie" is independent labels' own stores (the
+// indie actor's Shopify catalogs and shops found through Bright Data); "secondhand" covers resale apps and Etsy.
+type Kind = "all" | "secondhand" | "indie" | "new";
+const kindOf = (item: Listing): Kind =>
+  item.source === "mainstream" ? "new" : item.source === "indie" || item.source === "web" ? "indie" : "secondhand";
 
 function MixFilter({ results, kind, onChange }: { results: Listing[]; kind: Kind; onChange: (kind: Kind) => void }) {
   if (!results.length) return null;
   const count = (k: Kind) => (k === "all" ? results.length : results.filter((item) => kindOf(item) === k).length);
-  const options: [Kind, string][] = [["all", "All"], ["secondhand", "Secondhand & small shops"], ["new", "New from stores"]];
+  const options: [Kind, string][] = [["all", "All"], ["secondhand", "Secondhand & Etsy"], ["indie", "Independent labels"], ["new", "New from stores"]];
   return (
     <div className="flex flex-wrap gap-2 mb-3" role="group" aria-label="Show">
       {options.map(([k, label]) => (

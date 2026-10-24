@@ -12,6 +12,7 @@ from sourcing import safe_fetch
 from sourcing.prefetch import BROAD_QUERY, Prefetcher
 from sourcing.features import clean as clean_features
 from sourcing.store import Store
+from sourcing.webshops import WebShops
 import json
 from .chat import ChatRequest, ShopAgent, find_cards, guess_category, result_cards, search_sizes
 from .finds import Finds
@@ -39,6 +40,7 @@ def create_router(settings, store: Store, budgets: Budgets | None = None, signer
     prefetcher = Prefetcher(settings, store)
     nearby = Nearby(settings)
     importer = Importer(settings, taste, engine)
+    web = WebShops(settings)
     router = APIRouter(prefix='/v1/taste', tags=['taste'])
 
     def profile_or_404(ident):
@@ -220,10 +222,11 @@ def create_router(settings, store: Store, budgets: Budgets | None = None, signer
         profile = profile_or_404(ident)
         if len(profile.indie_shops) >= MAX_SHOPS:
             raise HTTPException(422, f'You can add up to {MAX_SHOPS} shops; remove one first')
-        shop = await shops.find(body.shop)
+        shop = await shops.find(body.shop, any_platform=web.enabled)
         if not shop:
             raise HTTPException(422, "Couldn't find an online shop Niche can read for that. Try pasting the brand's "
-                                     "website (Niche can read shops built on Shopify, which most small labels use).")
+                                     "website" + ("." if web.enabled else
+                                     " (Niche can read shops built on Shopify, which most small labels use)."))
         if all(x.domain != shop.domain for x in profile.indie_shops):
             profile.indie_shops.append(shop)
             profile = await engine.save(profile)
@@ -255,7 +258,10 @@ def create_router(settings, store: Store, budgets: Budgets | None = None, signer
     def search_request(profile, search: ProfileSearch, for_friend=False):
         # Hand-off to the sourcing pipeline: the taste prompt becomes the SearchRequest's taste_profile.
         ob = profile.onboarding
-        return SearchRequest(taste_profile=profile.to_sourcing(), sources=search.sources, limit=search.limit,
+        sources = list(search.sources)
+        if 'indie' in sources and 'web' not in sources and web.enabled:
+            sources.append('web')  # independent labels on any platform, through Bright Data
+        return SearchRequest(taste_profile=profile.to_sourcing(), sources=sources, limit=search.limit,
             profile_id=profile.id, for_friend=for_friend,
             # A gift search has no cap unless the friend shopping names one (the owner's own budget isn't theirs).
             request=ShoppingRequest(query=search.query,

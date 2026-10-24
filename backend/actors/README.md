@@ -45,6 +45,11 @@ cd .. && .venv/bin/pytest -q                                                  # 
   website), and favorite brands from onboarding are looked up when the profile builds (`backend/taste/shops.py`). A
   store counts when it answers `/products.json`; a guessed domain also has to call itself by the brand's name in
   `/meta.json`. The backend sends those shops first plus the seed list as the actor's `shops` input, and their names
-  join `preferred_stores` for the usual small ranking boost. Only Shopify stores can be read so far.
+  join `preferred_stores` for the usual small ranking boost.
+- Independent labels on other platforms come from `backend/sourcing/webshops.py` (source `web`, not an actor): Bright
+  Data's SERP API searches Google for the request plus `site:` searches for the shopper's non-Shopify shops,
+  marketplaces and retailer-bank stores are dropped, and up to 12 pages are read through the Web Unlocker for their
+  schema.org Product data (Open Graph price tags as a fallback). On only when `BRIGHTDATA_SERP_ZONE` and
+  `BRIGHTDATA_UNLOCKER_ZONE` are both set; then every search that includes `indie` also includes `web`.
 - Grailed has not been run live yet; it charges $0.20 per run, so it is off by default.
 - Community scrapers can change or disappear (the old `crawlerbros` Depop/Poshmark scraper did). If a marketplace starts failing, check `OUTPUT` on the run in the Apify console, then swap the actor in `core.py` and its parser in `normalize.py`.

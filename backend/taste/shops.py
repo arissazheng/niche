@@ -3,9 +3,11 @@
 Most small labels sell from Shopify, whose stores answer https://<shop>/products.json and /meta.json publicly. A
 website is checked as given; a bare name is tried against the domains small labels usually pick (batul.com,
 velathelabel.com, shopveiled.com...). A guessed domain only counts when the store calls itself by that name, so a
-stranger's shop that happens to own the domain isn't added. Stores on other platforms aren't supported yet.
+stranger's shop that happens to own the domain isn't added. A website on another platform is kept as a `web` shop
+when Bright Data is set up (sourcing/webshops.py reads those through Google and the Web Unlocker).
 """
 import asyncio
+import html
 import json
 import re
 from urllib.parse import urlsplit
@@ -64,14 +66,27 @@ async def check(http, domain, name=None):
                      currency=currency if re.fullmatch(r'[A-Z]{3}', currency) else 'USD')
 
 
-async def find(text, http=None):
-    """A brand name or website -> its IndieShop, or None when no Shopify store for it answers."""
+async def site_name(http, domain):
+    """A store's own name from its homepage (og:site_name or <title>), else its domain."""
+    got = await safe_fetch.fetch(http, f'https://{domain}/', MAX_BYTES)
+    page = got[0].decode('utf-8', 'replace') if got else ''
+    m = re.search(r'property=["\']og:site_name["\'][^>]+content=["\']([^"\']+)', page) or \
+        re.search(r'<title[^>]*>([^<|–-]+)', page, re.I)
+    return html.unescape(m.group(1)).strip()[:80] if m and m.group(1).strip() else domain
+
+
+async def find(text, http=None, any_platform=False):
+    """A brand name or website -> its IndieShop, or None when no store for it can be read. A website on another
+    platform than Shopify is kept as a `web` shop when any_platform (Bright Data is set up to read those)."""
     own = http is None
     http = http or safe_fetch.client()
     try:
         domain = domain_of(text)
         if domain:
-            return await check(http, domain) or await check(http, 'www.' + domain)
+            shop = await check(http, domain) or await check(http, 'www.' + domain)
+            if shop or not any_platform:
+                return shop
+            return IndieShop(domain=domain, name=await site_name(http, domain), platform='web')
         found = await asyncio.gather(*(check(http, d, text) for d in guesses(text)))
         return next((shop for shop in found if shop), None)
     finally:
