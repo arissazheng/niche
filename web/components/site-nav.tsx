@@ -20,7 +20,7 @@ function Pending({ children }: { children: React.ReactNode }) {
 
 /** The menu is the header's headline: display-size links, the current page underlined. */
 const BAR = "flex flex-wrap justify-center items-baseline gap-x-4 sm:gap-x-10 gap-y-1 px-4 py-3 text-lg sm:text-display";
-const ITEM = "hover:underline underline-offset-4 decoration-1";
+const ITEM = "hover:text-[#b0c7db] underline-offset-4 decoration-1";
 const CURRENT = "underline underline-offset-4 decoration-1";
 
 /** The site wordmark, in the same swash italic as the footer. */
