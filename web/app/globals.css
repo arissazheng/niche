@@ -68,3 +68,10 @@ body {
 .input:focus-visible {
   border-bottom-width: 2px;
 }
+
+/* The shopping conversation is a flush workspace rail, with content beside it. */
+@media (min-width: 1024px) {
+  body:has(.assistant-sidebar) main,
+  body:has(.assistant-sidebar) > footer,
+  body:has(.assistant-sidebar) footer { margin-right: 320px; }
+}

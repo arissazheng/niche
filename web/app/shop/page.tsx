@@ -99,7 +99,7 @@ export default function ShopPage() {
 
   return (
     // With results, the assistant is a sidebar on the right; leave it room.
-    <div className={`px-4 mt-6 grid gap-4 ${searchId ? "lg:pr-[400px]" : ""}`}>
+    <div className="px-4 mt-6 grid gap-4">
       {budget?.linked && <BudgetStrip budget={budget} keepToBudget={keepToBudget} onToggle={setKeepToBudget} />}
       <section className="min-w-0">
         {!searchId ? (

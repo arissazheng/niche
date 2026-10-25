@@ -468,6 +468,21 @@ export function AssistantDock() {
   const placement: Placement =
     pathname === "/shop" && a.shop.profileId ? (a.shop.searchId ? "side" : "hero") : "bottom";
 
+  // Dock the results conversation directly below the site navigation, including when it wraps.
+  useEffect(() => {
+    if (placement !== "side") return;
+    const header = document.querySelector("body header");
+    if (!header) return;
+    const measure = () => document.documentElement.style.setProperty("--site-header-height", `${header.getBoundingClientRect().height}px`);
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(header);
+    return () => {
+      observer.disconnect();
+      document.documentElement.style.removeProperty("--site-header-height");
+    };
+  }, [placement]);
+
   // Space twice (outside a text field) opens the conversation to type.
   useEffect(() => {
     const tapped = doubleSpace();
@@ -645,10 +660,10 @@ export function AssistantDock() {
     return (
       <section
         aria-label="Niche assistant"
-        className="fixed z-[800] inset-x-3 bottom-3 max-h-[45dvh] lg:inset-x-auto lg:right-4 lg:top-24 lg:bottom-4 lg:max-h-none lg:w-[380px] border border-ink bg-paper shadow-[0_8px_28px_rgba(0,0,0,.14)] flex flex-col"
+        className="assistant-sidebar fixed z-[800] inset-x-0 bottom-0 max-h-[45dvh] lg:left-auto lg:right-0 lg:top-[var(--site-header-height,56px)] lg:bottom-0 lg:max-h-none lg:w-[320px] border-t lg:border-t-0 lg:border-l border-ink bg-paper flex flex-col"
       >
         <div className="rule-b flex items-baseline justify-between px-4 py-2">
-          <span className="text-display">Niche</span>
+          <span className="text-sm font-medium">Niche</span>
           <button type="button" onClick={a.shop.reset} className="label underline">New search</button>
         </div>
         {transcript}
