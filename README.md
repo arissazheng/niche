@@ -374,7 +374,7 @@ explanation.
 ### Not integrated (no code in this repo)
 
 - **Factory Droid SDK:** Droid is not used in the running product.
-- **Vultr:** Niche runs locally and isn't deployed on Vultr.
+- **Vultr:** Niche isn't hosted on Vultr.
 - **Elastic:** an Elasticsearch listing index was planned, but listing history is in Snowflake and recall in Moss; there is no Elastic code.
 
 ---
