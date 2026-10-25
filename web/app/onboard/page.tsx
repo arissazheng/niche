@@ -206,7 +206,7 @@ export default function OnboardPage() {
               <Entry title="Sizes">
                 <SizingSection value={form.sizing} onChange={(sizing) => setForm((f) => ({ ...f, sizing }))} />
                 <div className="book-plate book-plate-strip relative overflow-hidden">
-                  <Image src="/images/profile/church-interior.png" alt="" fill sizes="(max-width: 699px) 90vw, 46vw" className="object-cover object-center" />
+                  <Image src="/images/profile/blue-eye-portrait.png" alt="" fill sizes="(max-width: 699px) 90vw, 46vw" className="object-cover object-[center_60%]" />
                 </div>
               </Entry>
             </Column>
