@@ -80,3 +80,5 @@
 .book-plate-landscape { height: clamp(100px, 13dvh, 160px); }
 .book-plate-portrait { height: clamp(140px, 19dvh, 210px); width: 82%; }
 .book-plate-strip { height: clamp(50px, 6dvh, 75px); margin-top: 12px; }
+
+.book-plate-opening { height: clamp(126px, 14dvh + 6px, 176px); }

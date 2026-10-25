@@ -190,13 +190,8 @@ export default function OnboardPage() {
         <Book>
           <BookPage side="left" letter="P" number="01" footer="The Niche Profile">
             <Column>
-              <div className="book-image-pair">
-                <div className="book-plate relative overflow-hidden">
-                  <Image src="/images/profile/neutral-tailoring.png" alt="" fill sizes="(max-width: 699px) 45vw, 23vw" className="object-cover object-[center_10%]" />
-                </div>
-                <div className="book-plate relative overflow-hidden">
-                  <Image src="/images/profile/desert-landscape.png" alt="" fill sizes="(max-width: 699px) 45vw, 23vw" className="object-cover object-top" />
-                </div>
+              <div className="book-plate book-plate-opening relative overflow-hidden">
+                <Image src="/images/profile/neutral-tailoring.png" alt="" fill sizes="(max-width: 699px) 45vw, 23vw" className="object-cover object-[center_10%]" />
               </div>
             </Column>
             <Column ruled>
@@ -334,6 +329,9 @@ export default function OnboardPage() {
                 )}
                 {!form.sizing.system && <p className="text-xs text-muted">Choose a sizing system on the facing page to add optional measurements.</p>}
               </Entry>
+              <div className="book-plate book-plate-strip relative overflow-hidden">
+                <Image src="/images/profile/desert-landscape.png" alt="" fill sizes="(max-width: 699px) 90vw, 46vw" className="object-cover object-top" />
+              </div>
             </Column>
           </BookPage>
         </Book>
