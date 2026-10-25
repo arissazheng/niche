@@ -1,12 +1,12 @@
 import Link from "next/link";
 import { HeroEnvelope } from "@/components/hero-envelope";
 
-const CATEGORIES = ["Outerwear", "Knitwear", "Trousers", "Dresses", "Shoes", "Bags", "Vintage", "Handmade"];
-
 export default function Home() {
   return (
     <div className="px-4">
-      <p className="text-display text-center my-2">{CATEGORIES.join(", ")}</p>
+      <p className="label text-center mt-4 mb-2">
+        Show us what you love · we learn your taste · then search every shop for pieces that fit it
+      </p>
       {/* Full-width black band with the envelopes (cropped from niche-front.webp) centred on it. */}
       <section className="relative -mx-4 my-4 bg-ink flex flex-col items-center gap-12 py-10">
         <HeroEnvelope />
