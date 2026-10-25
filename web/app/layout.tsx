@@ -7,6 +7,7 @@ import "@fontsource/cormorant-garamond/400.css";
 import "@fontsource/cormorant-garamond/400-italic.css";
 import "@fontsource/cormorant-garamond/500.css";
 import "@fontsource/cormorant-garamond/500-italic.css";
+import "@fontsource/cormorant-garamond/600-italic.css";
 import "@fontsource/cedarville-cursive/400.css";
 import "@fontsource/reenie-beanie/400.css";
 import "@fontsource/playfair-display/400-italic.css";
