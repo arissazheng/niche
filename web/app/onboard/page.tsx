@@ -264,7 +264,7 @@ export default function OnboardPage() {
                 )}
               </Entry>
               <div className="book-plate book-plate-portrait relative overflow-hidden">
-                <Image src="/images/profile/fashion-board.webp" alt="" fill sizes="(max-width: 699px) 40vw, 20vw" className="object-cover object-[center_28%]" />
+                <Image src="/images/profile/fashion-board.webp" alt="" fill sizes="(max-width: 699px) 40vw, 20vw" className="object-cover object-[center_28%] scale-[1.15] origin-[center_28%]" />
               </div>
               <Entry title="Before we begin">
                 <label className="flex items-start gap-3 text-sm">
