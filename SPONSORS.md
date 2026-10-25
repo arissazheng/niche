@@ -1,6 +1,6 @@
 # Sponsor tools in Niche: criteria and how we meet them
 
-The same content is in the [README](../README.md#prize-tracks-criteria-and-how-niche-meets-them); keep the two in sync.
+The same content is in the [README](README.md#prize-tracks-criteria-and-how-niche-meets-them); keep the two in sync.
 
 For each track: the judging criteria, how Niche addresses each one, then the details (where the code is and what it doesn't do). Keys live in `backend/.env` and are never committed.
 
