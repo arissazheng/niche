@@ -19,7 +19,7 @@ most keyword-stuffed catalogs. The shopper gets things they wouldn't actually bu
 sellers whose pieces would have fit never appears. Niche fixes the input side too: your photos and taste profile say
 what a paragraph-long prompt would, so a short request is enough. We tried today's AI assistants with the kind of short prompts real shoppers type:
 - **ChatGPT**, "Find 5 outfits for my next week.": searched 30 retailers, then suggested only Target.
-- **ChatGPT**, "Now try secondhand.": cited a Harvard paper on eating disorders and an Ohio government website, not a single listing.
+- **ChatGPT**, "Now try secondhand.": cited a Harvard paper on eating disorders and an Ohio government website.
 - **Gemini and Grok**, "Help me find clothes.": Urban Outfitters, ASOS, Forever 21, Uniqlo. No one small, no one secondhand.
 
 **3. It works.** **One thing done well: your own outfit photos in, a short list of real, buyable pieces out, in your
