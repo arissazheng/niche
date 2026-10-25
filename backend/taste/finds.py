@@ -36,6 +36,7 @@ class Finds:
         self.indexed: set[str] = set()  # search ids already sent (Moss upserts, so a restart only re-sends)
         self.indexes: set[str] = set()  # index names known to exist
         self.loaded: set[str] = set()  # indexes the SDK holds in memory, current as of their last load
+        self.loading: dict[str, asyncio.Task] = {}  # loads in flight; they outlive a timed-out recall
         self.tasks: set[asyncio.Task] = set()
 
     async def manage(self, action, **body):
@@ -124,8 +125,11 @@ class Finds:
         if sdk:
             from inferedge_moss import QueryOptions
             if name not in self.loaded:
-                await sdk.load_index(name)
-                self.loaded.add(name)
+                # A first load takes a few seconds, longer than RECALL_SECONDS. Shielded, it finishes in the
+                # background when this turn gives up, so the next turn finds the index ready.
+                if name not in self.loading:
+                    self.loading[name] = asyncio.create_task(self._load(sdk, name))
+                await asyncio.shield(self.loading[name])
             result = await sdk.query(name, text, QueryOptions(top_k=top_k))
             return [{'id': d.id, 'metadata': d.metadata, 'score': d.score} for d in result.docs]
         async with httpx.AsyncClient(transport=transport, timeout=RECALL_SECONDS) as client:
@@ -134,6 +138,13 @@ class Finds:
                 'projectId': self.settings.moss_project_id, 'projectKey': self.settings.moss_project_key})
         response.raise_for_status()
         return response.json().get('docs', [])
+
+    async def _load(self, sdk, name):
+        try:
+            await sdk.load_index(name)
+            self.loaded.add(name)
+        finally:
+            self.loading.pop(name, None)
 
     def _sdk(self):
         if self.sdk is None:

@@ -1,0 +1,16 @@
+# The web app and the API share one origin: the browser calls /api/*, so there is no CORS
+# and the microphone works over HTTPS. api.shopniche.fashion serves the API directly.
+shopniche.fashion {
+	encode zstd gzip
+	handle_path /api/* {
+		reverse_proxy 127.0.0.1:8000
+	}
+	handle {
+		reverse_proxy 127.0.0.1:3000
+	}
+}
+
+api.shopniche.fashion {
+	encode zstd gzip
+	reverse_proxy 127.0.0.1:8000
+}
