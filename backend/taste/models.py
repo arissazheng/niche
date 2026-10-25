@@ -53,6 +53,8 @@ class Onboarding(StrictModel):
     # "Shops near you": off unless the shopper opts in. Only a US ZIP code is kept, never precise location; it goes to
     # Gemini (Google Maps grounding) to suggest nearby shops, and never to Claude.
     nearby_shops: bool = False
+    # "Secondhand first": when a resale listing and a new one fit about equally, the resale one ranks higher.
+    secondhand_first: bool = False
     zip_code: str = Field(default='', pattern=r'^(\d{5})?$')
 
 
@@ -140,7 +142,7 @@ class Profile(StrictModel):
             # Visible designers in liked photos count as brand preferences alongside the ones the user named.
             preferred_brands=list(dict.fromkeys(ob.favorite_brands + self.designers))[:30],
             preferred_stores=list(dict.fromkeys(ob.usual_shops + [x.name for x in self.indie_shops]))[:30],
-            indie_shops=self.indie_shops[:30])
+            indie_shops=self.indie_shops[:30], secondhand_first=ob.secondhand_first)
 
 
 LEARNED_IN_SEARCH = 3

@@ -111,3 +111,12 @@ def test_learned_picks_reach_search_as_a_few_light_hints():
     summary = Profile(id='p', prompt='Relaxed earthy basics.', learned_notes=notes).to_sourcing().summary
     assert 'Light hints' in summary and 'Striped shirt' not in summary
     assert summary.count('it was striped') == 1 and 'it was wool' in summary
+
+
+def test_secondhand_first_wins_close_calls_only(request_data):
+    new = item('m:1', 84, 'mainstream', title='Black wool coat', seller='Nordstrom')
+    resale = item('s:1', 80, 'secondhand', title='Black wool coat vintage', seller='coatsbyrae')
+    far = item('m:2', 95, 'mainstream', title='Charcoal wool coat', seller='Madewell')
+    assert [x.id for x in diversify([new, resale, far], 10, request_data)] == ['m:2', 'm:1', 's:1']
+    request_data.taste_profile.secondhand_first = True
+    assert [x.id for x in diversify([new, resale, far], 10, request_data)] == ['m:2', 's:1', 'm:1']

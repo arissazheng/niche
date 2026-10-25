@@ -205,6 +205,9 @@ def spread_traits(items, request, limit):
 MIX_FLOOR = 0.25
 GOOD_FIT = 50
 RELEVANT = 40  # Claude scores below this miss the request (wrong item, or none of its defining features)
+# With "Secondhand first" on, resale listings rank as if they scored this much higher: a close call goes to resale,
+# a clearly better new piece still wins.
+SECONDHAND_NUDGE = 8
 
 
 def copy_key(item):
@@ -238,7 +241,8 @@ def diversify(items, limit, request=None):
                 break
             selected.remove(min((x for x in selected if x.source==biggest), key=lambda x: x.score or 0))
             selected.append(item)
-    return sorted(selected,key=lambda x: x.score or 0,reverse=True)
+    nudge = SECONDHAND_NUDGE if request is not None and request.taste_profile.secondhand_first else 0
+    return sorted(selected,key=lambda x: (x.score or 0) + (nudge if x.source=='secondhand' else 0),reverse=True)
 
 class Pipeline:
     def __init__(self, settings, store, sources=None, model=None, live=None, market=None):

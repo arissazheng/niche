@@ -135,3 +135,17 @@ shops that have the item.
 - **Gift mode** (`/gift/<token>`): shop for a friend using the moodboard link they shared. The agent uses their taste
   and sizes; your budget; their bank and history stay untouched.
 - **Shared boards:** friends arrange one moodboard together, live, with named cursors.
+
+## Measuring it
+
+`python -m sourcing.report` (in `backend/`) reads this machine's search log and prints what Niche actually did across
+live searches: listings checked, results shown, items left out for wrong size, price or sold, the share of results
+from independent labels and secondhand sellers, median time to first listings, and Claude tokens per search. Add
+`--json` for the raw numbers. Fixture-mode searches are left out unless you pass `--fixture`.
+
+## Secondhand first
+
+A profile setting (on the setup page). When a resale listing and a new one fit about equally (within 8 points), the
+resale one ranks first; a clearly better new piece still wins (`SECONDHAND_NUDGE` in `sourcing/pipeline.py`). The
+shortlist shows how many saved pieces are secondhand, from independent labels, or new from big stores. Niche doesn't
+estimate carbon or water savings.

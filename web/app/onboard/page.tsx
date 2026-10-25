@@ -259,6 +259,20 @@ export default function OnboardPage() {
               </Entry>
             </Column>
             <Column ruled>
+              <Entry title="Secondhand first">
+                <label className="flex items-start gap-3 text-sm">
+                  <input
+                    type="checkbox"
+                    className="mt-1 accent-ink"
+                    checked={!!form.secondhand_first}
+                    onChange={(e) => setForm({ ...form, secondhand_first: e.target.checked })}
+                  />
+                  <span>
+                    When a secondhand piece and a new one fit about equally, show the secondhand one first. A clearly
+                    better new piece still ranks higher.
+                  </span>
+                </label>
+              </Entry>
               <Entry title="Shops near you">
                 <label className="flex items-start gap-3 text-sm">
                   <input

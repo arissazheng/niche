@@ -22,6 +22,49 @@ spacetime/        SpacetimeDB module: shared moodboard, cursors, build progress,
 docs/             workplan
 ```
 
+## How it fits together
+
+```mermaid
+flowchart LR
+  subgraph Browser["Browser (Next.js)"]
+    UI["Taste · Shop · Shortlist pages"]
+    VOICE["Assistant dock<br/>hands-free mic + VAD"]
+  end
+  subgraph API["FastAPI backend"]
+    TASTE["Taste engine"]
+    SRC["Sourcing pipeline<br/>plan → scrape → filter → rank"]
+    CHAT["Shopping chat"]
+    VAPI["Voice routes"]
+  end
+  CLAUDE(["Claude<br/>vision, profile, planner, ranker, chat"])
+  APIFY(["Apify actors<br/>mainstream · secondhand · indie"])
+  BD(["Bright Data<br/>SERP + Web Unlocker, social imports"])
+  CART(["Cartesia<br/>ink-whisper STT · sonic-3 TTS"])
+  STDB[("SpacetimeDB<br/>boards, cursors, progress, live results")]
+  MOSS[("Moss<br/>per-shopper finds index")]
+  SNOW[("Snowflake Cortex<br/>listing history, price check")]
+  GEM(["Gemini + Google Maps<br/>shops near you"])
+  NESSIE(["Capital One Nessie<br/>budget + purchases"])
+
+  UI -- photos, links, edits --> TASTE --> CLAUDE
+  TASTE -- Pinterest, Instagram, TikTok links --> BD
+  UI -- search --> SRC
+  SRC --> CLAUDE
+  SRC --> APIFY
+  SRC --> BD
+  SRC --> SNOW
+  SRC --> GEM
+  VOICE -- WAV --> VAPI --> CART
+  VOICE -- transcript --> CHAT
+  CHAT --> MOSS
+  CHAT --> NESSIE
+  CHAT --> SRC
+  TASTE -- progress, profile version --> STDB
+  SRC -- listings as each source lands --> STDB
+  STDB -- subscriptions --> UI
+  UI -- drag pieces, cursors --> STDB
+```
+
 ## Sponsor tools
 
 What each tool does in the product, and what it doesn't: **[docs/SPONSORS.md](docs/SPONSORS.md)**. In short: Claude

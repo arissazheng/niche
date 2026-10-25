@@ -30,6 +30,7 @@ class TasteProfile(StrictModel):
     # Brands and stores the user asked for; used in queries and as a modest ranking boost, never over taste fit.
     preferred_brands: list[str] = Field(default_factory=list, max_length=30)
     preferred_stores: list[str] = Field(default_factory=list, max_length=30)
+    secondhand_first: bool = False  # nudge resale above new when the fit is close (pipeline.SECONDHAND_NUDGE)
     # The shopper's own independent shops, searched alongside niche-indie's seed list.
     indie_shops: list[IndieShop] = Field(default_factory=list, max_length=30)
     reference_image_urls: list[HttpUrl] = Field(default_factory=list, max_length=3)
