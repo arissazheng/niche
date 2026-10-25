@@ -318,6 +318,17 @@ cd web && npx tsc --noEmit && npm run lint
 
 ## Design
 
-An archival, editorial look: white paper, black ink, grey plinths and 1px rules in Inter Tight. The moodboard is a
-ring-bound collage, the profile is an open encyclopedia spread, and the landing letter is a glassine envelope you swipe
-open. The footer wordmark is set in Playfair Display italic swashes. Tokens live in `web/app/globals.css`.
+Niche is meant to feel like a personal archive of your style rather than another shopping feed. The inspiration is
+print and the physical things people keep when they care about clothes:
+
+- **Museum and archive catalogs:** white paper, black ink, grey "plinth" frames around every image, thin 1px rules
+  and small uppercase labels, so the clothes are the only colour on the page.
+- **Editorial magazines and art books:** generous whitespace, big confident headings and one clean typeface
+  (Inter Tight), with a swash italic (Playfair Display) saved for the Niche wordmark.
+- **A designer's moodboard:** your taste profile is a ring-bound scrapbook spread, with torn prints, tape, paper
+  clips, handwritten cluster names and colour swatches you can rearrange (with friends, live).
+- **An encyclopedia:** the profile is an open book with ruled columns, figure plates and page numbers, like an entry
+  about you.
+- **Stationery:** the landing page's glassine envelope opens to a letter explaining why we built Niche.
+
+Design tokens live in `web/app/globals.css`.
