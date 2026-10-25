@@ -171,7 +171,12 @@ export default function OnboardPage() {
         <Book>
           <BookPage side="left" letter="P" number="01" footer="The Niche Profile">
             <Column>
-              <div className="book-image-pair"><Plate /><Plate /></div>
+              <div className="book-image-pair">
+                <div className="book-plate relative overflow-hidden">
+                  <Image src="/images/profile/palm-beach.png" alt="" fill sizes="(max-width: 699px) 45vw, 23vw" className="object-cover object-[center_45%]" />
+                </div>
+                <Plate />
+              </div>
             </Column>
             <Column ruled>
               <Entry title="About you">
