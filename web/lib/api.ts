@@ -123,6 +123,9 @@ export const api = {
     }
     return response.arrayBuffer();
   },
+  /** The assistant's next line in its own words (falls back to `fallback` without Claude). */
+  line: (body: { page: string; heard: string; facts: string; fallback: string; recent: string[] }) =>
+    request<{ text: string }>("/v1/voice/line", { method: "POST", body: json(body) }),
   voiceStatus: () => request<{ enabled: boolean; provider: string }>("/v1/voice/status"),
   /** Onboarding answers spoken out loud → only the form fields the user mentioned. */
   heardOnboarding: (transcript: string, shopOptions: string[]) =>

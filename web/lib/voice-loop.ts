@@ -9,6 +9,7 @@ const START_MS = 120; // this much loud audio in a row starts an utterance
 const END_SILENCE_MS = 1100; // a pause this long ends it
 const MIN_SPEECH_MS = 300; // shorter is a click or a cough
 const MAX_UTTERANCE_MS = 30000;
+const ECHO_TAIL_MS = 350; // after a reply, wait for the room to go quiet before listening again
 
 export interface Mic {
   /** Mic level 0..1 for the orb. */
@@ -43,7 +44,9 @@ export async function openMic(events: MicEvents): Promise<Mic> {
   const ctx = new Ctx();
   await ctx.resume();
   const stream = await navigator.mediaDevices
-    .getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true, channelCount: 1 } })
+    // No echo cancellation: the mic is paused while the assistant talks, and on macOS Chrome's echo canceller runs
+    // the speakers through voice processing too, which makes replies sound robotic (worst in the first second).
+    .getUserMedia({ audio: { echoCancellation: false, noiseSuppression: true, autoGainControl: true, channelCount: 1 } })
     .catch((err) => {
       ctx.close();
       throw err;
@@ -66,6 +69,7 @@ export async function openMic(events: MicEvents): Promise<Mic> {
   let floor = 0.005;
   let level = 0;
   let paused = false;
+  let resumeTimer: ReturnType<typeof setTimeout> | undefined;
   let playing: AudioBufferSourceNode | null = null;
   let endPlay: (() => void) | null = null;
 
@@ -123,13 +127,16 @@ export async function openMic(events: MicEvents): Promise<Mic> {
   return {
     level: () => level,
     pause() {
+      clearTimeout(resumeTimer);
       paused = true;
       speech = null;
       loudRun = 0;
       preroll.length = 0;
     },
     resume() {
-      paused = false;
+      // Without echo cancellation the reply's last syllable is still in the room: drop it, then listen.
+      clearTimeout(resumeTimer);
+      resumeTimer = setTimeout(() => (paused = false), ECHO_TAIL_MS);
     },
     async play(audio) {
       hush();
@@ -149,6 +156,7 @@ export async function openMic(events: MicEvents): Promise<Mic> {
     },
     hush,
     close() {
+      clearTimeout(resumeTimer);
       hush();
       proc.onaudioprocess = null;
       source.disconnect();

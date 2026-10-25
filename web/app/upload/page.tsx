@@ -9,7 +9,7 @@ import { Drawer } from "@/components/drawer";
 import { ImageTile } from "@/components/image-tile";
 import { NoteEditor } from "@/components/note-editor";
 import { api } from "@/lib/api";
-import { SHOPPING, useAssistant, useAssistantSkill } from "@/lib/assistant";
+import { SHOPPING, isNo, isYes, useAssistant, useAssistantSkill } from "@/lib/assistant";
 import { getProfileId } from "@/lib/session";
 import type { ImageKind, ImportJob, ProfileView, TasteImage } from "@/lib/types";
 
@@ -96,6 +96,8 @@ export default function LookbookPage() {
 
   // Talking here: describe a look to save it as a note, or say you're done to build the profile.
   const actions = useRef<{ note: (text: string) => Promise<void>; build: () => void }>({ note: async () => {}, build: () => {} });
+  const offeredBuild = useRef(false);
+  const assistant = useAssistant();
   useAssistantSkill(
     view
       ? {
@@ -107,12 +109,32 @@ export default function LookbookPage() {
           placeholder: "I love oversized blazers with baggy jeans",
           async handle(text) {
             if (SHOPPING.test(text)) return null;
-            if (/^\s*(build|done|i'?m done|that'?s (it|all)|finish|ready|let'?s (go|see))\b/i.test(text)) {
+            const build = /^\s*(build|let'?s (go|see|build)|ready|show me)\b/i.test(text) || (offeredBuild.current && isYes(text));
+            if (build) {
+              offeredBuild.current = false;
               actions.current.build();
-              return "Ooh, exciting. Building your taste profile now, give me a sec!";
+              return assistant.phrase("They asked you to build their taste profile from their lookbook now. Say you're on it.", [
+                "Ooh, exciting. Building your taste profile now, give me a sec!",
+                "On it! Putting your taste profile together.",
+                "Okay, let me pull it all together. One sec!",
+              ]);
             }
+            if (isNo(text)) {
+              // "No" to "anything else?": they're done adding, not describing a look.
+              offeredBuild.current = true;
+              return assistant.phrase(
+                "They have nothing more to add to their lookbook right now. Ask if you should build their taste profile now.",
+                ["All good! Want me to build your taste profile now?", "Cool. Should I put your taste profile together?",
+                 "Okay! Ready for me to build your profile?"],
+              );
+            }
+            offeredBuild.current = false;
             await actions.current.note(text);
-            return "Love it, noted! I'll use that when I build your profile. Anything else?";
+            return assistant.phrase(
+              `Saved what they described as a lookbook note: "${text}". React to the look in a few words, then ask if there's anything else.`,
+              ["Love that, noted! Anything else?", "Ooh, good one. I'll remember that. What else?",
+               "Noted! That tells me a lot. Anything else you love?"],
+            );
           },
         }
       : null,

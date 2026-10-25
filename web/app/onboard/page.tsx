@@ -7,7 +7,7 @@ import { useEffect, useRef, useState } from "react";
 import { HandCircle } from "@/components/hand-circle";
 import { MeasurementsPanel } from "@/components/measurements";
 import { api } from "@/lib/api";
-import { SHOPPING, useAssistantSkill } from "@/lib/assistant";
+import { SHOPPING, isNo, useAssistant, useAssistantSkill } from "@/lib/assistant";
 import { clearProfile, getProfileId, setProfileId } from "@/lib/session";
 import { SizingSection, emptySizing, withDefaults } from "@/components/sizing";
 import "./profile-book.css";
@@ -34,10 +34,12 @@ export default function OnboardPage() {
   const [existing, setExisting] = useState<{ id: string; built: boolean } | null>(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [voiceNote, setVoiceNote] = useState<string | null>(null);
+  const assistant = useAssistant();
   const formEl = useRef<HTMLFormElement>(null);
   const latest = useRef(form);
   latest.current = form;
   const budgetTalked = useRef(false);
+  const skipped = useRef(new Set<string>());
 
   // The assistant fills this form in conversation: it asks, the shopper answers, the fields fill themselves.
   useAssistantSkill({
@@ -72,6 +74,17 @@ export default function OnboardPage() {
   // Returns what the assistant says back: what it got, then the next thing it needs.
   async function answered(transcript: string): Promise<string | null> {
     if (existing?.built && SHOPPING.test(transcript)) return null; // "find me boots": that's for the shopping agent
+    if (isNo(transcript) && !/^\s*(done|that'?s (it|all|everything))\b/i.test(transcript)) {
+      // "No" / "nothing": they'd rather skip this question, so move on to the next one.
+      const skip = nextQuestion(latest.current, budgetTalked.current, !!existing, skipped.current);
+      if (skip.topic) skipped.current.add(skip.topic);
+      const next = nextQuestion(latest.current, budgetTalked.current, !!existing, skipped.current);
+      return assistant.phrase(`They'd rather skip that question. Next question to ask: ${next.text}`, [
+        `No worries! ${next.text}`,
+        `Totally fine, we can skip that. ${next.text}`,
+        `All good. ${next.text}`,
+      ]);
+    }
     if (/^\s*(save|continue|done|next|i'?m done|that'?s (it|all|everything)|let'?s go)\b/i.test(transcript)) {
       if (!latest.current.data_consent) {
         return "Almost there! Tick the box at the bottom so I can look at your photos with Claude, then say continue.";
@@ -116,12 +129,18 @@ export default function OnboardPage() {
       measurements && "measurements",
     ].filter(Boolean);
     setVoiceNote(`\u201C${transcript}\u201D \u2014 ${filled.length ? `filled in ${filled.join(", ")}` : "nothing to fill in from that"}.`);
-    const ack = rest.name
-      ? `Nice to meet you, ${rest.name}!`
+    const next_ = nextQuestion(next, budgetTalked.current, !!existing, skipped.current);
+    const acks = rest.name
+      ? [`Nice to meet you, ${rest.name}!`, `Hi ${rest.name}!`, `${rest.name}, love it.`]
       : filled.length
-        ? ["Got it.", "Love that.", "Perfect.", "Noted!"][transcript.length % 4]
-        : "Hmm, I didn't catch anything to fill in from that.";
-    return `${ack} ${nextQuestion(next, budgetTalked.current, !!existing)}`;
+        ? ["Got it.", "Love that.", "Perfect.", "Noted!", "Ooh, nice.", "Okay, cool."]
+        : ["Hmm, I didn't catch anything to fill in from that.", "Sorry, I couldn't fill anything in from that."];
+    return assistant.phrase(
+      filled.length
+        ? `Filled in their ${filled.join(", ")} from what they said${rest.name ? `; their name is ${rest.name}` : ""}. Next question to ask: ${next_.text}`
+        : `Nothing in what they said fits the setup form. Next question to ask: ${next_.text}`,
+      acks.map((ack) => `${ack} ${next_.text}`),
+    );
   }
 
   async function submit(e: React.FormEvent) {
@@ -455,17 +474,19 @@ function ConfirmDelete({ busy, onYes, onNo }: { busy: boolean; onYes: () => void
 }
 
 /** The next thing the assistant asks for, in the order a friend would. Age and email stay optional. */
-function nextQuestion(form: Onboarding, budgetTalked: boolean, existing: boolean) {
-  if (existing) return "Anything else to change? Say save when you're done.";
-  if (!form.name.trim()) return "What should I call you?";
-  if (!form.usual_shops.length) return "Where do you usually shop? Depop, thrift stores, big retailers?";
+function nextQuestion(form: Onboarding, budgetTalked: boolean, existing: boolean, skipped = new Set<string>()) {
+  const ask = (topic: string, text: string) => ({ topic, text });
+  if (existing) return ask("", "Anything else to change? Say save when you're done.");
+  if (!form.name.trim() && !skipped.has("name")) return ask("name", "What should I call you?");
+  if (!form.usual_shops.length && !skipped.has("shops")) return ask("shops", "Where do you usually shop? Depop, thrift stores, big retailers?");
   const chart = form.sizing.system ? form.sizing[form.sizing.system] : null;
-  if (!chart || !(chart.tops.values.length || chart.bottoms.values.length || chart.shoes.values.length)) {
-    return "What sizes do you wear? Like a small in tops, a 27 waist, and an 8 in shoes. And is that women's or men's sizing?";
+  const sized = chart && (chart.tops.values.length || chart.bottoms.values.length || chart.shoes.values.length);
+  if (!sized && !skipped.has("sizes")) {
+    return ask("sizes", "What sizes do you wear? Like a small in tops, a 27 waist, and an 8 in shoes. And is that women's or men's sizing?");
   }
-  if (!budgetTalked) return "And what's the most you'd usually spend on one piece?";
-  if (!form.data_consent) return "That's everything I need! Tick the box at the bottom so I can look at your photos, then say continue.";
-  return "You're all set! Say continue when you're ready.";
+  if (!budgetTalked && !skipped.has("budget")) return ask("budget", "And what's the most you'd usually spend on one piece?");
+  if (!form.data_consent) return ask("", "That's everything I need! Tick the box at the bottom so I can look at your photos, then say continue.");
+  return ask("", "You're all set! Say continue when you're ready.");
 }
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {

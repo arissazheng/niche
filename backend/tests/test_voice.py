@@ -116,3 +116,21 @@ def test_onboarding_hears_sizes_and_drops_ones_off_the_chart(tmp_path):
     off = voice.Heard.model_validate(dict.fromkeys(voice.Heard.model_fields) | {'sizes': [
         {'category': 'shoes', 'format': 'us', 'value': '99'}, {'category': 'tops', 'format': 'alpha', 'value': 'm'}]})
     assert voice.clean(off, SHOPS).sizes == [voice.HeardSize(category='tops', format='alpha', value='M')]
+
+
+def test_line_uses_fallback_without_claude_and_claude_when_live(tmp_path, monkeypatch):
+    body = {'page': 'lookbook', 'heard': 'no', 'facts': 'They said they have nothing to add.', 'fallback': 'All good!',
+            'recent': ['Love it, noted!']}
+    with make_client(tmp_path) as client:
+        assert client.post('/v1/voice/line', json=body).json() == {'text': 'All good!'}
+
+    seen = []
+
+    async def call(self, system, content, job_id, stage, max_tokens, schema=None, effort=None):
+        seen.append(json.loads(content))
+        return {'text': ' Cool, want me to build your profile now? '}
+    from sourcing.claude import Claude
+    monkeypatch.setattr(Claude, 'call', call)
+    with make_client(tmp_path, taste_mode='live', anthropic_api_key='sk-test') as client:
+        assert client.post('/v1/voice/line', json=body).json() == {'text': 'Cool, want me to build your profile now?'}
+    assert seen[0]['user_said'] == 'no' and seen[0]['your_recent_lines'] == ['Love it, noted!']

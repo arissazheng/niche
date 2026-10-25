@@ -53,6 +53,9 @@ export interface Assistant {
   /** Something the assistant brings up on its own (a reaction to new photos, a read-back of the moodboard): spoken
    * in a voice conversation, otherwise shown as a nudge by the dock. */
   say(text: string): void;
+  /** What to say back, in the assistant's own words: `facts` is what happened and what to ask next; `fallbacks` are
+   * the page's own lines, used without Claude. */
+  phrase(facts: string, fallbacks: string[]): Promise<string>;
   /** The latest thing it brought up while the conversation was closed, until the shopper opens it. */
   nudge: string | null;
   /** Hide the nudge bubble (the × on it). */
@@ -92,6 +95,15 @@ export function useAssistantSkill(skill: Skill | null) {
     });
   }, [id, intro, label, placeholder, register]);
 }
+
+/** A short "no" / "that's it": the shopper is done here, not asking for a change. */
+export const isNo = (text: string) =>
+  text.trim().split(/\s+/).length <= 5 &&
+  /^\s*(no|nope|nah|not really|nothing( else)?|i'?m good|i'?m (all )?set|that'?s (it|all|everything)|all good|we'?re good|done)\b/i.test(text);
+
+/** A short "yes". */
+export const isYes = (text: string) =>
+  text.trim().split(/\s+/).length <= 6 && /^\s*(yes|yeah|yep|yup|sure|ok(ay)?|go( ahead)?|do it|please|let'?s do it|build)\b/i.test(text);
 
 /** Shopping requests, which go to the shopping agent even from a page that handles other things. */
 export const SHOPPING = /\b(find|search|look(ing)? for|show me|shop(ping)? for|buy|need (a|an|some)|want (a|an|some))\b/i;
