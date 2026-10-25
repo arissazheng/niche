@@ -59,7 +59,8 @@ export function SizingSection({ value, onChange }: { value: Sizing; onChange: (n
     api.sizingCatalog().then(setCatalog, () => setCatalog(null));
   }, []);
 
-  const system = value.system;
+  // Options are visible straight away (women's by default); choosing the other chart switches them.
+  const system = value.system ?? "womens";
   const sizes = system ? value[system] : null;
   const anyAccessory = ACCESSORIES.some((a) => value.accessories[a].values.length);
   useEffect(() => {
@@ -67,7 +68,7 @@ export function SizingSection({ value, onChange }: { value: Sizing; onChange: (n
   }, [anyAccessory]);
 
   const setClothing = (category: ClothingCategory, pick: SizePick) =>
-    system && onChange({ ...value, [system]: { ...value[system], [category]: pick } });
+    onChange({ ...value, system, [system]: { ...value[system], [category]: pick } });
   const setAccessory = (category: AccessoryCategory, pick: SizePick) =>
     onChange({ ...value, accessories: { ...value.accessories, [category]: pick } });
 

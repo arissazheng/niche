@@ -58,6 +58,15 @@ class Onboarding(StrictModel):
     zip_code: str = Field(default='', pattern=r'^(\d{5})?$')
 
 
+# Picking resale and vintage shops (and not big retailers) under "Where you usually shop" means secondhand first.
+RESALE_SHOPS = {'depop', 'poshmark', 'grailed', 'vinted', 'thrift stores', 'vintage shops'}
+
+
+def secondhand_shopper(shops):
+    picked = {s.lower() for s in shops}
+    return bool(picked & RESALE_SHOPS) and 'big retailers' not in picked
+
+
 class Garment(StrictModel):
     category: str
     colors: list[str]
@@ -142,7 +151,7 @@ class Profile(StrictModel):
             # Visible designers in liked photos count as brand preferences alongside the ones the user named.
             preferred_brands=list(dict.fromkeys(ob.favorite_brands + self.designers))[:30],
             preferred_stores=list(dict.fromkeys(ob.usual_shops + [x.name for x in self.indie_shops]))[:30],
-            indie_shops=self.indie_shops[:30], secondhand_first=ob.secondhand_first)
+            indie_shops=self.indie_shops[:30], secondhand_first=ob.secondhand_first or secondhand_shopper(ob.usual_shops))
 
 
 LEARNED_IN_SEARCH = 3

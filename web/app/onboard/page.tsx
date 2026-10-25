@@ -7,13 +7,32 @@ import { useEffect, useRef, useState } from "react";
 import { HandCircle } from "@/components/hand-circle";
 import { MeasurementsPanel } from "@/components/measurements";
 import { api } from "@/lib/api";
-import { SHOPPING, isNo, useAssistant, useAssistantSkill } from "@/lib/assistant";
+import {
+  SHOPPING,
+  isNo,
+  useAssistant,
+  useAssistantSkill,
+} from "@/lib/assistant";
 import { clearProfile, getProfileId, setProfileId } from "@/lib/session";
 import { SizingSection, emptySizing, withDefaults } from "@/components/sizing";
 import "./profile-book.css";
-import type { ClothingSizes, HeardOnboarding, Onboarding, SizePick } from "@/lib/types";
+import type {
+  ClothingSizes,
+  HeardOnboarding,
+  Onboarding,
+  SizePick,
+} from "@/lib/types";
 
-const SHOPS = ["Depop", "Etsy", "Poshmark", "Grailed", "Thrift stores", "Vintage shops", "Local boutiques", "Big retailers"];
+const SHOPS = [
+  "Depop",
+  "Etsy",
+  "Poshmark",
+  "Grailed",
+  "Thrift stores",
+  "Vintage shops",
+  "Local boutiques",
+  "Big retailers",
+];
 
 export default function OnboardPage() {
   const router = useRouter();
@@ -31,7 +50,10 @@ export default function OnboardPage() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   // An existing profile is edited in place; creating a new one would detach its photos and moodboard.
-  const [existing, setExisting] = useState<{ id: string; built: boolean } | null>(null);
+  const [existing, setExisting] = useState<{
+    id: string;
+    built: boolean;
+  } | null>(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [voiceNote, setVoiceNote] = useState<string | null>(null);
   const assistant = useAssistant();
@@ -57,7 +79,10 @@ export default function OnboardPage() {
     if (!id) return;
     api.getProfile(id).then(
       ({ profile }) => {
-        setForm({ ...profile.onboarding, sizing: withDefaults(profile.onboarding.sizing) });
+        setForm({
+          ...profile.onboarding,
+          sizing: withDefaults(profile.onboarding.sizing),
+        });
         setExisting({ id, built: profile.version > 0 });
       },
       () => {},
@@ -67,34 +92,65 @@ export default function OnboardPage() {
   const toggleShop = (shop: string) =>
     setForm((f) => ({
       ...f,
-      usual_shops: f.usual_shops.includes(shop) ? f.usual_shops.filter((s) => s !== shop) : [...f.usual_shops, shop],
+      usual_shops: f.usual_shops.includes(shop)
+        ? f.usual_shops.filter((s) => s !== shop)
+        : [...f.usual_shops, shop],
     }));
 
   // An answer (spoken or typed) fills in only the fields it mentions; lists add to what is already picked.
   // Returns what the assistant says back: what it got, then the next thing it needs.
   async function answered(transcript: string): Promise<string | null> {
     if (existing?.built && SHOPPING.test(transcript)) return null; // "find me boots": that's for the shopping agent
-    if (isNo(transcript) && !/^\s*(done|that'?s (it|all|everything))\b/i.test(transcript)) {
+    if (
+      isNo(transcript) &&
+      !/^\s*(done|that'?s (it|all|everything))\b/i.test(transcript)
+    ) {
       // "No" / "nothing": they'd rather skip this question, so move on to the next one.
-      const skip = nextQuestion(latest.current, budgetTalked.current, !!existing, skipped.current);
+      const skip = nextQuestion(
+        latest.current,
+        budgetTalked.current,
+        !!existing,
+        skipped.current,
+      );
       if (skip.topic) skipped.current.add(skip.topic);
-      const next = nextQuestion(latest.current, budgetTalked.current, !!existing, skipped.current);
-      return assistant.phrase(`They'd rather skip that question. Next question to ask: ${next.text}`, [
-        `No worries! ${next.text}`,
-        `Totally fine, we can skip that. ${next.text}`,
-        `All good. ${next.text}`,
-      ]);
+      const next = nextQuestion(
+        latest.current,
+        budgetTalked.current,
+        !!existing,
+        skipped.current,
+      );
+      return assistant.phrase(
+        `They'd rather skip that question. Next question to ask: ${next.text}`,
+        [
+          `No worries! ${next.text}`,
+          `Totally fine, we can skip that. ${next.text}`,
+          `All good. ${next.text}`,
+        ],
+      );
     }
-    if (/^\s*(save|continue|done|next|i'?m done|that'?s (it|all|everything)|let'?s go)\b/i.test(transcript)) {
+    if (
+      /^\s*(save|continue|done|next|i'?m done|that'?s (it|all|everything)|let'?s go)\b/i.test(
+        transcript,
+      )
+    ) {
       if (!latest.current.data_consent) {
         return "Almost there! Tick the box at the bottom so I can look at your photos with Claude, then say continue.";
       }
       formEl.current?.requestSubmit();
-      return existing ? "Saved!" : "Saved! Now show me some looks you love. Drop in photos and I'll tell you what I see.";
+      return existing
+        ? "Saved!"
+        : "Saved! Now show me some looks you love. Drop in photos and I'll tell you what I see.";
     }
     setVoiceNote(`\u201C${transcript}\u201D \u2014 filling in\u2026`);
     const heard: HeardOnboarding = await api.heardOnboarding(transcript, SHOPS);
-    const { usual_shops, favorite_brands, measurements, system, sizes, ...rest } = heard;
+    const {
+      usual_shops,
+      favorite_brands,
+      measurements,
+      system,
+      sizes,
+      ...rest
+    } = heard;
     const f = latest.current;
     const sizeSystem = system ?? f.sizing.system ?? "womens";
     let sizing = system ? { ...f.sizing, system } : f.sizing;
@@ -102,7 +158,10 @@ export default function OnboardPage() {
       const chart = { ...sizing[sizeSystem] };
       for (const size of sizes) {
         const pick = chart[size.category];
-        const values = pick.format === size.format ? [...new Set([...pick.values, size.value])] : [size.value];
+        const values =
+          pick.format === size.format
+            ? [...new Set([...pick.values, size.value])]
+            : [size.value];
         chart[size.category] = { ...pick, format: size.format, values };
       }
       sizing = { ...sizing, system: sizeSystem, [sizeSystem]: chart };
@@ -112,29 +171,58 @@ export default function OnboardPage() {
       ...rest,
       sizing,
       usual_shops: [...new Set([...f.usual_shops, ...(usual_shops ?? [])])],
-      favorite_brands: [...new Set([...(f.favorite_brands ?? []), ...(favorite_brands ?? [])])],
-      measurements: { ...(f.measurements ?? { unit: "in" }), ...measurements, unit: measurements?.unit ?? f.measurements?.unit ?? "in" },
+      favorite_brands: [
+        ...new Set([...(f.favorite_brands ?? []), ...(favorite_brands ?? [])]),
+      ],
+      measurements: {
+        ...(f.measurements ?? { unit: "in" }),
+        ...measurements,
+        unit: measurements?.unit ?? f.measurements?.unit ?? "in",
+      },
     };
     latest.current = next;
     setForm(next);
-    if (rest.budget_min !== undefined || rest.budget_max !== undefined) budgetTalked.current = true;
+    if (rest.budget_min !== undefined || rest.budget_max !== undefined)
+      budgetTalked.current = true;
     const filled = [
       rest.name !== undefined && "name",
       rest.age !== undefined && "age",
       rest.email !== undefined && "email",
-      (rest.budget_min !== undefined || rest.budget_max !== undefined) && "budget",
+      (rest.budget_min !== undefined || rest.budget_max !== undefined) &&
+        "budget",
       usual_shops?.length && "shops",
       favorite_brands?.length && `brands (${favorite_brands.join(", ")})`,
       (sizes?.length || system) && "sizes",
       measurements && "measurements",
     ].filter(Boolean);
-    setVoiceNote(`\u201C${transcript}\u201D \u2014 ${filled.length ? `filled in ${filled.join(", ")}` : "nothing to fill in from that"}.`);
-    const next_ = nextQuestion(next, budgetTalked.current, !!existing, skipped.current);
+    setVoiceNote(
+      `\u201C${transcript}\u201D \u2014 ${filled.length ? `filled in ${filled.join(", ")}` : "nothing to fill in from that"}.`,
+    );
+    const next_ = nextQuestion(
+      next,
+      budgetTalked.current,
+      !!existing,
+      skipped.current,
+    );
     const acks = rest.name
-      ? [`Nice to meet you, ${rest.name}!`, `Hi ${rest.name}!`, `${rest.name}, love it.`]
+      ? [
+          `Nice to meet you, ${rest.name}!`,
+          `Hi ${rest.name}!`,
+          `${rest.name}, love it.`,
+        ]
       : filled.length
-        ? ["Got it.", "Love that.", "Perfect.", "Noted!", "Ooh, nice.", "Okay, cool."]
-        : ["Hmm, I didn't catch anything to fill in from that.", "Sorry, I couldn't fill anything in from that."];
+        ? [
+            "Got it.",
+            "Love that.",
+            "Perfect.",
+            "Noted!",
+            "Ooh, nice.",
+            "Okay, cool.",
+          ]
+        : [
+            "Hmm, I didn't catch anything to fill in from that.",
+            "Sorry, I couldn't fill anything in from that.",
+          ];
     return assistant.phrase(
       filled.length
         ? `Filled in their ${filled.join(", ")} from what they said${rest.name ? `; their name is ${rest.name}` : ""}. Next question to ask: ${next_.text}`
@@ -177,7 +265,11 @@ export default function OnboardPage() {
   }
 
   return (
-    <form ref={formEl} onSubmit={submit} className="profile-book bg-[#efefef] -mt-px">
+    <form
+      ref={formEl}
+      onSubmit={submit}
+      className="profile-book bg-[#efefef] -mt-px"
+    >
       <header className="profile-heading">
         <p className="label">Niche profiles</p>
         <h1 className="text-[clamp(1.8rem,3vw,3rem)] leading-[1.05] tracking-tight font-medium">
@@ -188,17 +280,34 @@ export default function OnboardPage() {
       <div className="profile-spread">
         {/* An open encyclopedia: two pages, two ruled columns each, shared decorative images interspersed with entries. */}
         <Book>
-          <BookPage side="left" letter="P" number="01" footer="The Niche Profile">
+          <BookPage
+            side="left"
+            letter="P"
+            number="01"
+            footer="The Niche Profile"
+          >
             <Column>
               <div className="book-plate book-plate-opening relative overflow-hidden">
-                <Image src="/images/profile/neutral-tailoring.png" alt="" fill sizes="(max-width: 699px) 45vw, 23vw" className="object-cover object-[center_10%]" />
+                <Image
+                  src="/images/profile/neutral-tailoring.png"
+                  alt=""
+                  fill
+                  sizes="(max-width: 699px) 45vw, 23vw"
+                  className="object-cover object-[center_10%]"
+                />
               </div>
             </Column>
             <Column ruled>
               <Entry title="About you">
                 <div className="grid gap-3">
                   <Field label="Name">
-                    <input className="input" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
+                    <input
+                      className="input"
+                      value={form.name}
+                      onChange={(e) =>
+                        setForm({ ...form, name: e.target.value })
+                      }
+                    />
                   </Field>
                   <div className="grid grid-cols-[5rem_1fr] gap-3">
                     <Field label="Age">
@@ -207,11 +316,23 @@ export default function OnboardPage() {
                         type="number"
                         min={13}
                         value={form.age ?? ""}
-                        onChange={(e) => setForm({ ...form, age: e.target.value ? Number(e.target.value) : null })}
+                        onChange={(e) =>
+                          setForm({
+                            ...form,
+                            age: e.target.value ? Number(e.target.value) : null,
+                          })
+                        }
                       />
                     </Field>
                     <Field label="Email">
-                      <input className="input" type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} />
+                      <input
+                        className="input"
+                        type="email"
+                        value={form.email}
+                        onChange={(e) =>
+                          setForm({ ...form, email: e.target.value })
+                        }
+                      />
                     </Field>
                   </div>
                 </div>
@@ -220,70 +341,91 @@ export default function OnboardPage() {
             </Column>
             <Column wide>
               <Entry title="Sizes">
-                <SizingSection value={form.sizing} onChange={(sizing) => setForm((f) => ({ ...f, sizing }))} />
+                <SizingSection
+                  value={form.sizing}
+                  onChange={(sizing) => setForm((f) => ({ ...f, sizing }))}
+                />
                 <div className="book-plate book-plate-strip relative overflow-hidden">
-                  <Image src="/images/profile/blue-eye-portrait.png" alt="" fill sizes="(max-width: 699px) 90vw, 46vw" className="object-cover object-[center_60%]" />
+                  <Image
+                    src="/images/profile/blue-eye-portrait.png"
+                    alt=""
+                    fill
+                    sizes="(max-width: 699px) 90vw, 46vw"
+                    className="object-cover object-[center_60%]"
+                  />
                 </div>
               </Entry>
             </Column>
           </BookPage>
 
-          <BookPage side="right" letter="P" number="02" footer="An A–Z of Your Taste">
+          <BookPage
+            side="right"
+            letter="P"
+            number="02"
+            footer="An A–Z of Your Taste"
+          >
             <Column>
               <Entry title="Everyday outfit budget">
                 <div className="flex items-center gap-4">
-                  <span className="font-serif text-3xl tabular-nums">${form.budget_max}</span>
+                  <span className="font-serif text-3xl tabular-nums">
+                    ${form.budget_max}
+                  </span>
                   <input
                     type="range"
                     min={10}
                     max={500}
                     step={5}
                     value={form.budget_max}
-                    onChange={(e) => setForm({ ...form, budget_max: Number(e.target.value) })}
+                    onChange={(e) =>
+                      setForm({ ...form, budget_max: Number(e.target.value) })
+                    }
                     className="flex-1 accent-ink"
                     aria-label="Maximum price per item"
                   />
                 </div>
               </Entry>
               <div className="book-plate book-plate-landscape relative overflow-hidden">
-                <Image src="/images/profile/tailored-outfit.png" alt="" fill sizes="(max-width: 699px) 45vw, 23vw" className="object-cover object-[center_30%]" />
+                <Image
+                  src="/images/profile/tailored-outfit.png"
+                  alt=""
+                  fill
+                  sizes="(max-width: 699px) 45vw, 23vw"
+                  className="object-cover object-[center_30%]"
+                />
               </div>
               <Entry title="Where you usually shop">
                 <div className="flex flex-wrap gap-2">
                   {SHOPS.map((shop) => (
-                    <button type="button" key={shop} onClick={() => toggleShop(shop)} aria-pressed={form.usual_shops.includes(shop)}>
-                      <HandCircle selected={form.usual_shops.includes(shop)}>{shop}</HandCircle>
+                    <button
+                      type="button"
+                      key={shop}
+                      onClick={() => toggleShop(shop)}
+                      aria-pressed={form.usual_shops.includes(shop)}
+                    >
+                      <HandCircle selected={form.usual_shops.includes(shop)}>
+                        {shop}
+                      </HandCircle>
                     </button>
                   ))}
                 </div>
               </Entry>
             </Column>
             <Column ruled>
-              <Entry title="Secondhand first">
-                <label className="flex items-start gap-3 text-sm">
-                  <input
-                    type="checkbox"
-                    className="mt-1 accent-ink"
-                    checked={!!form.secondhand_first}
-                    onChange={(e) => setForm({ ...form, secondhand_first: e.target.checked })}
-                  />
-                  <span>
-                    When a secondhand piece and a new one fit about equally, show the secondhand one first. A clearly
-                    better new piece still ranks higher.
-                  </span>
-                </label>
-              </Entry>
               <Entry title="Shops near you">
                 <label className="flex items-start gap-3 text-sm">
                   <input
                     type="checkbox"
                     className="mt-1 accent-ink"
                     checked={!!form.nearby_shops}
-                    onChange={(e) => setForm({ ...form, nearby_shops: e.target.checked })}
+                    onChange={(e) =>
+                      setForm({ ...form, nearby_shops: e.target.checked })
+                    }
                   />
                   <span>
-                    Also suggest local shops worth visiting under my search results. Only your ZIP code is used: it&apos;s
-                    sent to Google&apos;s Gemini to find shops on Google Maps, never your exact location.
+                    Also suggest local shops worth visiting under my search
+                    results. Only your ZIP code is used: it&apos;s sent to
+                    Google&apos;s Gemini to find shops on Google Maps, never
+                    your exact location.
                   </span>
                 </label>
                 {form.nearby_shops && (
@@ -296,14 +438,27 @@ export default function OnboardPage() {
                         maxLength={5}
                         required
                         value={form.zip_code ?? ""}
-                        onChange={(e) => setForm({ ...form, zip_code: e.target.value.replace(/\D/g, "").slice(0, 5) })}
+                        onChange={(e) =>
+                          setForm({
+                            ...form,
+                            zip_code: e.target.value
+                              .replace(/\D/g, "")
+                              .slice(0, 5),
+                          })
+                        }
                       />
                     </Field>
                   </div>
                 )}
               </Entry>
               <div className="book-plate book-plate-portrait relative overflow-hidden">
-                <Image src="/images/profile/fashion-board.webp" alt="" fill sizes="(max-width: 699px) 40vw, 20vw" className="object-cover object-[center_28%] scale-[1.35] origin-[center_28%]" />
+                <Image
+                  src="/images/profile/fashion-board.webp"
+                  alt=""
+                  fill
+                  sizes="(max-width: 699px) 40vw, 20vw"
+                  className="object-cover object-[center_28%] scale-[1.35] origin-[center_28%]"
+                />
               </div>
               <Entry title="Before we begin">
                 <label className="flex items-start gap-3 text-sm">
@@ -312,39 +467,62 @@ export default function OnboardPage() {
                     required
                     className="mt-1 accent-ink"
                     checked={!!form.data_consent}
-                    onChange={(e) => setForm({ ...form, data_consent: e.target.checked })}
+                    onChange={(e) =>
+                      setForm({ ...form, data_consent: e.target.checked })
+                    }
                   />
                   <span>
-                    I agree that my photos and notes are sent to Claude (Anthropic) to build my taste profile. My name,
-                    email and age never are. <Link href="/how-it-works#data" className="underline">What Niche keeps</Link>
+                    I agree that my photos and notes are sent to Claude
+                    (Anthropic) to build my taste profile. My name, email and
+                    age never are.{" "}
+                    <Link href="/how-it-works#data" className="underline">
+                      What Niche keeps
+                    </Link>
                   </span>
                 </label>
               </Entry>
             </Column>
             <Column wide>
               <Entry title="Measurements">
-                {form.sizing.system && (
-                  <MeasurementsPanel
-                    key={existing?.id ?? "new"} // remount once a saved profile loads, to show its measurements
-                    system={form.sizing.system}
-                    value={form.measurements ?? { unit: "in" }}
-                    onChange={(measurements) => setForm((f) => ({ ...f, measurements }))}
-                    onUseSizes={(suggested) =>
-                      setForm((f) => {
-                        const system = f.sizing.system!;
-                        // Only categories the measurements actually point to; everything else stays as picked.
-                        const filled = Object.fromEntries(
-                          Object.entries(suggested).filter(([k, p]) => k !== "bra" && ((p as SizePick).values?.length || Object.keys((p as SizePick).extras ?? {}).length)),
-                        ) as Partial<ClothingSizes>;
-                        return { ...f, sizing: { ...f.sizing, [system]: { ...f.sizing[system], ...filled } } };
-                      })
-                    }
-                  />
-                )}
-                {!form.sizing.system && <p className="text-xs text-muted">Choose a sizing system on the facing page to add optional measurements.</p>}
+                <MeasurementsPanel
+                  key={existing?.id ?? "new"} // remount once a saved profile loads, to show its measurements
+                  system={form.sizing.system ?? "womens"}
+                  value={form.measurements ?? { unit: "in" }}
+                  onChange={(measurements) =>
+                    setForm((f) => ({ ...f, measurements }))
+                  }
+                  onUseSizes={(suggested) =>
+                    setForm((f) => {
+                      const system = f.sizing.system ?? "womens";
+                      // Only categories the measurements actually point to; everything else stays as picked.
+                      const filled = Object.fromEntries(
+                        Object.entries(suggested).filter(
+                          ([k, p]) =>
+                            k !== "bra" &&
+                            ((p as SizePick).values?.length ||
+                              Object.keys((p as SizePick).extras ?? {}).length),
+                        ),
+                      ) as Partial<ClothingSizes>;
+                      return {
+                        ...f,
+                        sizing: {
+                          ...f.sizing,
+                          system,
+                          [system]: { ...f.sizing[system], ...filled },
+                        },
+                      };
+                    })
+                  }
+                />
               </Entry>
               <div className="book-plate book-plate-strip relative overflow-hidden">
-                <Image src="/images/profile/desert-landscape.png" alt="" fill sizes="(max-width: 699px) 90vw, 46vw" className="object-cover object-top" />
+                <Image
+                  src="/images/profile/desert-landscape.png"
+                  alt=""
+                  fill
+                  sizes="(max-width: 699px) 90vw, 46vw"
+                  className="object-cover object-top"
+                />
               </div>
             </Column>
           </BookPage>
@@ -358,17 +536,30 @@ export default function OnboardPage() {
             </p>
           )}
           {error && <p className="text-sm">{error}</p>}
-          <button disabled={busy} className="justify-self-start border border-ink bg-paper px-5 py-3 text-lg disabled:text-muted">
+          <button
+            disabled={busy}
+            className="justify-self-start border border-ink bg-paper px-5 py-3 text-lg disabled:text-muted"
+          >
             {busy ? "Saving…" : existing ? "Save changes" : "Continue"}
           </button>
           {existing && (
-            <button type="button" onClick={() => setConfirmDelete(true)} className="label underline justify-self-start text-muted">
+            <button
+              type="button"
+              onClick={() => setConfirmDelete(true)}
+              className="label underline justify-self-start text-muted"
+            >
               Delete my data
             </button>
           )}
         </aside>
       </div>
-      {confirmDelete && <ConfirmDelete busy={busy} onYes={deleteData} onNo={() => setConfirmDelete(false)} />}
+      {confirmDelete && (
+        <ConfirmDelete
+          busy={busy}
+          onYes={deleteData}
+          onNo={() => setConfirmDelete(false)}
+        />
+      )}
     </form>
   );
 }
@@ -385,7 +576,10 @@ function Book({ children }: { children: React.ReactNode }) {
         <div
           aria-hidden
           className="pointer-events-none absolute inset-y-0 left-1/2 hidden w-16 -translate-x-1/2 lg:block"
-          style={{ background: "linear-gradient(to right, transparent, rgba(0,0,0,.14) 45%, rgba(0,0,0,.2) 50%, rgba(0,0,0,.14) 55%, transparent)" }}
+          style={{
+            background:
+              "linear-gradient(to right, transparent, rgba(0,0,0,.14) 45%, rgba(0,0,0,.2) 50%, rgba(0,0,0,.14) 55%, transparent)",
+          }}
         />
       </div>
     </div>
@@ -409,18 +603,34 @@ function BookPage({
     <section className={`book-page book-page-${side} font-serif`}>
       <div className="book-page-grid">{children}</div>
       {/* letter tab on the outer margin, page number by the spine, running footer */}
-      <span className={`absolute top-1/2 -translate-y-1/2 text-lg ${side === "left" ? "left-4" : "right-4"}`}>{letter}</span>
-      <span className={`absolute top-1/2 -translate-y-1/2 text-lg ${side === "left" ? "right-4 lg:right-7" : "left-4 lg:left-7"}`}>
+      <span
+        className={`absolute top-1/2 -translate-y-1/2 text-lg ${side === "left" ? "left-4" : "right-4"}`}
+      >
+        {letter}
+      </span>
+      <span
+        className={`absolute top-1/2 -translate-y-1/2 text-lg ${side === "left" ? "right-4 lg:right-7" : "left-4 lg:left-7"}`}
+      >
         {number}
       </span>
-      <p className="absolute bottom-4 inset-x-0 text-center text-[11px] uppercase tracking-[.12em]">{footer}</p>
+      <p className="absolute bottom-4 inset-x-0 text-center text-[11px] uppercase tracking-[.12em]">
+        {footer}
+      </p>
     </section>
   );
 }
 
 /** A text column; `ruled` draws the hairline between columns, `wide` spans the whole page. Big type inside (the
  *  sizing picker's headings) is scaled down to book size. */
-function Column({ children, ruled = false, wide = false }: { children: React.ReactNode; ruled?: boolean; wide?: boolean }) {
+function Column({
+  children,
+  ruled = false,
+  wide = false,
+}: {
+  children: React.ReactNode;
+  ruled?: boolean;
+  wide?: boolean;
+}) {
   return (
     <div
       className={`book-column grid content-start [&_.text-display]:text-lg [&_.text-display]:leading-tight ${
@@ -433,18 +643,35 @@ function Column({ children, ruled = false, wide = false }: { children: React.Rea
 }
 
 /** An encyclopedia entry: centred serif heading over a hairline, then its body in sans for the form controls. */
-function Entry({ title, children }: { title: string; children: React.ReactNode }) {
+function Entry({
+  title,
+  children,
+}: {
+  title: string;
+  children: React.ReactNode;
+}) {
   return (
     <div className="book-entry grid">
-      <h2 className="border-t border-ink/50 pt-2 text-center text-xl italic leading-tight">{title}</h2>
+      <h2 className="border-t border-ink/50 pt-2 text-center text-xl italic leading-tight">
+        {title}
+      </h2>
       <div className="font-sans">{children}</div>
     </div>
   );
 }
 
 /** Shared decorative imagery will replace these fixed grey placeholders. */
-function Plate({ variant = "default" }: { variant?: "default" | "landscape" | "portrait" | "strip" }) {
-  return <div aria-hidden="true" className={`book-plate book-plate-${variant} bg-[#cfcdc7]`} />;
+function Plate({
+  variant = "default",
+}: {
+  variant?: "default" | "landscape" | "portrait" | "strip";
+}) {
+  return (
+    <div
+      aria-hidden="true"
+      className={`book-plate book-plate-${variant} bg-[#cfcdc7]`}
+    />
+  );
 }
 
 function SeeAlso({ children }: { children: React.ReactNode }) {
@@ -457,14 +684,25 @@ function SeeAlso({ children }: { children: React.ReactNode }) {
   );
 }
 
-function ConfirmDelete({ busy, onYes, onNo }: { busy: boolean; onYes: () => void; onNo: () => void }) {
+function ConfirmDelete({
+  busy,
+  onYes,
+  onNo,
+}: {
+  busy: boolean;
+  onYes: () => void;
+  onNo: () => void;
+}) {
   useEffect(() => {
     const close = (e: KeyboardEvent) => e.key === "Escape" && onNo();
     window.addEventListener("keydown", close);
     return () => window.removeEventListener("keydown", close);
   }, [onNo]);
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-ink/40 px-4" onClick={onNo}>
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-ink/40 px-4"
+      onClick={onNo}
+    >
       <div
         role="alertdialog"
         aria-modal="true"
@@ -472,13 +710,28 @@ function ConfirmDelete({ busy, onYes, onNo }: { busy: boolean; onYes: () => void
         className="bg-paper border border-ink p-6 max-w-sm w-full grid gap-4"
         onClick={(e) => e.stopPropagation()}
       >
-        <p id="delete-title" className="text-display">Are you sure you want to delete your data?</p>
+        <p id="delete-title" className="text-display">
+          Are you sure you want to delete your data?
+        </p>
         <p className="text-sm">
-          Your profile, photos, taste profile, searches, chat and bank link are removed from Niche. This can&apos;t be undone.
+          Your profile, photos, taste profile, searches, chat and bank link are
+          removed from Niche. This can&apos;t be undone.
         </p>
         <div className="grid grid-cols-2 gap-2">
-          <button type="button" onClick={onNo} autoFocus className="label border border-ink px-3 py-2">No</button>
-          <button type="button" onClick={onYes} disabled={busy} className="label bg-ink text-paper px-3 py-2 disabled:opacity-50">
+          <button
+            type="button"
+            onClick={onNo}
+            autoFocus
+            className="label border border-ink px-3 py-2"
+          >
+            No
+          </button>
+          <button
+            type="button"
+            onClick={onYes}
+            disabled={busy}
+            className="label bg-ink text-paper px-3 py-2 disabled:opacity-50"
+          >
             {busy ? "Deleting…" : "Yes, delete"}
           </button>
         </div>
@@ -488,22 +741,54 @@ function ConfirmDelete({ busy, onYes, onNo }: { busy: boolean; onYes: () => void
 }
 
 /** The next thing the assistant asks for, in the order a friend would. Age and email stay optional. */
-function nextQuestion(form: Onboarding, budgetTalked: boolean, existing: boolean, skipped = new Set<string>()) {
+function nextQuestion(
+  form: Onboarding,
+  budgetTalked: boolean,
+  existing: boolean,
+  skipped = new Set<string>(),
+) {
   const ask = (topic: string, text: string) => ({ topic, text });
-  if (existing) return ask("", "Anything else to change? Say save when you're done.");
-  if (!form.name.trim() && !skipped.has("name")) return ask("name", "What should I call you?");
-  if (!form.usual_shops.length && !skipped.has("shops")) return ask("shops", "Where do you usually shop? Depop, thrift stores, big retailers?");
+  if (existing)
+    return ask("", "Anything else to change? Say save when you're done.");
+  if (!form.name.trim() && !skipped.has("name"))
+    return ask("name", "What should I call you?");
+  if (!form.usual_shops.length && !skipped.has("shops"))
+    return ask(
+      "shops",
+      "Where do you usually shop? Depop, thrift stores, big retailers?",
+    );
   const chart = form.sizing.system ? form.sizing[form.sizing.system] : null;
-  const sized = chart && (chart.tops.values.length || chart.bottoms.values.length || chart.shoes.values.length);
+  const sized =
+    chart &&
+    (chart.tops.values.length ||
+      chart.bottoms.values.length ||
+      chart.shoes.values.length);
   if (!sized && !skipped.has("sizes")) {
-    return ask("sizes", "What sizes do you wear? Like a small in tops, a 27 waist, and an 8 in shoes. And is that women's or men's sizing?");
+    return ask(
+      "sizes",
+      "What sizes do you wear? Like a small in tops, a 27 waist, and an 8 in shoes. And is that women's or men's sizing?",
+    );
   }
-  if (!budgetTalked && !skipped.has("budget")) return ask("budget", "And what's the most you'd usually spend on one piece?");
-  if (!form.data_consent) return ask("", "That's everything I need! Tick the box at the bottom so I can look at your photos, then say continue.");
+  if (!budgetTalked && !skipped.has("budget"))
+    return ask(
+      "budget",
+      "And what's the most you'd usually spend on one piece?",
+    );
+  if (!form.data_consent)
+    return ask(
+      "",
+      "That's everything I need! Tick the box at the bottom so I can look at your photos, then say continue.",
+    );
   return ask("", "You're all set! Say continue when you're ready.");
 }
 
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
+function Field({
+  label,
+  children,
+}: {
+  label: string;
+  children: React.ReactNode;
+}) {
   return (
     <label className="grid gap-1">
       <span className="label">{label}</span>
