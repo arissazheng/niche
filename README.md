@@ -374,9 +374,19 @@ the "good price / about market / above market" band is computed from their price
 explanation.
 
 
-### Hosting
+### Best Use of Vultr
 
-- **Vultr:** shopniche.fashion runs on a Vultr cloud server (Ubuntu, Los Angeles): Next.js and FastAPI behind Caddy with automatic HTTPS, in live mode. The server redeploys `main` by itself within a few minutes of each merge (`deploy/autodeploy.sh` on a systemd timer); `deploy/deploy.sh` sends a new `backend/.env` and redeploys now.
+| Criterion | How Niche meets it |
+|---|---|
+| **Bring a high-performance project to life instantly** | The live product at [shopniche.fashion](https://shopniche.fashion) runs on a Vultr cloud server (Ubuntu, Los Angeles): the Next.js site and the FastAPI backend behind Caddy with automatic HTTPS, in live mode with every integration running. Judges can use the real thing, not a recording. |
+| **Instant deploys** | The server redeploys `main` by itself within a few minutes of each merge (`deploy/autodeploy.sh` on a systemd timer); `deploy/deploy.sh` sends a new `backend/.env` and redeploys immediately. Service files for the API, web app and auto-deploy timer are in `deploy/`. |
+
+### Best Domain Name from GoDaddy Registry
+
+| Criterion | How Niche meets it |
+|---|---|
+| **A domain from GoDaddy Registry** | [shopniche.fashion](https://shopniche.fashion), registered this weekend on `.fashion`, a GoDaddy Registry extension. |
+| **Why the name fits** | It says what Niche does: shop your niche. `.fashion` puts the category in the address, so the domain reads as a fashion product before anyone clicks. It's the live product URL, served from our Vultr server. |
 
 ### Not integrated (no code in this repo)
 

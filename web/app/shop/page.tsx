@@ -129,9 +129,7 @@ export default function ShopPage() {
           <div className="min-h-[70vh]" />
         ) : (
           <>
-            <SectionTitle
-              aside={job?.ranking_method}
-            >
+            <SectionTitle>
               {matchCount(results.length, !finished)}
             </SectionTitle>
             <p className="label mb-3">
