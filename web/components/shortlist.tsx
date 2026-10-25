@@ -127,9 +127,16 @@ export function ResultActions({
           onClick={like}
           disabled={busy === "like" || liked}
           aria-label="Add to your taste profile so we know you like this"
+          aria-pressed={liked}
+          aria-busy={busy === "like"}
           className={`label h-full border border-ink ${size} ${liked ? "bg-plinth" : "hover:bg-plinth"}`}
         >
-          {busy === "like" ? "…" : liked ? "♥ In your taste" : compact ? "♡ Taste" : "♡ Add to taste"}
+          <span className="inline-flex items-center gap-1">
+            <svg aria-hidden="true" viewBox="0 0 24 24" className="size-3.5 shrink-0" fill={liked || busy === "like" ? "#000" : "none"} stroke="#000" strokeWidth="1.6">
+              <path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.7l-1.1-1.1a5.5 5.5 0 0 0-7.8 7.8L12 21l8.8-8.6a5.5 5.5 0 0 0 0-7.8Z" />
+            </svg>
+            {busy === "like" ? "Adding…" : liked ? "In your taste" : compact ? "Taste" : "Add to taste"}
+          </span>
         </button>
         <span
           role="tooltip"

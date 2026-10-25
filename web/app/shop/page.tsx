@@ -170,7 +170,7 @@ export default function ShopPage() {
                     <p className="text-sm">{item.title}</p>
                     <p className="text-sm">{item.price.toFixed(2)} {item.currency}</p>
                   </button>
-                  {finished && actions(item, true)}
+                  {actions(item, true)}
                 </div>
               ))}
             </div>
@@ -182,7 +182,7 @@ export default function ShopPage() {
 
       <Drawer open={!!selected} onClose={() => setSelected(null)}>
         {selected && searchId && (
-          <ListingDetail listing={selected} searchId={searchId} actions={finished ? actions(selected) : null} />
+          <ListingDetail listing={selected} searchId={searchId} actions={actions(selected)} />
         )}
       </Drawer>
     </div>

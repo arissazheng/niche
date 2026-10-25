@@ -80,3 +80,14 @@ def test_differences_name_what_the_pick_had_that_the_rest_didnt():
     assert any('cheaper' in p for p in parts) and 'secondhand' in parts
     assert any('burgundy' in p and 'linen' in p for p in parts)
     assert 'close to the other results' in describe(others[0], others[1:], 'top')
+
+
+def test_streamed_result_can_be_liked_while_search_is_running(client, tmp_path):
+    import sqlite3
+    pid, search_id, results = finished_search(client)
+    # A streamed job already stores its visible listings before all sources have finished.
+    with sqlite3.connect(tmp_path / 's.sqlite') as db:
+        db.execute("UPDATE jobs SET status='running' WHERE id=?", (search_id,))
+    response = client.post(f'/v1/taste/profiles/{pid}/liked', json={'search_id': search_id, 'listing_id': results[0]['id']})
+    assert response.status_code == 200
+    assert response.json()['learned'].startswith('Loved')
