@@ -71,7 +71,8 @@ def count(value):
 
 def google_shopping(row, include_unlisted=False, brands=()):
     """burbn/google-shopping-scraper. Keeps only stores in the retailer bank unless include_unlisted, plus a brand's own
-    store when the shopper named that brand ("like Lewkin" keeps lewkin's listings)."""
+    store when the shopper named that brand ("like Lewkin" keeps lewkin's listings). Google's sponsored results come
+    back with type "sponsored_product" and are flagged as ads, so collect() drops them."""
     store = row.get('store_name')
     known = retailers.lookup(store)
     asked = any(b and b in squash(store) for b in map(squash, brands))
@@ -82,7 +83,8 @@ def google_shopping(row, include_unlisted=False, brands=()):
     return listing('google_shopping', row.get('product_id'), title=row.get('product_title'),
         url=https_url(row.get('product_page_url')), price=money(row.get('price')), currency='USD',
         retailer=name, tier=tier, image_urls=photos if isinstance(photos, list) else [photos],
-        condition='new', seller=name, available=True, is_ad=False, description=row.get('shipping') or '')
+        condition='new', seller=name, available=True, is_ad=row.get('type') == 'sponsored_product',
+        description=row.get('shipping') or '')
 
 
 def depop(row):

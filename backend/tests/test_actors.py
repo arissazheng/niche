@@ -32,6 +32,13 @@ def test_google_shopping_keeps_only_bank_stores():
     assert normalize.google_shopping(google_row(price='call for price')) is None
 
 
+def test_google_shopping_drops_sponsored_results():
+    organic = normalize.google_shopping({**google_row(), 'type': 'product'})
+    sponsored = normalize.google_shopping({**google_row(), 'product_id': 'catalogid:2', 'type': 'sponsored_product'})
+    assert not organic['is_ad'] and sponsored['is_ad']
+    assert [r['id'] for r in core.clean([organic, sponsored])] == [organic['id']]
+
+
 def test_resale_parsers_drop_sold_and_flag_promoted():
     depop = {'id': 1, 'url': 'https://www.depop.com/products/x/', 'title': 'Wool coat', 'price': 35, 'currency': 'USD',
              'isOnSale': True, 'isBoosted': True, 'sizes': [{'name': 'L'}], 'pictures': ['https://media-photos.depop.com/1.jpg'],
