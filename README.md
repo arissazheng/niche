@@ -22,6 +22,15 @@ spacetime/        SpacetimeDB module: shared moodboard, cursors, build progress,
 docs/             workplan
 ```
 
+## Sponsor tools
+
+What each tool does in the product, and what it doesn't: **[docs/SPONSORS.md](docs/SPONSORS.md)**. In short: Claude
+builds the taste profile and ranks results; Apify actors run all product search; Cartesia is the assistant's voice
+(setup, features and known limitations in [docs/SPONSORS.md#cartesia](docs/SPONSORS.md#cartesia)); SpacetimeDB carries
+live state (shared moodboard, cursors, streaming results); Bright Data finds indie shops on any platform and imports
+lookbooks; Moss is the shopping chat's memory; Nessie keeps the agent inside your budget; Snowflake Cortex checks a
+price against the market; Gemini suggests shops near you.
+
 ## Run it
 
 ```sh

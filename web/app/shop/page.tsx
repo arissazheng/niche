@@ -286,8 +286,11 @@ function Impact({ counts, results }: { counts: SearchCounts; results: Listing[] 
     out.sold && `${out.sold} already sold`,
   ].filter(Boolean) as string[];
   const average = results.length ? results.reduce((sum, item) => sum + item.price, 0) / results.length : 0;
+  // Who the shopper's money would go to: independent labels and secondhand sellers vs big stores.
+  const small = results.filter((item) => kindOf(item) !== "new").length;
   const parts = [
     `Looked through ${counts.retrieved.toLocaleString()} listings`,
+    results.length > 0 && `${small} of ${results.length} from independent labels and secondhand sellers`,
     reasons.length > 0 && `left out ${reasons.length > 1 ? `${reasons.slice(0, -1).join(", ")} and ${reasons.at(-1)}` : reasons[0]}`,
     results.length > 0 && `average ${money(average)}${cap && cap > average ? `, ${money(cap - average)} under your cap` : ""}`,
   ].filter(Boolean);

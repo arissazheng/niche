@@ -10,6 +10,9 @@ from . import dedupe, risk, sizes
 # Never shown, from any source (new, mainstream or resale): Shein and its in-house labels, and Fashion Nova.
 EXCLUDED_BRANDS = re.compile(r'\b(shein|romwe|dazy|motf|emery rose|fashion ?nova)\b', re.I)
 EXCLUDED_DOMAINS = ('shein.com', 'romwe.com', 'fashionnova.com')
+# How the shop page names each source in a note about it.
+SOURCE_NAMES = {'mainstream': 'Big stores', 'secondhand': 'Secondhand apps', 'indie': 'Independent labels',
+                'web': 'Independent shops on the web'}
 
 
 def excluded(item):
@@ -385,6 +388,14 @@ class Pipeline:
         result['counts'] = counts
         if self.market:
             self.market.ingest_soon(seen_listings)  # price history for later checks; runs after, never blocks
+        # Say plainly which sources came back empty-handed, so a blocked site or a slow scraper never looks like
+        # "nothing matched" and the shopper knows the page is from the rest.
+        for source, summary in result['sources'].items():
+            name = SOURCE_NAMES.get(source, source)
+            if summary.get('status') == 'failed':
+                result['warnings'].append(f"{name} didn't answer this time, so these results come from the others")
+            elif source == 'web' and not summary.get('count'):
+                result['warnings'].append(f'{name}: no products this time (sites blocked us or had nothing in stock)')
         if methods:
             if 'lexical_fallback' in methods:
                 result['warnings'].append('Claude ranking unavailable for some results; lexical fallback used')
