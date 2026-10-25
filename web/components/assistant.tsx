@@ -347,6 +347,12 @@ export function AssistantProvider({ children }: { children: React.ReactNode }) {
     };
   }, []);
 
+  const previousPath = useRef(pathname);
+  useEffect(() => {
+    if (previousPath.current === "/shop" && pathname !== "/shop") stop();
+    previousPath.current = pathname;
+  }, [pathname, stop]);
+
   // A tip belongs to the page it was shown on: clear it on navigation (the next page may show its own below).
   useEffect(() => {
     setNudge(null);
@@ -513,9 +519,10 @@ export function AssistantDock() {
     setDraft("");
   }
 
-  const shopping = a.skill.id === "shop";
+  const shopping = pathname === "/shop" && a.skill.id === "shop";
+  const visibleTurns = a.turns.filter((turn) => pathname === "/shop" ? turn.skill === "shop" : turn.skill !== "shop");
   const shopTurns = a.turns.filter((t) => t.skill === "shop");
-  const last = a.turns.at(-1);
+  const last = visibleTurns.at(-1);
   const pending = outstandingProposal(shopTurns);
   const idle = a.phase === "idle" || a.phase === "listening";
   const suggestions =
@@ -527,9 +534,9 @@ export function AssistantDock() {
           ? FOLLOW_UPS
           : [];
   const everything = placement === "side" || view === "all";
-  const lastAsk = a.turns.findLastIndex((t) => t.role === "user");
-  const shown = everything ? a.turns : a.turns.slice(lastAsk < 0 ? -2 : lastAsk).slice(-4);
-  const earlier = a.turns.length - shown.length;
+  const lastAsk = visibleTurns.findLastIndex((t) => t.role === "user");
+  const shown = everything ? visibleTurns : visibleTurns.slice(lastAsk < 0 ? -2 : lastAsk).slice(-4);
+  const earlier = visibleTurns.length - shown.length;
 
   const transcript = (
     <div className="overflow-y-auto px-4 pt-3 pb-2 grid gap-3 content-start min-h-0 flex-1">
@@ -619,7 +626,7 @@ export function AssistantDock() {
               for you, then you can keep talking to refine it.
             </p>
           </div>
-          {a.turns.length > 0 && <div className="max-h-[28vh] flex flex-col rule-t">{transcript}</div>}
+          {visibleTurns.length > 0 && <div className="max-h-[28vh] flex flex-col rule-t">{transcript}</div>}
           <div className="rule-t flex items-center gap-3 px-4 py-3">
             {mode === "voice" ? (
               <>
@@ -732,7 +739,7 @@ export function AssistantDock() {
           view === "all" ? "max-h-[60dvh]" : "max-h-[34dvh]"
         }`}
       >
-        {view !== "hidden" && (a.turns.length > 0 || a.error || suggestions.length > 0) && <div className="rule-b flex flex-col min-h-0">{transcript}</div>}
+        {view !== "hidden" && (visibleTurns.length > 0 || a.error || suggestions.length > 0) && <div className="rule-b flex flex-col min-h-0">{transcript}</div>}
         <div className="flex items-center gap-3 px-3 py-2">
           {mode === "voice" ? voiceBar : textBox}
           <div className="flex items-center gap-3 shrink-0">
