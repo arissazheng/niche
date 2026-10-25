@@ -178,6 +178,14 @@ export default function TastePage() {
         onOpenImage={isOwner ? setNoteFor : undefined}
         readOnly={!isOwner}
       />
+      {isOwner && (
+        // Right under the moodboard, so going shopping doesn't mean scrolling past the whole profile.
+        <div className="px-4 mt-6 flex justify-center">
+          <Link href="/shop" className="text-display bg-ink text-paper px-8 py-3 hover:opacity-90">
+            Shop this taste
+          </Link>
+        </div>
+      )}
       <div className="px-4 mt-10 mx-auto max-w-3xl grid gap-6">
         {isOwner ? (
           <>

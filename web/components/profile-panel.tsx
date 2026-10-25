@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { SectionTitle } from "@/components/chrome";
 import { api } from "@/lib/api";
@@ -158,8 +157,6 @@ export function ProfilePanel({ view, onChange }: { view: ProfileView; onChange: 
               {working ?? status}
             </p>
           </form>
-
-          <Link href="/shop" className="rule-t rule-b text-display py-2 text-center">Shop this taste</Link>
         </>
       )}
     </aside>
