@@ -10,6 +10,7 @@ const NAV = [
   { href: "/upload", label: "Lookbook" },
   { href: "/taste", label: "Taste" },
   { href: "/shop", label: "Shop" },
+  { href: "/shortlist", label: "Shortlist" },
 ];
 
 /** Dims while its page loads (a first visit in dev can take seconds to compile), so a click never looks ignored. */

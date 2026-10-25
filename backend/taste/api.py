@@ -28,6 +28,8 @@ from .links import extract_urls, read_link
 from .engine import TasteEngine, fingerprint
 from .models import EditInstruction, ImageFromUrl, ImageKind, ImportRequest, Measurements, LookbookNotes, NoteUpdate, Onboarding, PhotoReaction, ProfileSearch, PromptUpdate, ShopRequest
 from . import brands, shops
+from . import shortlist as picks
+from .shortlist import CollectionRequest, ItemUpdate, LearnedNotes, SaveRequest, Shortlist, TasteLike
 from actors.niche_actors.labels import domain_of
 from .signing import Signer
 from .store import TasteStore
@@ -47,6 +49,7 @@ def create_router(settings, store: Store, budgets: Budgets | None = None, signer
     share_images: dict[tuple, bytes] = {}  # (profile, version, inputs, format) -> PNG
     importer = Importer(settings, taste, engine)
     web = WebShops(settings)
+    shortlist = Shortlist(store)
     router = APIRouter(prefix='/v1/taste', tags=['taste'])
 
     def profile_or_404(ident):
@@ -472,5 +475,104 @@ def create_router(settings, store: Store, budgets: Budgets | None = None, signer
         for private in ('size', 'size_note', 'length', 'shoe_size_system'):
             out.pop(private, None)  # the search uses their size; the friend shopping doesn't need to see it
         return out
+
+    # The shortlist: results saved to buy later (checkout starts there), plus what each pick teaches the taste profile.
+    def search_of(ident, search_id):
+        """The shopper's own (not gift) search and its stored request; listings always come from here, never the browser."""
+        with store.connect() as db:
+            row = db.execute('SELECT request FROM jobs WHERE id=?', (search_id,)).fetchone()
+        request = json.loads(row[0]) if row else {}
+        if request.get('profile_id') != ident or request.get('for_friend'):
+            raise HTTPException(404, 'Search not found')
+        return request, (store.get(search_id) or {}).get('results', [])
+
+    async def pick(ident, search_id, listing_id, liked_only):
+        """The chosen listing and a line on how it differed from the rest of its search."""
+        request, results = search_of(ident, search_id)
+        listing = next((x for x in results if x['id'] == listing_id), None)
+        if not listing:
+            raise HTTPException(409, "This search is still finishing. Try again in a moment.")
+        others = [x for x in results if x['id'] != listing_id]
+        query = (request.get('request') or {}).get('query', '')
+        line = await picks.learn(engine.model, engine.live, ident, listing, others, query, liked_only)
+        return request, listing, line
+
+    def shortlist_view(ident):
+        return {'items': shortlist.items(ident), 'collections': shortlist.collections(ident)}
+
+    @router.get('/profiles/{ident}/shortlist')
+    def get_shortlist(ident: str):
+        profile_or_404(ident)
+        return shortlist_view(ident)
+
+    @router.post('/profiles/{ident}/shortlist', status_code=201)
+    async def save_to_shortlist(ident: str, body: SaveRequest):
+        profile = profile_or_404(ident)
+        request, listing, line = await pick(ident, body.search_id, body.listing_id, liked_only=False)
+        name = ' '.join((body.collection or '').split())
+        try:
+            collection = shortlist.add_collection(ident, name) if name else None
+        except ValueError as exc:
+            raise HTTPException(422, str(exc))
+        category = picks.category_of(listing, (request.get('request') or {}).get('category'))
+        item, added = shortlist.add(ident, body.search_id, listing, category, line, collection)
+        if added:
+            # A taste signal, not a moodboard change: no rebuild, and the next search reads it straight away.
+            taste.save_profile(picks.remember(profile, line))
+            taste.event(ident, 'shortlisted', {'search_id': body.search_id, 'listing_id': body.listing_id})
+        return {'item': item, 'added': added, 'learned': line if added else None}
+
+    @router.post('/profiles/{ident}/liked')
+    async def add_to_taste(ident: str, body: TasteLike):
+        """Not to buy: "this really is my style". Only the learning is kept, on the taste profile."""
+        profile = profile_or_404(ident)
+        _, _, line = await pick(ident, body.search_id, body.listing_id, liked_only=True)
+        taste.event(ident, 'liked_result', {'search_id': body.search_id, 'listing_id': body.listing_id})
+        return {'learned': line, **view(taste.save_profile(picks.remember(profile, line)))}
+
+    @router.put('/profiles/{ident}/learned')
+    def set_learned(ident: str, body: LearnedNotes):
+        # The shopper can strike a learning from their taste profile if it got them wrong.
+        profile = profile_or_404(ident)
+        profile.learned_notes = [x for x in profile.learned_notes if x in body.notes]
+        return view(taste.save_profile(profile))
+
+    def own_item(ident, item_id):
+        item = shortlist.item(item_id)
+        if not item or item['profile_id'] != ident:
+            raise HTTPException(404, 'Not on your shortlist')
+        return item
+
+    @router.put('/profiles/{ident}/shortlist/{item_id}')
+    def move_item(ident: str, item_id: str, body: ItemUpdate):
+        item = own_item(ident, item_id)
+        name = ' '.join((body.collection or '').split())
+        try:
+            collection = shortlist.add_collection(ident, name) if name else None
+        except ValueError as exc:
+            raise HTTPException(422, str(exc))
+        shortlist.save({**item, 'collection': collection})
+        return shortlist_view(ident)
+
+    @router.delete('/profiles/{ident}/shortlist/{item_id}')
+    def remove_item(ident: str, item_id: str):
+        own_item(ident, item_id)
+        shortlist.remove(item_id)
+        return shortlist_view(ident)
+
+    @router.post('/profiles/{ident}/collections', status_code=201)
+    def new_collection(ident: str, body: CollectionRequest):
+        profile_or_404(ident)
+        try:
+            shortlist.add_collection(ident, body.name)
+        except ValueError as exc:
+            raise HTTPException(422, str(exc))
+        return shortlist_view(ident)
+
+    @router.delete('/profiles/{ident}/collections/{name}')
+    def delete_collection(ident: str, name: str):
+        profile_or_404(ident)
+        shortlist.remove_collection(ident, name)
+        return shortlist_view(ident)
 
     return router

@@ -3,10 +3,10 @@
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { useSpacetimeDB, useTable } from "spacetimedb/react";
-import { Checkout } from "@/components/checkout";
 import { SectionTitle } from "@/components/chrome";
 import { Drawer } from "@/components/drawer";
 import { MarketCheck } from "@/components/market-check";
+import { ResultActions } from "@/components/shortlist";
 import { api } from "@/lib/api";
 import { useAssistant } from "@/lib/assistant";
 import { tables } from "@/lib/spacetime";
@@ -16,11 +16,14 @@ const DONE = new Set(["completed", "partial", "failed", "interrupted"]);
 
 export default function ShopPage() {
   const assistant = useAssistant();
-  const { profileId, searchId, budget, keepToBudget, setKeepToBudget, refreshBudget, announce, fresh } = assistant.shop;
+  const { profileId, searchId, budget, keepToBudget, setKeepToBudget, announce, fresh } = assistant.shop;
   const [job, setJob] = useState<SearchJob | null>(null);
   const [selected, setSelected] = useState<Listing | null>(null);
   const [kind, setKind] = useState<Kind>("all");
   const [error, setError] = useState<string | null>(null);
+  // Shortlisted pieces (by link, so the same piece found again shows as saved) and results added to the taste profile.
+  const [savedUrls, setSavedUrls] = useState<Set<string>>(new Set());
+  const [liked, setLiked] = useState<Set<string>>(new Set());
   const pollToken = useRef(0);
   const announced = useRef(fresh);
   announced.current = fresh;
@@ -83,6 +86,25 @@ export default function ShopPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps -- one loop per search
   }, [searchId]);
 
+  useEffect(() => {
+    if (!profileId) return;
+    api.shortlist(profileId).then((view) => setSavedUrls(new Set(view.items.map((x) => x.listing.url))), () => {});
+  }, [profileId]);
+
+  const actions = (item: Listing, compact = false) =>
+    profileId && searchId ? (
+      <ResultActions
+        profileId={profileId}
+        searchId={searchId}
+        listingId={item.id}
+        saved={savedUrls.has(item.url)}
+        liked={liked.has(item.id)}
+        onSaved={() => setSavedUrls((s) => new Set(s).add(item.url))}
+        onLiked={() => setLiked((s) => new Set(s).add(item.id))}
+        compact={compact}
+      />
+    ) : null;
+
   if (!profileId) {
     return (
       <p className="px-4 mt-10 text-display">
@@ -131,22 +153,25 @@ export default function ShopPage() {
             ))}
             <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
               {results.map((item, i) => (
-                <button key={item.id} onClick={() => setSelected(item)} className="text-left">
-                  <div className="bg-plinth aspect-[3/4] flex items-center justify-center overflow-hidden">
-                    {item.image_urls[0] ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img src={item.image_urls[0]} alt="" className="h-full w-full object-contain" />
-                    ) : (
-                      <span className="label text-muted">{item.is_fixture ? "Demo item" : "No photo"}</span>
-                    )}
-                  </div>
-                  <div className="flex justify-between mt-1 gap-2">
-                    <span className="text-display">{i + 1}</span>
-                    <span className="label pt-1 text-right">{storeLabel(item)}</span>
-                  </div>
-                  <p className="text-sm">{item.title}</p>
-                  <p className="text-sm">{item.price.toFixed(2)} {item.currency}</p>
-                </button>
+                <div key={item.id} className="grid content-start gap-1">
+                  <button onClick={() => setSelected(item)} className="text-left">
+                    <div className="bg-plinth aspect-[3/4] flex items-center justify-center overflow-hidden">
+                      {item.image_urls[0] ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img src={item.image_urls[0]} alt="" className="h-full w-full object-contain" />
+                      ) : (
+                        <span className="label text-muted">{item.is_fixture ? "Demo item" : "No photo"}</span>
+                      )}
+                    </div>
+                    <div className="flex justify-between mt-1 gap-2">
+                      <span className="text-display">{i + 1}</span>
+                      <span className="label pt-1 text-right">{storeLabel(item)}</span>
+                    </div>
+                    <p className="text-sm">{item.title}</p>
+                    <p className="text-sm">{item.price.toFixed(2)} {item.currency}</p>
+                  </button>
+                  {finished && actions(item, true)}
+                </div>
               ))}
             </div>
             {/* Looked up alongside the search and shown as soon as it's ready (it sits below the listings). */}
@@ -157,7 +182,7 @@ export default function ShopPage() {
 
       <Drawer open={!!selected} onClose={() => setSelected(null)}>
         {selected && searchId && (
-          <ListingDetail listing={selected} searchId={searchId} onPurchased={refreshBudget} />
+          <ListingDetail listing={selected} searchId={searchId} actions={finished ? actions(selected) : null} />
         )}
       </Drawer>
     </div>
@@ -311,11 +336,11 @@ function storeLabel(listing: Listing) {
 function ListingDetail({
   listing,
   searchId,
-  onPurchased,
+  actions,
 }: {
   listing: Listing;
   searchId: string;
-  onPurchased?: () => void;
+  actions: React.ReactNode;
 }) {
   return (
     <div className="grid gap-4">
@@ -339,8 +364,17 @@ function ListingDetail({
           <p key={w} className="text-xs text-muted">— {w}</p>
         ))}
       </div>
-      <div className="rule-t pt-3">
-        <Checkout searchId={searchId} listing={listing} onPurchased={onPurchased} />
+      {/* Buying starts from the Shortlist page; here the shopper saves it (or tells their taste profile they love it). */}
+      <div className="rule-t pt-3 grid gap-2">
+        <p className="text-display">
+          {listing.price.toFixed(2)} {listing.currency}
+        </p>
+        {actions ?? <p className="label text-muted animate-pulse">You can shortlist it once the search finishes…</p>}
+        {!listing.is_fixture && (
+          <a href={listing.url} target="_blank" rel="noreferrer" className="label underline justify-self-start">
+            See the listing ↗
+          </a>
+        )}
       </div>
     </div>
   );

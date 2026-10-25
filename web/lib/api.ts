@@ -1,4 +1,4 @@
-import type { AgentReply, BrandSuggestion, Budget, ChatTurn, ClothingSizes, HeardOnboarding, ImageKind, ImportJob, Measurements, NearbyShops, Onboarding, ProfileView, SearchJob, SizeCatalog, SizeSystem, Source, TasteImage, PriceCheck } from "./types";
+import type { AgentReply, BrandSuggestion, Budget, ChatTurn, ClothingSizes, HeardOnboarding, ImageKind, ImportJob, Measurements, NearbyShops, Onboarding, ProfileView, SearchJob, SizeCatalog, ShortlistItem, ShortlistView, SizeSystem, Source, TasteImage, PriceCheck } from "./types";
 
 export const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://127.0.0.1:8000";
 
@@ -103,6 +103,29 @@ export const api = {
       method: "POST",
       body: json({ search_id, listing_id }),
     }),
+  shortlist: (id: string) => request<ShortlistView>(`/v1/taste/profiles/${id}/shortlist`),
+  /** Saves a result to buy later; the taste profile also learns how it differed from the rest of the search. */
+  saveToShortlist: (id: string, search_id: string, listing_id: string, collection?: string | null) =>
+    request<{ item: ShortlistItem; added: boolean; learned: string | null }>(`/v1/taste/profiles/${id}/shortlist`, {
+      method: "POST",
+      body: json({ search_id, listing_id, ...(collection && { collection }) }),
+    }),
+  moveShortlistItem: (id: string, itemId: string, collection: string | null) =>
+    request<ShortlistView>(`/v1/taste/profiles/${id}/shortlist/${itemId}`, { method: "PUT", body: json({ collection }) }),
+  removeShortlistItem: (id: string, itemId: string) =>
+    request<ShortlistView>(`/v1/taste/profiles/${id}/shortlist/${itemId}`, { method: "DELETE" }),
+  addCollection: (id: string, name: string) =>
+    request<ShortlistView>(`/v1/taste/profiles/${id}/collections`, { method: "POST", body: json({ name }) }),
+  removeCollection: (id: string, name: string) =>
+    request<ShortlistView>(`/v1/taste/profiles/${id}/collections/${encodeURIComponent(name)}`, { method: "DELETE" }),
+  /** "Not to buy, but this is so me": only the taste profile learns from it. */
+  addToTaste: (id: string, search_id: string, listing_id: string) =>
+    request<ProfileView & { learned: string }>(`/v1/taste/profiles/${id}/liked`, {
+      method: "POST",
+      body: json({ search_id, listing_id }),
+    }),
+  setLearned: (id: string, notes: string[]) =>
+    request<ProfileView>(`/v1/taste/profiles/${id}/learned`, { method: "PUT", body: json({ notes }) }),
   getSearch: (statusUrl: string) => request<SearchJob>(statusUrl),
   transcribe: (audio: Blob) => {
     const form = new FormData();

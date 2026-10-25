@@ -60,14 +60,14 @@ class TasteStore:
             db.execute('DELETE FROM images WHERE id=?', (ident,))
 
     def forget(self, profile_id):
-        """Delete my data: the profile, its photos' records, imports, searches (with their events) and bank link."""
+        """Delete my data: the profile, its photos' records, imports, searches (with their events), shortlist and bank link."""
         with self.store.connect() as db:
             jobs = [r[0] for r in db.execute("SELECT id FROM jobs WHERE json_extract(request, '$.profile_id')=?", (profile_id,))]
             for job in jobs + [profile_id]:
                 db.execute('DELETE FROM events WHERE job_id=?', (job,))
                 db.execute('DELETE FROM feedback WHERE job_id=?', (job,))
             db.executemany('DELETE FROM jobs WHERE id=?', [(j,) for j in jobs])
-            for table in ('images', 'imports', 'prefetch', 'bank_links'):
+            for table in ('images', 'imports', 'prefetch', 'bank_links', 'shortlist', 'shortlist_collections'):
                 if db.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name=?", (table,)).fetchone():
                     db.execute(f'DELETE FROM {table} WHERE profile_id=?', (profile_id,))
             db.execute('DELETE FROM profiles WHERE id=?', (profile_id,))
