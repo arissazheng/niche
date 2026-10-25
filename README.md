@@ -2,6 +2,8 @@
 
 **Shopping agents that know your taste, not who paid for placement.**
 
+**Live at [shopniche.fashion](https://shopniche.fashion).**
+
 Ask an AI to help you shop for clothes today and you get generic suggestions from the same big brands, often shaped
 by sponsorships between AI companies and retailers. Niche starts from *your* style instead. You add photos of outfits
 and pieces you love (uploads, Pinterest, Instagram, TikTok, or a few words). Claude builds an editable, multimodal
@@ -207,7 +209,7 @@ estimate carbon or water savings.
 | **Track challenge** — a production-minded AI agent for a meaningful problem in a high-impact domain | Fair representation in agentic commerce. As people shop through AI agents, those agents return whatever their search engines promote (paid placements and the biggest, most keyword-stuffed catalogs), so independent and secondhand businesses go unseen no matter how well they fit. Niche is a shopping agent (with a finance side through Nessie budgets) that returns the best results for the user's own preferences: right size, right style, inside budget, from any seller, big or small. |
 | **Customer understanding** | Built from how our community actually shops (see the Anthropic section): own photos, specific aesthetics, secondhand first, tight budgets, hard-to-find sizes. The agent asks before acting on its own ideas. |
 | **Measurable usefulness** | `python -m sourcing.report` reports, across live searches: listings checked, results shown, items removed for wrong size, price or sold, share of independent and secondhand results, time to first results, Claude tokens per search. Each results page shows its own impact line. |
-| **Path from prototype to production** | One FastAPI service with typed models and tests; fixture mode with no keys; our own deployable Apify actors; caching, retries and timeouts on every external call; SpacetimeDB Maincloud for live state. Not yet deployed as a hosted web app. |
+| **Path from prototype to production** | One FastAPI service with typed models and tests; fixture mode with no keys; our own deployable Apify actors; caching, retries and timeouts on every external call; SpacetimeDB Maincloud for live state. Deployed at [shopniche.fashion](https://shopniche.fashion). |
 | **Responsible design** | Consent, data minimisation, explanations, scam warnings, revocable sharing, Delete my data (see Visa trust row). |
 | **End-to-end functionality** | Onboarding → lookbook → taste profile → search → shortlist → seller's site → purchase recorded to the bank ledger, all running live. |
 
