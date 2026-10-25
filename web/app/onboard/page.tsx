@@ -205,7 +205,9 @@ export default function OnboardPage() {
             <Column wide>
               <Entry title="Sizes">
                 <SizingSection value={form.sizing} onChange={(sizing) => setForm((f) => ({ ...f, sizing }))} />
-                <Plate variant="strip" />
+                <div className="book-plate book-plate-strip relative overflow-hidden">
+                  <Image src="/images/profile/church-interior.png" alt="" fill sizes="(max-width: 699px) 90vw, 46vw" className="object-cover object-center" />
+                </div>
               </Entry>
             </Column>
           </BookPage>
