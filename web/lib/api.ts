@@ -1,4 +1,4 @@
-import type { AgentReply, Budget, ChatTurn, ClothingSizes, HeardOnboarding, ImageKind, ImportJob, Measurements, NearbyShops, Onboarding, ProfileView, SearchJob, SizeCatalog, SizeSystem, Source, TasteImage } from "./types";
+import type { AgentReply, BrandSuggestion, Budget, ChatTurn, ClothingSizes, HeardOnboarding, ImageKind, ImportJob, Measurements, NearbyShops, Onboarding, ProfileView, SearchJob, SizeCatalog, SizeSystem, Source, TasteImage, PriceCheck } from "./types";
 
 export const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://127.0.0.1:8000";
 
@@ -13,6 +13,13 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 }
 
 const json = (body: unknown) => JSON.stringify(body);
+
+/** The owner's moodboard as a PNG to post: "story" (9:16) for Instagram / TikTok, "square" for X. */
+export async function shareImage(profileId: string, format: "story" | "square"): Promise<Blob> {
+  const response = await fetch(`${API_URL}/v1/taste/profiles/${profileId}/share-image?format=${format}`);
+  if (!response.ok) throw new Error(`Couldn't make the image (${response.status})`);
+  return response.blob();
+}
 
 export const api = {
   sizingCatalog: () => request<SizeCatalog>("/v1/taste/sizing/catalog"),
@@ -45,6 +52,8 @@ export const api = {
     request<NearbyShops>(`/v1/taste/profiles/${id}/nearby?search_id=${encodeURIComponent(searchId)}`),
   addShop: (id: string, shop: string) =>
     request<ProfileView>(`/v1/taste/profiles/${id}/shops`, { method: "POST", body: json({ shop }) }),
+  brandSuggestions: (id: string) =>
+    request<{ suggestions: BrandSuggestion[] }>(`/v1/taste/profiles/${id}/brands/suggestions`),
   removeShop: (id: string, domain: string) =>
     request<ProfileView>(`/v1/taste/profiles/${id}/shops/${encodeURIComponent(domain)}`, { method: "DELETE" }),
   deleteProfile: (id: string) => request<void>(`/v1/taste/profiles/${id}`, { method: "DELETE" }),
@@ -54,6 +63,8 @@ export const api = {
     request<ProfileView>(`/v1/taste/profiles/${id}/edit`, { method: "POST", body: json({ instruction, source }) }),
   setPrompt: (id: string, prompt: string) =>
     request<ProfileView>(`/v1/taste/profiles/${id}/prompt`, { method: "PUT", body: json({ prompt }) }),
+  priceCheck: (searchId: string, listingId: string) =>
+    request<PriceCheck>(`/v1/searches/${searchId}/listings/${encodeURIComponent(listingId)}/price-check`),
   search: (
     id: string,
     query: string,

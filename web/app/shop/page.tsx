@@ -6,6 +6,7 @@ import { useSpacetimeDB, useTable } from "spacetimedb/react";
 import { Checkout } from "@/components/checkout";
 import { SectionTitle } from "@/components/chrome";
 import { Drawer } from "@/components/drawer";
+import { MarketCheck } from "@/components/market-check";
 import { api } from "@/lib/api";
 import { useAssistant } from "@/lib/assistant";
 import { tables } from "@/lib/spacetime";
@@ -330,6 +331,7 @@ function ListingDetail({
           ))}
         </div>
       )}
+      <MarketCheck searchId={searchId} listingId={listing.id} />
       <div className="grid gap-1">
         <span className="label">Why this matches</span>
         <p className="text-sm">{listing.reason}</p>

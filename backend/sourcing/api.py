@@ -17,7 +17,9 @@ def create_app(settings=None):
     settings = settings or Settings()
     settings.validate_live()
     store = Store(settings.database_path)
-    pipeline = Pipeline(settings,store)
+    from market.service import Market  # here, not at module top: market imports sourcing.pipeline
+    market = Market(settings)
+    pipeline = Pipeline(settings,store,market=market if market.enabled else None)
 
     async def run(ident, payload):
         try:
@@ -73,6 +75,15 @@ def create_app(settings=None):
         if not job:
             raise HTTPException(404,'Search not found')
         return job
+
+    @app.get('/v1/searches/{ident}/listings/{listing_id}/price-check',dependencies=[Depends(authorize)])
+    async def price_check(ident: str, listing_id: str):
+        # Snowflake market check: how this price compares with similar listings seen before (public data only).
+        job = store.get(ident)
+        item = next((x for x in (job or {}).get('results', []) if x['id'] == listing_id), None)
+        if not item:
+            raise HTTPException(404,'Listing is not a result of this search')
+        return await market.price_check(ident,item)
 
     @app.post('/v1/searches/{ident}/feedback',status_code=201,dependencies=[Depends(authorize)])
     def feedback(ident: str, feedback: Feedback):

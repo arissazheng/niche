@@ -347,6 +347,11 @@ export function AssistantProvider({ children }: { children: React.ReactNode }) {
     };
   }, []);
 
+  // A tip belongs to the page it was shown on: clear it on navigation (the next page may show its own below).
+  useEffect(() => {
+    setNudge(null);
+  }, [pathname]);
+
   // Arriving on a page mid-conversation: it says what it can help with here. With the conversation closed, the
   // page's opener waits by the dock instead.
   const current = skills.at(-1) ?? null;
@@ -430,6 +435,7 @@ export function AssistantProvider({ children }: { children: React.ReactNode }) {
     phase,
     error,
     nudge,
+    dismissNudge: () => setNudge(null),
     skill: current ?? SHOP_SKILL,
     start,
     stop,
@@ -670,14 +676,25 @@ export function AssistantDock() {
     return (
       <div className="fixed inset-x-0 bottom-0 z-[900] flex flex-col items-center gap-2 px-4 pb-4 pointer-events-none">
         {a.nudge && (
-          <button
-            type="button"
-            onClick={() => start("voice")}
-            className="pointer-events-auto max-w-md border border-ink bg-paper px-4 py-3 text-left text-sm shadow-[0_6px_18px_rgba(0,0,0,.14)]"
-          >
-            <span className="label block mb-1">Niche</span>
-            {a.nudge}
-          </button>
+          <div className="pointer-events-auto relative max-w-md">
+            <button
+              type="button"
+              onClick={() => start("voice")}
+              className="w-full border border-ink bg-paper py-3 pl-4 pr-9 text-left text-sm shadow-[0_6px_18px_rgba(0,0,0,.14)]"
+            >
+              <span className="label block mb-1">Niche</span>
+              {a.nudge}
+            </button>
+            {/* Close it to get the page back; the "Talk to Niche" bar stays. */}
+            <button
+              type="button"
+              onClick={a.dismissNudge}
+              aria-label="Close"
+              className="absolute right-1.5 top-1.5 size-6 grid place-items-center text-base leading-none hover:bg-plinth"
+            >
+              ×
+            </button>
+          </div>
         )}
         <div className="pointer-events-auto flex items-stretch border border-ink bg-paper shadow-[0_6px_18px_rgba(0,0,0,.14)]">
           <button type="button" onClick={() => start("voice")} className="flex items-center gap-3 pl-3 pr-4 py-2">

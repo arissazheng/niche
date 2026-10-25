@@ -2,14 +2,15 @@
 
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import Image from "next/image";
 import { useEffect, useRef, useState } from "react";
-import { SectionTitle } from "@/components/chrome";
 import { HandCircle } from "@/components/hand-circle";
 import { MeasurementsPanel } from "@/components/measurements";
 import { api } from "@/lib/api";
 import { SHOPPING, isNo, useAssistant, useAssistantSkill } from "@/lib/assistant";
 import { clearProfile, getProfileId, setProfileId } from "@/lib/session";
 import { SizingSection, emptySizing, withDefaults } from "@/components/sizing";
+import "./profile-book.css";
 import type { ClothingSizes, HeardOnboarding, Onboarding, SizePick } from "@/lib/types";
 
 const SHOPS = ["Depop", "Etsy", "Poshmark", "Grailed", "Thrift stores", "Vintage shops", "Local boutiques", "Big retailers"];
@@ -176,157 +177,269 @@ export default function OnboardPage() {
   }
 
   return (
-    <form ref={formEl} onSubmit={submit} className="px-4 grid gap-10 md:grid-cols-[1fr_2fr] mt-6">
-      <aside className="md:sticky md:top-4 self-start">
-        <h1 className="text-display">{existing ? "Your profile" : "Let\u2019s get to know you."}</h1>
-        <p className="text-sm mt-2 max-w-xs">
-          Talk it through with Niche, or tap your answers. You can change everything later.
-        </p>
-        <div className="mt-4">
-          {assistant.mode === "off" && (
-            <button type="button" onClick={() => assistant.start("voice")} className="label bg-ink text-paper px-3 py-2">
-              Talk it through
-            </button>
-          )}
-          <p className="text-xs text-muted mt-2 max-w-xs">
-            {"Niche asks as you go. Try: \u201CI\u2019m Dana, I shop on Depop and thrift stores, budget up to $120.\u201D"}
-          </p>
+    <form ref={formEl} onSubmit={submit} className="profile-book bg-[#efefef] -mt-px">
+      <header className="profile-heading">
+        <p className="label">Niche profiles</p>
+        <h1 className="text-[clamp(1.8rem,3vw,3rem)] leading-[1.05] tracking-tight font-medium">
+          {existing ? "Your profile" : "Let\u2019s get to know you."}
+        </h1>
+      </header>
+
+      <div className="profile-spread">
+        {/* An open encyclopedia: two pages, two ruled columns each, shared decorative images interspersed with entries. */}
+        <Book>
+          <BookPage side="left" letter="P" number="01" footer="The Niche Profile">
+            <Column>
+              <div className="book-image-pair">
+                <div className="book-plate relative overflow-hidden">
+                  <Image src="/images/profile/palm-beach.png" alt="" fill sizes="(max-width: 699px) 45vw, 23vw" className="object-cover object-[center_32%]" />
+                </div>
+                <Plate />
+              </div>
+            </Column>
+            <Column ruled>
+              <Entry title="About you">
+                <div className="grid gap-3">
+                  <Field label="Name">
+                    <input className="input" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
+                  </Field>
+                  <div className="grid grid-cols-[5rem_1fr] gap-3">
+                    <Field label="Age">
+                      <input
+                        className="input"
+                        type="number"
+                        min={13}
+                        value={form.age ?? ""}
+                        onChange={(e) => setForm({ ...form, age: e.target.value ? Number(e.target.value) : null })}
+                      />
+                    </Field>
+                    <Field label="Email">
+                      <input className="input" type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} />
+                    </Field>
+                  </div>
+                </div>
+                <SeeAlso>Lookbook · Taste</SeeAlso>
+              </Entry>
+            </Column>
+            <Column wide>
+              <Entry title="Sizes">
+                <SizingSection value={form.sizing} onChange={(sizing) => setForm((f) => ({ ...f, sizing }))} />
+                <div className="book-plate book-plate-strip relative overflow-hidden">
+                  <Image src="/images/profile/blue-eye-portrait.png" alt="" fill sizes="(max-width: 699px) 90vw, 46vw" className="object-cover object-[center_60%]" />
+                </div>
+              </Entry>
+            </Column>
+          </BookPage>
+
+          <BookPage side="right" letter="P" number="02" footer="An A–Z of Your Taste">
+            <Column>
+              <Entry title="Everyday outfit budget">
+                <div className="flex items-center gap-4">
+                  <span className="font-serif text-3xl tabular-nums">${form.budget_max}</span>
+                  <input
+                    type="range"
+                    min={10}
+                    max={500}
+                    step={5}
+                    value={form.budget_max}
+                    onChange={(e) => setForm({ ...form, budget_max: Number(e.target.value) })}
+                    className="flex-1 accent-ink"
+                    aria-label="Maximum price per item"
+                  />
+                </div>
+              </Entry>
+              <div className="book-plate book-plate-landscape relative overflow-hidden">
+                <Image src="/images/profile/ballet-shoes.png" alt="" fill sizes="(max-width: 699px) 45vw, 23vw" className="object-cover object-[center_90%]" />
+              </div>
+              <Entry title="Where you usually shop">
+                <div className="flex flex-wrap gap-2">
+                  {SHOPS.map((shop) => (
+                    <button type="button" key={shop} onClick={() => toggleShop(shop)} aria-pressed={form.usual_shops.includes(shop)}>
+                      <HandCircle selected={form.usual_shops.includes(shop)}>{shop}</HandCircle>
+                    </button>
+                  ))}
+                </div>
+              </Entry>
+            </Column>
+            <Column ruled>
+              <Entry title="Shops near you">
+                <label className="flex items-start gap-3 text-sm">
+                  <input
+                    type="checkbox"
+                    className="mt-1 accent-ink"
+                    checked={!!form.nearby_shops}
+                    onChange={(e) => setForm({ ...form, nearby_shops: e.target.checked })}
+                  />
+                  <span>
+                    Also suggest local shops worth visiting under my search results. Only your ZIP code is used: it&apos;s
+                    sent to Google&apos;s Gemini to find shops on Google Maps, never your exact location.
+                  </span>
+                </label>
+                {form.nearby_shops && (
+                  <div className="mt-2">
+                    <Field label="ZIP code">
+                      <input
+                        className="input w-32"
+                        inputMode="numeric"
+                        pattern="\d{5}"
+                        maxLength={5}
+                        required
+                        value={form.zip_code ?? ""}
+                        onChange={(e) => setForm({ ...form, zip_code: e.target.value.replace(/\D/g, "").slice(0, 5) })}
+                      />
+                    </Field>
+                  </div>
+                )}
+              </Entry>
+              <div className="book-plate book-plate-portrait relative overflow-hidden">
+                <Image src="/images/profile/fashion-board.webp" alt="" fill sizes="(max-width: 699px) 40vw, 20vw" className="object-cover object-[center_28%] scale-[1.35] origin-[center_28%]" />
+              </div>
+              <Entry title="Before we begin">
+                <label className="flex items-start gap-3 text-sm">
+                  <input
+                    type="checkbox"
+                    required
+                    className="mt-1 accent-ink"
+                    checked={!!form.data_consent}
+                    onChange={(e) => setForm({ ...form, data_consent: e.target.checked })}
+                  />
+                  <span>
+                    I agree that my photos and notes are sent to Claude (Anthropic) to build my taste profile. My name,
+                    email and age never are. <Link href="/how-it-works#data" className="underline">What Niche keeps</Link>
+                  </span>
+                </label>
+              </Entry>
+            </Column>
+            <Column wide>
+              <Entry title="Measurements">
+                {form.sizing.system && (
+                  <MeasurementsPanel
+                    key={existing?.id ?? "new"} // remount once a saved profile loads, to show its measurements
+                    system={form.sizing.system}
+                    value={form.measurements ?? { unit: "in" }}
+                    onChange={(measurements) => setForm((f) => ({ ...f, measurements }))}
+                    onUseSizes={(suggested) =>
+                      setForm((f) => {
+                        const system = f.sizing.system!;
+                        // Only categories the measurements actually point to; everything else stays as picked.
+                        const filled = Object.fromEntries(
+                          Object.entries(suggested).filter(([k, p]) => k !== "bra" && ((p as SizePick).values?.length || Object.keys((p as SizePick).extras ?? {}).length)),
+                        ) as Partial<ClothingSizes>;
+                        return { ...f, sizing: { ...f.sizing, [system]: { ...f.sizing[system], ...filled } } };
+                      })
+                    }
+                  />
+                )}
+                {!form.sizing.system && <p className="text-xs text-muted">Choose a sizing system on the facing page to add optional measurements.</p>}
+              </Entry>
+            </Column>
+          </BookPage>
+        </Book>
+
+        {/* Save controls sit below the full-width spread. */}
+        <aside className="profile-aside">
           {voiceNote && (
-            <p className="text-xs mt-2 max-w-xs" role="status" aria-live="polite">
+            <p className="text-xs" role="status" aria-live="polite">
               {voiceNote}
             </p>
           )}
-        </div>
-      </aside>
-
-      <div className="grid gap-8">
-        <section>
-          <SectionTitle aside="01">About you</SectionTitle>
-          <div className="grid gap-3 sm:grid-cols-3">
-            <Field label="Name">
-              <input className="input" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
-            </Field>
-            <Field label="Age">
-              <input
-                className="input"
-                type="number"
-                min={13}
-                value={form.age ?? ""}
-                onChange={(e) => setForm({ ...form, age: e.target.value ? Number(e.target.value) : null })}
-              />
-            </Field>
-            <Field label="Email">
-              <input className="input" type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} />
-            </Field>
-          </div>
-        </section>
-
-        <section>
-          <SectionTitle aside="02">Sizes</SectionTitle>
-          <SizingSection value={form.sizing} onChange={(sizing) => setForm((f) => ({ ...f, sizing }))} />
-          {form.sizing.system && (
-            <MeasurementsPanel
-              key={existing?.id ?? "new"} // remount once a saved profile loads, to show its measurements
-              system={form.sizing.system}
-              value={form.measurements ?? { unit: "in" }}
-              onChange={(measurements) => setForm((f) => ({ ...f, measurements }))}
-              onUseSizes={(suggested) =>
-                setForm((f) => {
-                  const system = f.sizing.system!;
-                  // Only categories the measurements actually point to; everything else stays as picked.
-                  const filled = Object.fromEntries(
-                    Object.entries(suggested).filter(([k, p]) => k !== "bra" && ((p as SizePick).values?.length || Object.keys((p as SizePick).extras ?? {}).length)),
-                  ) as Partial<ClothingSizes>;
-                  return { ...f, sizing: { ...f.sizing, [system]: { ...f.sizing[system], ...filled } } };
-                })
-              }
-            />
-          )}
-        </section>
-
-        <section>
-          <SectionTitle aside="03">Everyday outfit budget</SectionTitle>
-          <div className="flex items-center gap-4">
-            <span className="text-display tabular-nums">${form.budget_max}</span>
-            <input
-              type="range"
-              min={10}
-              max={500}
-              step={5}
-              value={form.budget_max}
-              onChange={(e) => setForm({ ...form, budget_max: Number(e.target.value) })}
-              className="flex-1 accent-ink"
-              aria-label="Maximum price per item"
-            />
-          </div>
-        </section>
-
-        <section>
-          <SectionTitle aside="04">Where do you usually shop?</SectionTitle>
-          <div className="flex flex-wrap gap-2">
-            {SHOPS.map((shop) => (
-              <button type="button" key={shop} onClick={() => toggleShop(shop)} aria-pressed={form.usual_shops.includes(shop)}>
-                <HandCircle selected={form.usual_shops.includes(shop)}>{shop}</HandCircle>
-              </button>
-            ))}
-          </div>
-        </section>
-
-        <section>
-          <SectionTitle aside="05">Shops near you</SectionTitle>
-          <label className="flex items-start gap-3 text-sm">
-            <input
-              type="checkbox"
-              className="mt-1 accent-ink"
-              checked={!!form.nearby_shops}
-              onChange={(e) => setForm({ ...form, nearby_shops: e.target.checked })}
-            />
-            <span>
-              Also suggest local shops worth visiting under my search results. Only your ZIP code is used: it&apos;s sent
-              to Google&apos;s Gemini to find shops on Google Maps, never your exact location.
-            </span>
-          </label>
-          {form.nearby_shops && (
-            <Field label="ZIP code">
-              <input
-                className="input w-32"
-                inputMode="numeric"
-                pattern="\d{5}"
-                maxLength={5}
-                required
-                value={form.zip_code ?? ""}
-                onChange={(e) => setForm({ ...form, zip_code: e.target.value.replace(/\D/g, "").slice(0, 5) })}
-              />
-            </Field>
-          )}
-        </section>
-
-        <label className="flex items-start gap-3 text-sm">
-          <input
-            type="checkbox"
-            required
-            className="mt-1 accent-ink"
-            checked={!!form.data_consent}
-            onChange={(e) => setForm({ ...form, data_consent: e.target.checked })}
-          />
-          <span>
-            I agree that my photos and notes are sent to Claude (Anthropic) to build my taste profile. My name, email
-            and age never are. <Link href="/how-it-works#data" className="underline">What Niche keeps</Link>
-          </span>
-        </label>
-
-        {error && <p className="text-sm">{error}</p>}
-        <button disabled={busy} className="rule-t rule-b text-display py-2 w-full disabled:text-muted">
-          {busy ? "Saving…" : existing ? "Save changes" : "Continue"}
-        </button>
-        {existing && (
-          <button type="button" onClick={() => setConfirmDelete(true)} className="label underline justify-self-center">
-            Delete my data
+          {error && <p className="text-sm">{error}</p>}
+          <button disabled={busy} className="justify-self-start border border-ink bg-paper px-5 py-3 text-lg disabled:text-muted">
+            {busy ? "Saving…" : existing ? "Save changes" : "Continue"}
           </button>
-        )}
+          {existing && (
+            <button type="button" onClick={() => setConfirmDelete(true)} className="label underline justify-self-start text-muted">
+              Delete my data
+            </button>
+          )}
+        </aside>
       </div>
       {confirmDelete && <ConfirmDelete busy={busy} onYes={deleteData} onNo={() => setConfirmDelete(false)} />}
     </form>
+  );
+}
+
+// ---- The book: an open encyclopedia spread ----
+
+/** Dark hardcover with page edges showing on both sides and a soft shadow down the spine. */
+function Book({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="book-cover">
+      <div className="book-leaves">
+        {children}
+        {/* the gutter: pages curving into the binding */}
+        <div
+          aria-hidden
+          className="pointer-events-none absolute inset-y-0 left-1/2 hidden w-16 -translate-x-1/2 lg:block"
+          style={{ background: "linear-gradient(to right, transparent, rgba(0,0,0,.14) 45%, rgba(0,0,0,.2) 50%, rgba(0,0,0,.14) 55%, transparent)" }}
+        />
+      </div>
+    </div>
+  );
+}
+
+function BookPage({
+  side,
+  letter,
+  number,
+  footer,
+  children,
+}: {
+  side: "left" | "right";
+  letter: string;
+  number: string;
+  footer: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <section className={`book-page book-page-${side} font-serif`}>
+      <div className="book-page-grid">{children}</div>
+      {/* letter tab on the outer margin, page number by the spine, running footer */}
+      <span className={`absolute top-1/2 -translate-y-1/2 text-lg ${side === "left" ? "left-4" : "right-4"}`}>{letter}</span>
+      <span className={`absolute top-1/2 -translate-y-1/2 text-lg ${side === "left" ? "right-4 lg:right-7" : "left-4 lg:left-7"}`}>
+        {number}
+      </span>
+      <p className="absolute bottom-4 inset-x-0 text-center text-[11px] uppercase tracking-[.12em]">{footer}</p>
+    </section>
+  );
+}
+
+/** A text column; `ruled` draws the hairline between columns, `wide` spans the whole page. Big type inside (the
+ *  sizing picker's headings) is scaled down to book size. */
+function Column({ children, ruled = false, wide = false }: { children: React.ReactNode; ruled?: boolean; wide?: boolean }) {
+  return (
+    <div
+      className={`book-column grid content-start [&_.text-display]:text-lg [&_.text-display]:leading-tight ${
+        ruled ? "sm:border-l sm:border-ink/40 sm:pl-3" : ""
+      } ${wide ? "sm:col-span-2" : ""}`}
+    >
+      {children}
+    </div>
+  );
+}
+
+/** An encyclopedia entry: centred serif heading over a hairline, then its body in sans for the form controls. */
+function Entry({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <div className="book-entry grid">
+      <h2 className="border-t border-ink/50 pt-2 text-center text-xl italic leading-tight">{title}</h2>
+      <div className="font-sans">{children}</div>
+    </div>
+  );
+}
+
+/** Shared decorative imagery will replace these fixed grey placeholders. */
+function Plate({ variant = "default" }: { variant?: "default" | "landscape" | "portrait" | "strip" }) {
+  return <div aria-hidden="true" className={`book-plate book-plate-${variant} bg-[#cfcdc7]`} />;
+}
+
+function SeeAlso({ children }: { children: React.ReactNode }) {
+  return (
+    <p className="mt-3 text-center font-serif text-[10px] uppercase leading-tight tracking-[.1em]">
+      See also:
+      <br />
+      {children}
+    </p>
   );
 }
 

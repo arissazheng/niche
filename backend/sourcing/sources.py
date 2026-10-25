@@ -122,11 +122,12 @@ class ApifySources:
             elif source == 'indie':
                 actor, per_query = self.settings.indie_actor, max(5, limit // len(queries))
                 shops = [s for s in shops if getattr(s, 'platform', 'shopify') == 'shopify']
-                if shops:
-                    # `shops` replaces the actor's seed list, so send the seed list too, the shopper's shops first.
-                    mine = [s.model_dump() if hasattr(s, 'model_dump') else dict(s) for s in shops]
-                    taken = {s['domain'] for s in mine}
-                    extra = {'shops': mine + [s for s in INDIE_SHOPS if s['domain'] not in taken]}
+                # Always send the list (the shopper's shops first, then the seed list): it replaces the deployed
+                # actor's own copy, so a shop added to indie_shops.py is searched without redeploying the actor.
+                mine = [{k: v for k, v in (s.model_dump() if hasattr(s, 'model_dump') else dict(s)).items()
+                         if k in ('domain', 'name', 'currency')} for s in shops]
+                taken = {s['domain'] for s in mine}
+                extra = {'shops': mine + [s for s in INDIE_SHOPS if s['domain'] not in taken]}
             else:
                 actor, per_query = self.settings.secondhand_actor, max(5, limit // len(queries))
             return actor, {'queries': queries, 'itemsPerQuery': per_query, **extra, **({'maxPrice': int(max_price)} if max_price else {}),

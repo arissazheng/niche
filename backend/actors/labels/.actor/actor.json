@@ -1,0 +1,60 @@
+{
+  "actorSpecification": 1,
+  "name": "independent-labels",
+  "title": "Independent Fashion Labels: verified brands and products",
+  "description": "Brand names or websites in; verified independent fashion labels and their in-stock products out. Finds each label's own Shopify store and checks it's a real, small, established label, not a marketplace, chain, reseller or drop-shipper. Public catalogs only.",
+  "version": "0.1",
+  "dockerfile": "./Dockerfile",
+  "input": {
+    "title": "Independent labels",
+    "type": "object",
+    "schemaVersion": 1,
+    "properties": {
+      "brands": {
+        "title": "Brands",
+        "type": "array",
+        "editor": "stringList",
+        "description": "Brand names or websites, e.g. \"Batul The Collection\" or \"velathelabel.com\". A website is the most reliable.",
+        "prefill": [
+          "Christy Dawn",
+          "shopdoen.com"
+        ]
+      },
+      "query": {
+        "title": "Looking for",
+        "type": "string",
+        "editor": "textfield",
+        "description": "Optional: what to match, e.g. \"satin slip skirt\". A named item type (dress, jacket...) only matches that type. Blank returns each label's in-stock products."
+      },
+      "maxPrice": {
+        "title": "Max price",
+        "type": "integer",
+        "editor": "number",
+        "description": "Items above this price (in the shop's currency) are dropped."
+      },
+      "itemsPerBrand": {
+        "title": "Items per brand",
+        "type": "integer",
+        "editor": "number",
+        "default": 10,
+        "minimum": 1,
+        "maximum": 100,
+        "description": "Most products returned per brand, best matches first."
+      },
+      "verifiedOnly": {
+        "title": "Verified labels only",
+        "type": "boolean",
+        "default": true,
+        "description": "Skip products from stores that fail a check (the OUTPUT record lists every brand's checks either way)."
+      }
+    },
+    "required": [
+      "brands"
+    ]
+  },
+  "readme": "./README.md",
+  "output": "./output_schema.json",
+  "storages": {
+    "dataset": "./dataset_schema.json"
+  }
+}

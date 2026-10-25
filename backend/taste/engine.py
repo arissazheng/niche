@@ -137,6 +137,11 @@ class TasteEngine:
         if image := self.taste.image(ident):
             (self.uploads / f'{image.id}.jpg').unlink(missing_ok=True)
 
+    def measure(self, image: TasteImage):
+        """Garment colors from pixels, skipping skin unless Claude saw beige / camel / nude garments in the photo."""
+        colors = [c for g in (image.analysis.garments if image.analysis else []) for c in g.colors]
+        return px.palette(px.load(self.jpeg(image)), keep_skin_tones=px.skin_like(colors))
+
     def jpeg(self, image: TasteImage):
         return (self.uploads / f'{image.id}.jpg').read_bytes()
 
@@ -183,7 +188,7 @@ class TasteEngine:
             raise ValueError('Add at least one photo or note first')
         for image in images:
             # Re-measure so images uploaded before palette changes get current colors.
-            measured = px.palette(px.load(self.jpeg(image)))
+            measured = self.measure(image)
             if measured != image.palette:
                 image.palette = measured
                 self.taste.save_image(image)

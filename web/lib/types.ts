@@ -185,6 +185,14 @@ export interface IndieShop {
   currency: string;
   /** shopify: its catalog is read directly. web: another platform, found and read through Bright Data. */
   platform?: "shopify" | "web";
+  /** Passed every independence check (real store, own label, small, established); null: couldn't be checked. */
+  verified?: boolean | null;
+  checks?: Record<string, boolean | null>;
+}
+
+export interface BrandSuggestion {
+  shop: IndieShop;
+  reason: string;
 }
 
 export interface ProfileView {
@@ -314,4 +322,15 @@ export interface NearbyShops {
   zip_code?: string;
   unavailable?: boolean;
   shops: { name: string; why: string; maps_url: string }[];
+}
+
+/** Snowflake market check: this listing's price against similar listings seen before (Cortex writes the sentence). */
+export interface PriceCheck {
+  verdict: "deal" | "fair" | "high" | "unknown";
+  n: number;
+  low: number | null;
+  median: number | null;
+  high: number | null;
+  sentence: string;
+  comparables: { title: string; price: number; marketplace: string | null }[];
 }

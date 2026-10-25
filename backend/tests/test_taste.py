@@ -406,6 +406,19 @@ def test_delete_my_data_removes_profile_photos_and_searches(client, tmp_path):
     assert client.delete(f'/v1/taste/profiles/{pid}').status_code == 404
 
 
+def test_palette_skips_skin_unless_the_garments_are_skin_toned():
+    from PIL import Image
+    from taste import palette as px
+    image = Image.new('RGB', (100, 100), (230, 230, 230))  # studio background
+    for x in range(20, 80):
+        for y in range(10, 50):
+            image.putpixel((x, y), (198, 150, 125))  # skin
+        for y in range(50, 95):
+            image.putpixel((x, y), (20, 20, 24))  # black dress
+    assert px.palette(image) == ['#141418']
+    assert '#c6967d' in px.palette(image, keep_skin_tones=px.skin_like(['camel']))
+
+
 def test_assistant_reacts_to_new_photos_and_only_sends_them_with_consent(tmp_path, client):
     pid = client.post('/v1/taste/profiles', json={'name': 'Ari'}).json()['profile']['id']
     image = client.post(f'/v1/taste/profiles/{pid}/images', files={'file': ('a.png', png((20, 20, 20)))}).json()['id']

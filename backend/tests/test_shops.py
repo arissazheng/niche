@@ -8,7 +8,7 @@ from sourcing.config import Settings
 from sourcing.models import IndieShop, SearchRequest
 from sourcing.sources import ApifySources, INDIE_SHOPS
 from sourcing.store import Store
-from taste import shops
+from taste import brands, shops
 
 BATUL = IndieShop(domain='batulthecollection.com', name='Batul The Collection')
 
@@ -48,10 +48,13 @@ def test_find_by_website_takes_the_store_as_given(monkeypatch):
 def test_indie_actor_gets_the_shoppers_shops_first_then_the_seed_list(tmp_path):
     sources = ApifySources(Settings(), Store(str(tmp_path/'s.sqlite')))
     _, plain = sources.actor_input('indie', ['satin dress'], 30)
-    assert 'shops' not in plain  # the actor uses its own seed list
+    assert plain['shops'] == INDIE_SHOPS  # sent every time, so the deployed actor's copy never goes stale
     _, mine = sources.actor_input('indie', ['satin dress'], 30, shops=[BATUL, IndieShop(**INDIE_SHOPS[0])])
+    _, new = sources.actor_input('indie', ['satin dress'], 30, shops=[IndieShop(domain='newlabel.example', name='New')])
+    assert len(new['shops']) == len(INDIE_SHOPS) + 1 and new['shops'][0]['domain'] == 'newlabel.example'
     domains = [s['domain'] for s in mine['shops']]
-    assert domains[0] == 'batulthecollection.com' and len(domains) == len(INDIE_SHOPS) + 1 == len(set(domains))
+    assert domains[0] == 'batulthecollection.com' and len(domains) == len(set(domains))
+    assert set(domains) == {s['domain'] for s in INDIE_SHOPS}  # Batul is in the seed list too, sent once
     _, other = sources.actor_input('secondhand', ['satin dress'], 30, shops=[BATUL])
     assert 'shops' not in other
 
@@ -77,7 +80,10 @@ def test_pipeline_passes_shops_to_indie_only(tmp_path):
 
 
 @pytest.fixture
-def client(tmp_path):
+def client(tmp_path, monkeypatch):
+    async def verify(shop, http=None):
+        return shop  # checks are covered in test_brands.py
+    monkeypatch.setattr(brands, 'verify', verify)
     settings = Settings(database_path=str(tmp_path/'api.sqlite'), upload_dir=str(tmp_path/'uploads'))
     with TestClient(create_app(settings)) as client:
         yield client
@@ -92,8 +98,11 @@ def test_add_and_remove_a_shop(client, monkeypatch):
     assert added.status_code == 201 and added.json()['profile']['indie_shops'] == [BATUL.model_dump()]
     again = client.post(f'/v1/taste/profiles/{pid}/shops', json={'shop': 'batulthecollection.com'}).json()
     assert len(again['profile']['indie_shops']) == 1
-    missing = client.post(f'/v1/taste/profiles/{pid}/shops', json={'shop': 'Unknown Label'})
-    assert missing.status_code == 422 and 'website' in missing.json()['detail']
+    # A brand without a shop Niche can read (most big brands) is kept as a favorite instead of refused.
+    missing = client.post(f'/v1/taste/profiles/{pid}/shops', json={'shop': 'Unknown Label'}).json()
+    assert len(missing['profile']['indie_shops']) == 1 and 'Unknown Label' in missing['profile']['onboarding']['favorite_brands']
+    again = client.post(f'/v1/taste/profiles/{pid}/shops', json={'shop': 'unknown label'}).json()
+    assert again['profile']['onboarding']['favorite_brands'].count('Unknown Label') == 1
     removed = client.delete(f'/v1/taste/profiles/{pid}/shops/batulthecollection.com').json()
     assert removed['profile']['indie_shops'] == []
 

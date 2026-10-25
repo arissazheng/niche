@@ -380,7 +380,7 @@ function layout(view: ProfileView, shapes: Shapes, aspect: number, readOnly = fa
 
   const name = view.profile.onboarding.name.trim();
   const pieces: Piece[] = [
-    { id: "title", kind: "title", left: 3, top: 3, width: 20, rotate: -2, z: 60, text: name ? `${name}'s taste` : readOnly ? "Their taste" : "My taste" },
+    { id: "title", kind: "title", left: 3, top: 3, width: 20, rotate: -2, z: 60, text: !readOnly ? "My taste" : name ? `${name.split(/\s+/)[0]}'s taste` : "Their taste" },
   ];
   const zoneFor = zones(clusters.map((c) => c.images.length));
 

@@ -4,7 +4,7 @@ import secrets
 import logging
 import httpx
 from typing import Annotated, Literal
-from fastapi import APIRouter, File, Form, HTTPException, UploadFile
+from fastapi import APIRouter, File, Form, HTTPException, Response, UploadFile
 from PIL import UnidentifiedImageError
 from sourcing.models import SearchRequest, ShoppingRequest
 from finance.budget import Budgets
@@ -13,17 +13,22 @@ from sourcing.prefetch import BROAD_QUERY, Prefetcher
 from sourcing.features import clean as clean_features
 from sourcing.store import Store
 from sourcing.webshops import WebShops
+from actors.niche_actors.indie_shops import SHOPS as INDIE_SHOPS
 import json
-from .chat import ChatRequest, ShopAgent, find_cards, guess_category, result_cards, search_sizes
+from .chat import ChatRequest, ShopAgent, find_cards, label_cards, guess_category, result_cards, search_sizes
 from .finds import Finds
+from .labels import Labels
 from .fit import inches, suggest
 from .sizing import CATALOG
 from .imports import Importer, LinkError
 from .nearby import Nearby, NearbyError
+from .share_image import SIZES as SHARE_SIZES, render as render_share
+from . import palette as px
 from .links import extract_urls, read_link
 from .engine import TasteEngine, fingerprint
 from .models import EditInstruction, ImageFromUrl, ImageKind, ImportRequest, Measurements, LookbookNotes, NoteUpdate, Onboarding, PhotoReaction, ProfileSearch, PromptUpdate, ShopRequest
-from . import shops
+from . import brands, shops
+from actors.niche_actors.labels import domain_of
 from .signing import Signer
 from .store import TasteStore
 
@@ -39,6 +44,7 @@ def create_router(settings, store: Store, budgets: Budgets | None = None, signer
     engine = TasteEngine(settings, taste)
     prefetcher = Prefetcher(settings, store)
     nearby = Nearby(settings)
+    share_images: dict[tuple, bytes] = {}  # (profile, version, inputs, format) -> PNG
     importer = Importer(settings, taste, engine)
     web = WebShops(settings)
     router = APIRouter(prefix='/v1/taste', tags=['taste'])
@@ -94,6 +100,21 @@ def create_router(settings, store: Store, budgets: Budgets | None = None, signer
     @router.post('/profiles', status_code=201)
     def create(onboarding: Onboarding):
         return view(taste.create_profile(onboarding))
+
+    @router.get('/profiles/{ident}/share-image')
+    def share_image(ident: str, format: Literal['story', 'square'] = 'story'):
+        # The owner's moodboard as a picture to post (story 9:16 for Instagram / TikTok, square for X). Needs the
+        # profile id, which only the owner's browser has; share-link viewers never get it.
+        profile = built_profile(ident)
+        images = taste.images(ident)
+        key = (ident, profile.version, fingerprint(profile, images), format)
+        if key not in share_images:
+            if len(share_images) > 32:
+                share_images.clear()
+            share_images[key] = render_share(profile, images, lambda image: px.load(engine.jpeg(image)), format)
+        return Response(share_images[key], media_type='image/png', headers={
+            'Content-Disposition': f'attachment; filename="niche-moodboard-{format}.png"',
+            'Cache-Control': 'private, max-age=600'})
 
     @router.get('/profiles/{ident}')
     def get(ident: str):
@@ -210,10 +231,12 @@ def create_router(settings, store: Store, budgets: Budgets | None = None, signer
         names = names[:LOOKUPS_PER_BUILD]
         if not names or len(profile.indie_shops) >= MAX_SHOPS:
             return profile
-        for shop in await shops.find_many(names):
+        found = [x for x in await shops.find_many(names) if x.domain not in have]
+        for shop in await asyncio.gather(*(brands.verify(x) for x in found)):
             if shop.domain not in have and len(profile.indie_shops) < MAX_SHOPS:
                 have.add(shop.domain)
                 profile.indie_shops.append(shop)
+        labels.index_soon(profile.indie_shops)
         profile.shop_lookups = list(dict.fromkeys(profile.shop_lookups + [n.strip().lower() for n in names]))[-100:]
         return await engine.save(profile)
 
@@ -224,13 +247,38 @@ def create_router(settings, store: Store, budgets: Budgets | None = None, signer
             raise HTTPException(422, f'You can add up to {MAX_SHOPS} shops; remove one first')
         shop = await shops.find(body.shop, any_platform=web.enabled)
         if not shop:
-            raise HTTPException(422, "Couldn't find an online shop Niche can read for that. Try pasting the brand's "
-                                     "website" + ("." if web.enabled else
-                                     " (Niche can read shops built on Shopify, which most small labels use)."))
+            # Not a store Niche can read directly (most big brands): keep it as a favorite brand instead, which
+            # ranking favors and searches can name.
+            name = body.shop.strip()
+            if '/' in name or '.' in name:
+                name = domain_of(name).split('.')[0].replace('-', ' ').title() or name
+            known = {x.lower() for x in profile.onboarding.favorite_brands}
+            if name.lower() not in known and len(profile.onboarding.favorite_brands) < 30:
+                profile.onboarding.favorite_brands.append(name[:60])
+                profile = await engine.save(profile)
+            return view(profile)
         if all(x.domain != shop.domain for x in profile.indie_shops):
-            profile.indie_shops.append(shop)
+            profile.indie_shops.append(await brands.verify(shop))
             profile = await engine.save(profile)
+            labels.index_soon([shop])  # its catalog into Moss, for instant recall in the assistant
         return view(profile)
+
+    discovered = {}  # (profile id, version, its shops) -> suggestions, so reopening the page doesn't ask again
+
+    @router.get('/profiles/{ident}/brands/suggestions')
+    async def brand_suggestions(ident: str):
+        # Independent labels close to this taste; only ones that pass every check in taste/brands.py are listed.
+        profile = built_profile(ident)
+        key = (profile.id, profile.version, tuple(sorted(x.domain for x in profile.indie_shops)))
+        if key not in discovered:
+            if settings.taste_mode == 'live':
+                found = await brands.discover(engine.model, profile, profile.id)
+            else:  # no Claude: Niche's own seed list of labels, checked the same way
+                have = {x.domain for x in profile.indie_shops}
+                found = await brands.verified_only([(x['domain'], "From Niche's list of independent labels")
+                                                    for x in INDIE_SHOPS[:brands.SUGGESTIONS]], have)
+            discovered[key] = [{'shop': shop.model_dump(mode='json'), 'reason': reason} for shop, reason in found]
+        return {'suggestions': discovered[key]}
 
     @router.delete('/profiles/{ident}/shops/{domain}')
     async def remove_shop(ident: str, domain: str):
@@ -284,6 +332,7 @@ def create_router(settings, store: Store, budgets: Budgets | None = None, signer
 
     agent = ShopAgent(settings, engine.model)
     finds = Finds(settings, store)  # earlier finds in Moss, for "the green one from before"
+    labels = Labels(settings, store)  # the shopper's saved independent labels' catalogs in Moss
 
     def on_screen(ident, search_id):
         # Loaded server-side (not sent by the browser), and only for this profile's own searches.
@@ -362,15 +411,21 @@ def create_router(settings, store: Store, budgets: Budgets | None = None, signer
         results = on_screen(ident, chat.search_id)
         if results is not None:
             finds.remember_soon(ident, chat.search_id)  # what's on screen now becomes an earlier find
-        earlier = await finds.recall(ident, chat.messages[-1].text, skip_search=chat.search_id)
+        earlier, mine = await asyncio.gather(
+            finds.recall(ident, chat.messages[-1].text, skip_search=chat.search_id),
+            labels.recall_labels(profile.indie_shops, chat.messages[-1].text, profile.onboarding.budget_max))
+        labels.index_soon(profile.indie_shops)  # catalogs not read in the last day are refreshed in the background
         turn = await agent.respond(profile, chat.messages, steer, results, linked,
-                                   **({'earlier': find_cards(earlier)} if earlier else {}))
+                                   **({'earlier': find_cards(earlier)} if earlier else {}),
+                                   **({'labels': label_cards(mine)} if mine else {}))
         out = {'reply': turn.reply, 'action': turn.action, 'brief': turn.brief,
                'budget': budget.model_dump() if budget else None}
         by_ref = {f'E{n}': x for n, x in enumerate(earlier, start=1)}
+        by_ref.update({f'L{n}': {**x, 'source': 'indie'} for n, x in enumerate(mine, start=1)})
         if recalled := [by_ref[r] for r in dict.fromkeys(turn.recall) if r in by_ref][:5]:
             out['recalled'] = [{'title': x['title'], 'url': x['url'], 'price': x['price'], 'currency': x['currency'],
-                                'store': x.get('retailer') or x.get('seller') or x['source']} for x in recalled]
+                                'store': x.get('store') or x.get('retailer') or x.get('seller') or x['source']}
+                               for x in recalled]
         if linked:
             out['linked'] = [{'url': x.url, 'site': x.site, 'title': x.title, 'readable': x.readable} for x in linked]
         return plan(profile, turn, chat, out, budget, steer)

@@ -15,40 +15,29 @@ import json
 import re
 from urllib.parse import quote_plus, urlsplit, urlunsplit
 import httpx
-from actors.niche_actors import retailers
+from actors.niche_actors import indie
+from actors.niche_actors.labels import host, independent  # shared with the independent-labels actor
 from .models import Listing
 from .store import now
 
 API = 'https://api.brightdata.com/'
 MAX_PAGES = 12
+PAGE_SECONDS = 45  # a slow page is skipped, so the source finishes within about two minutes
 AT_ONCE = 6
-# Not independent labels: marketplaces, big retailers' own domains, social sites and press. Retailer-bank names are
-# checked too (retailers.py), so nordstrom.com or zara.com never count as small shops.
-NOT_INDIE = re.compile(r'(^|\.)(amazon|ebay|etsy|depop|poshmark|grailed|vinted|mercari|therealreal|vestiairecollective|'
-    r'shein|temu|aliexpress|alibaba|walmart|target|asos|revolve|farfetch|ssense|net-a-porter|mytheresa|shopbop|'
-    r'nordstrom|nordstromrack|saksfifthavenue|neimanmarcus|bloomingdales|macys|zara|hm|uniqlo|urbanoutfitters|'
-    r'anthropologie|freepeople|abercrombie|lulus|princesspolly|fashionnova|boohoo|prettylittlething|lyst|shopstyle|'
-    r'pinterest|instagram|facebook|tiktok|youtube|reddit|twitter|x|wikipedia|vogue|elle|harpersbazaar|whowhatwear|'
-    r'refinery29|cosmopolitan|nytimes|buzzfeed|google|shopmy|ltk|liketoknow|substack|medium|tumblr)\.[a-z.]+$')
+# Kept out of the Google searches themselves, so their results leave room for labels' own sites.
+EXCLUDE = ''.join(f' -site:{d}' for d in ('amazon.com', 'etsy.com', 'ebay.com', 'pinterest.com', 'instagram.com',
+                                           'facebook.com', 'youtube.com', 'nordstrom.com'))
+# Articles and guides, not shop pages.
+ARTICLE = re.compile(r'/(blogs?|features?|articles?|tag|news|journal|stories|guides?|board|editorial)/', re.I)
+SHOPIFY = re.compile(r'cdn\.shopify\.com|/cdn/shop/|Shopify\.theme')
+# Links that look like a single product on the common shop platforms (Shopify, Wix, WooCommerce, Squarespace...).
+PRODUCT_LINK = re.compile(r'href=["\']((?:https://[^"\'/]+)?/(?:products|product|product-page|shop/p|p)/[^"\'#?]+)["\']', re.I)
 PRODUCT_TYPES = {'product', 'productgroup', 'individualproduct'}
-
-
-def host(url):
-    h = (urlsplit(url).hostname or '').lower()
-    return h[4:] if h.startswith('www.') else h
-
-
-def independent(url):
-    h = host(url)
-    if not h or NOT_INDIE.search(h):
-        return False
-    stem = retailers.key(h.rsplit('.', 1)[0].replace('shop', '').replace('store', ''))
-    return stem not in retailers.INDEX
 
 
 def queries_for(query, shops=()):
     """Google searches: the request among small labels, plus each of the shopper's own non-Shopify shops."""
-    found = [f'{query} independent designer label', f'{query} small brand handmade']
+    found = [f'{query} independent designer label{EXCLUDE}', f'{query} "slow fashion" brand shop{EXCLUDE}']
     return found + [f'site:{s.domain} {query}' for s in shops][:6]
 
 
@@ -172,9 +161,40 @@ class WebShops:
 
     async def serp(self, http, query):
         url = f'https://www.google.com/search?q={quote_plus(query)}&num=20&hl=en&gl=us&brd_json=1'
-        response = await http.post('request', json={'zone': self.serp_zone, 'url': url, 'format': 'raw'})
+        for attempt in range(2):  # Bright Data answers an occasional 502; one retry is usually enough
+            response = await http.post('request', json={'zone': self.serp_zone, 'url': url, 'format': 'raw'})
+            if response.status_code < 500 or attempt:
+                break
         response.raise_for_status()
         return [r for r in response.json().get('organic') or [] if isinstance(r, dict) and r.get('link')]
+
+    async def read(self, http, url, query):
+        """Products behind a search result: the page's own product data; for a Shopify store's collection page, its
+        catalog's best matches; otherwise up to two product pages it links to on the same site."""
+        page = await self.unlock(http, url)
+        found = products(page, url)
+        if found:
+            return found
+        site = host(url)
+        if SHOPIFY.search(page):
+            try:
+                catalog = json.loads(await self.unlock(http, f'https://{site}/products.json?limit=250')).get('products') or []
+            except ValueError:
+                catalog = []
+            ranked = sorted(((indie.score(query, p), p) for p in catalog if isinstance(p, dict)), key=lambda x: -x[0])
+            rows = [indie.listing(p, {'domain': site, 'name': site}) for points, p in ranked[:3] if points > 0]
+            return [{'title': r['title'], 'url': r['url'], 'price': r['price'], 'currency': r['currency'],
+                     'available': r['available'], 'image_urls': r['image_urls'], 'brand': r['brand'],
+                     'description': r['description']} for r in rows if r and r['url'] and r['price'] is not None]
+        links = list(dict.fromkeys(u for u in PRODUCT_LINK.findall(page) if host(u if '://' in u else f'https://{site}{u}') == site))
+        out = []
+        for link in links[:2]:
+            link = link if '://' in link else f'https://{site}{link}'
+            try:
+                out += products(await self.unlock(http, link), link)
+            except (httpx.HTTPError, ValueError):
+                continue
+        return out
 
     async def unlock(self, http, url):
         response = await http.post('request', json={'zone': self.unlocker_zone, 'url': url, 'format': 'raw'})
@@ -195,7 +215,8 @@ class WebShops:
             pages, per_site = [], {}
             for row in (x for r in results if not isinstance(r, BaseException) for x in r):
                 url, site = row['link'], host(row['link'])
-                if not url.startswith('https://') or url in pages or not (site in names or independent(url)):
+                if not url.startswith('https://') or url in pages or not (site in names or independent(url)) \
+                        or ARTICLE.search(urlsplit(url).path):
                     continue
                 if per_site.get(site, 0) >= 3:
                     continue
@@ -206,8 +227,8 @@ class WebShops:
             async def read(url):
                 async with slots:
                     try:
-                        return url, products(await self.unlock(http, url), url)
-                    except (httpx.HTTPError, ValueError):
+                        return url, await asyncio.wait_for(self.read(http, url, queries[0]), PAGE_SECONDS)
+                    except (httpx.HTTPError, ValueError, TimeoutError):
                         return url, None
             read_pages = await asyncio.gather(*(read(u) for u in pages[:MAX_PAGES]))
         provenance = {'provider': 'brightdata', 'serp_zone': self.serp_zone}

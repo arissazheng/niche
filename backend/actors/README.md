@@ -1,11 +1,12 @@
 # Niche Apify actors
 
-Three private actors on the team Apify account. The backend runs all three for every search, merges the rows, and Claude ranks them as one list (`backend/sourcing`).
+Three private actors on the team Apify account, plus `independent-labels`, a standalone actor meant for the Apify Store. The backend runs the first three for every search, merges the rows, and Claude ranks them as one list (`backend/sourcing`).
 
 | Actor | Searches | Labels |
 |---|---|---|
 | `niche-mainstream` | Google Shopping (`burbn/google-shopping-scraper`), kept only for stores in the retailer bank | store name + type, e.g. `Nordstrom · Department store` |
 | `niche-secondhand` | Depop (`abotapi/depop-scraper`), Poshmark (`piotrv1001/poshmark-listings-scraper`), Vinted (`epicscrapers/vinted-search-scraper`), Etsy (`one_dollar_store/etsy-listings-scraper`); Grailed opt-in | `Depop · Secondhand`, `Etsy · Small shop` |
+| `independent-labels` | Standalone: brand names or websites in; each label's Shopify store found, verified (real store, independent, own label, small, established) and its in-stock products out. Shares its resolution and checks with the backend (`taste/shops.py`, `taste/brands.py`). Store page: `labels/README.md` | `Batul The Collection · verified` |
 | `niche-indie` | Independent labels' own Shopify stores, read directly from each store's public `/products.json` (no third-party scrapers); seed list in `indie_shops.py`, plus the shopper's own shops (below) | `Christy Dawn · Small shop` |
 
 All three drop sold items, promoted/sponsored listings, items over `maxPrice` and duplicates. Every row has the same fields as the backend `Listing` (`id, marketplace, retailer, tier, title, url, price, currency, image_urls, sizes, condition, brand, seller, ...`).
@@ -36,7 +37,7 @@ cd .. && .venv/bin/pytest -q                                                  # 
 - Typical search: mainstream ~10 s, secondhand ~50 s (Etsy is the slow one).
 - Costs per result on the free plan: Google Shopping **$0.02** ($0.005 on paid plans), Depop ~$0.006, Vinted ~$0.002, Poshmark and Etsy ~$0.001, plus a small start fee per run. Google Shopping returns at least 10 results per phrase, so the backend sends mainstream one phrase × 10 results by default (`MAINSTREAM_QUERIES`, `MAINSTREAM_ITEMS_PER_QUERY`): about $0.23 for mainstream plus ~$0.10 for secondhand per search.
 - Mainstream links open Google Shopping's page for the product (which lists the stores selling it), not the store's own product page.
-- niche-indie: ~15 s for 35 shops, no per-result cost (only the run's compute). Shopify's edge throttles one IP that
+- niche-indie: ~15 s for 38 shops, no per-result cost (only the run's compute). Shopify's edge throttles one IP that
   reads many stores quickly (429, `retry-after: 60`), so it reads 4 shops at a time and waits once on a 429; Apify Proxy
   is tried first if the plan allows it. Catalogs have no search endpoint, so matching happens in the actor: a phrase
   that names an item type (dress, jacket...) only matches that type, a colour alone never matches, and one shop can
