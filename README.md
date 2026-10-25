@@ -108,10 +108,14 @@ thrift shops) and the Berkeley students who buy from them:** people who dress in
 siren, grunge) and shop secondhand and from Instagram-native labels on a student budget. Not "students" or "shoppers":
 a specific set of buyers, and the long tail of sellers they want to find.
 
-**2. A real problem.** **We lived it, and it's getting worse as shopping moves to AI agents.** Agentic search tends to
-surface whoever has a partnership or the biggest catalog (retailers are already striking deals with AI companies, like
-Target with OpenAI), so a wide range of clothing sellers is left behind no matter how well their pieces fit the
-shopper. Arissa shops exactly this way, and this weekend we tested the AI-and-search route she'd otherwise use:
+**2. A real problem.** **We lived it: agentic search doesn't fit the shopper, and it leaves most sellers behind.**
+Real shoppers don't write paragraph-long prompts describing their exact style, size and budget. They type a few words
+("a cute top for a date"). With so little to go on, agentic search falls back on what it's financially incentivised to
+show: partner brands (retailers are already striking deals with AI companies, like Target with OpenAI) and the biggest,
+most keyword-stuffed catalogs. The shopper gets things they wouldn't actually buy, and the wide range of clothing
+sellers whose pieces would have fit never appears. Niche fixes the input side too: your photos and taste profile say
+what a paragraph-long prompt would, so a short request is enough. Arissa shops exactly this way, and this weekend we
+tested the AI-and-search route she'd otherwise use:
 - "Korean y2k grommet belts, like Lewkin" returned none of Lewkin's own pieces, but six copies of one belt from look-alike Depop accounts.
 - "Size S" returned Depop listings in L.
 - "An asymmetrical buttoned top" returned black corsets that only matched on colour.
