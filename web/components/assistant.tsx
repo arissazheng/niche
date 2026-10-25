@@ -157,7 +157,7 @@ export function AssistantProvider({ children }: { children: React.ReactNode }) {
       if (modeRef.current !== "voice" || !mic.current) return Promise.resolve();
       queued.current++;
       mic.current.pause();
-      const audio = api.speak(text); // start fetching now, play in turn
+      const audio = api.speak(text, voiceRef.current); // start fetching now, play in turn
       speaking.current = speaking.current.then(async () => {
         try {
           const bytes = await audio;
@@ -252,7 +252,7 @@ export function AssistantProvider({ children }: { children: React.ReactNode }) {
     const fallback = pick(fresh.length ? fresh : fallbacks);
     const heard = turnsRef.current.findLast((t) => t.role === "user")?.text ?? "";
     try {
-      return (await api.line({ page: top()?.id ?? "shop", heard, facts, fallback, recent })).text;
+      return (await api.line({ page: top()?.id ?? "shop", heard, facts, fallback, recent, profile_id: getProfileId() })).text;
     } catch {
       return fallback;
     }
@@ -337,6 +337,38 @@ export function AssistantProvider({ children }: { children: React.ReactNode }) {
 
   const interrupt = useCallback(() => mic.current?.hush(), []);
   const level = useCallback(() => mic.current?.level() ?? 0, []);
+
+  // The shopper's pick of voice, kept in this browser. Picking one plays a short hello in it.
+  const [voice, setVoiceState] = useState<string | null>(null);
+  const voiceRef = useRef<string | null>(null);
+  useEffect(() => {
+    try {
+      voiceRef.current = localStorage.getItem("niche-voice");
+      setVoiceState(voiceRef.current);
+    } catch {
+      // storage blocked: the server's default voice
+    }
+  }, []);
+  const setVoice = useCallback(
+    (key: string, name: string) => {
+      voiceRef.current = key;
+      setVoiceState(key);
+      try {
+        localStorage.setItem("niche-voice", key);
+      } catch {
+        // storage blocked: this visit only
+      }
+      const hello = pick([`Hey, it's ${name}! Better?`, `Hi, ${name} here. How's this?`, `It's ${name} now. Sound good?`]);
+      if (modeRef.current === "voice" && mic.current) {
+        mic.current.hush();
+        speak(hello);
+      } else {
+        // Not in a conversation: play the sample straight away (this runs from the click that picked it).
+        api.speak(hello, key).then((bytes) => new Audio(URL.createObjectURL(new Blob([bytes], { type: "audio/mpeg" }))).play(), () => {});
+      }
+    },
+    [speak],
+  );
 
   const register = useCallback((skill: Skill) => {
     skillsRef.current = [...skillsRef.current.filter((s) => s.id !== skill.id), skill];
@@ -435,6 +467,8 @@ export function AssistantProvider({ children }: { children: React.ReactNode }) {
     phase,
     error,
     nudge,
+    voice,
+    setVoice,
     dismissNudge: () => setNudge(null),
     skill: current ?? SHOP_SKILL,
     start,
@@ -612,7 +646,10 @@ export function AssistantDock() {
           className="pointer-events-auto w-full max-w-2xl border border-ink bg-paper shadow-[0_10px_32px_rgba(0,0,0,.16)] grid"
         >
           <div className="px-5 pt-5 pb-3 grid gap-2">
-            <p className="label">Niche</p>
+            <div className="flex items-baseline justify-between">
+              <p className="label">Niche</p>
+              <VoicePicker />
+            </div>
             <h2 className="text-display">What are you shopping for?</h2>
             <p className="text-sm text-muted">
               Say it out loud or type it, like you would to a friend. Niche searches big stores, small shops and secondhand
@@ -663,7 +700,9 @@ export function AssistantDock() {
         className="assistant-sidebar fixed z-[800] inset-x-0 bottom-0 max-h-[45dvh] lg:left-auto lg:right-0 lg:top-[var(--site-header-height,56px)] lg:bottom-0 lg:max-h-none lg:w-[320px] border-t lg:border-t-0 lg:border-l border-ink bg-paper flex flex-col"
       >
         <div className="rule-b flex items-baseline justify-between px-4 py-2">
-          <span className="text-sm font-medium">Niche</span>
+          <span className="text-sm font-medium">
+            Niche <VoicePicker down />
+          </span>
           <button type="button" onClick={a.shop.reset} className="label underline">New search</button>
         </div>
         {transcript}
@@ -719,6 +758,9 @@ export function AssistantDock() {
           <button type="button" onClick={() => start("text")} className="label border-l border-ink px-3" title="Or press space twice">
             Type
           </button>
+          <span className="border-l border-ink px-3 grid place-items-center">
+            <VoicePicker />
+          </span>
         </div>
       </div>
     );
@@ -736,6 +778,7 @@ export function AssistantDock() {
         <div className="flex items-center gap-3 px-3 py-2">
           {mode === "voice" ? voiceBar : textBox}
           <div className="flex items-center gap-3 shrink-0">
+            <VoicePicker />
             <button type="button" onClick={() => start(mode === "voice" ? "text" : "voice")} className="label underline py-1.5">
               {mode === "voice" ? "Type" : "Talk"}
             </button>
@@ -764,6 +807,51 @@ const STATUS: Record<Phase, string> = {
   thinking: "Thinking…",
   speaking: "Speaking · tap the circle to cut in",
 };
+
+const VOICES = ["Sierra", "Michelle", "Jacqueline", "Corey", "Cooper", "Ronald"].map((name) => ({ key: name.toLowerCase(), name }));
+
+/** Who Niche sounds like. Picking a voice plays a short hello in it. */
+function VoicePicker({ down = false }: { down?: boolean }) {
+  const { voice, setVoice } = useAssistant();
+  const [open, setOpen] = useState(false);
+  const [voices, setVoices] = useState(VOICES);
+  useEffect(() => {
+    api.voices().then(setVoices, () => {});
+  }, []);
+  const current = voices.find((v) => v.key === voice) ?? voices[0];
+  return (
+    <span className="relative inline-block">
+      <button type="button" onClick={() => setOpen((o) => !o)} className="label underline py-1.5" aria-expanded={open} aria-haspopup="listbox">
+        Voice: {current?.name}
+      </button>
+      {open && (
+        <ul
+          role="listbox"
+          aria-label="Niche's voice"
+          className={`absolute ${down ? "left-0 top-full mt-2" : "right-0 bottom-full mb-2"} z-10 w-40 border border-ink bg-paper shadow-[0_6px_18px_rgba(0,0,0,.14)] py-1`}
+        >
+          {voices.map((v) => (
+            <li key={v.key}>
+              <button
+                type="button"
+                role="option"
+                aria-selected={v.key === current?.key}
+                onClick={() => {
+                  setVoice(v.key, v.name);
+                  setOpen(false);
+                }}
+                className={`w-full text-left text-sm px-3 py-1.5 hover:bg-plinth ${v.key === current?.key ? "font-medium" : ""}`}
+              >
+                {v.key === current?.key ? "\u2713 " : ""}
+                {v.name}
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </span>
+  );
+}
 
 /** A black circle that swells with the mic level while listening and breathes while the assistant talks. */
 function Orb({ phase, level }: { phase: Phase; level: () => number }) {

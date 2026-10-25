@@ -134,3 +134,14 @@ def test_line_uses_fallback_without_claude_and_claude_when_live(tmp_path, monkey
     with make_client(tmp_path, taste_mode='live', anthropic_api_key='sk-test') as client:
         assert client.post('/v1/voice/line', json=body).json() == {'text': 'Cool, want me to build your profile now?'}
     assert seen[0]['user_said'] == 'no' and seen[0]['your_recent_lines'] == ['Love it, noted!']
+
+
+def test_speak_uses_the_picked_voice_and_lists_the_choices(tmp_path, monkeypatch):
+    seen = []
+    monkeypatch.setattr(voice, 'transport', httpx.MockTransport(lambda r: seen.append(r) or httpx.Response(200, content=b'mp3')))
+    with make_client(tmp_path, cartesia_api_key='sk_test') as client:
+        names = [v['name'] for v in client.get('/v1/voice/voices').json()]
+        assert client.post('/v1/voice/speak', json={'text': 'hi', 'voice': 'ronald'}).status_code == 200
+        assert client.post('/v1/voice/speak', json={'text': 'hi', 'voice': 'somebody'}).status_code == 422
+    assert names == ['Sierra', 'Michelle', 'Jacqueline', 'Corey', 'Cooper', 'Ronald']
+    assert json.loads(seen[0].content)['voice']['id'] == voice.VOICES['ronald']

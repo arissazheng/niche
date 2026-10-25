@@ -111,11 +111,11 @@ export const api = {
     return request<{ text: string }>("/v1/voice/transcribe", { method: "POST", body: form });
   },
   /** The assistant's reply as speech (MP3). */
-  speak: async (text: string) => {
+  speak: async (text: string, voice?: string | null) => {
     const response = await fetch(`${API_URL}/v1/voice/speak`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: json({ text: text.slice(0, 1500) }),
+      body: json({ text: text.slice(0, 1500), ...(voice && { voice }) }),
     });
     if (!response.ok) {
       const detail = await response.json().catch(() => null);
@@ -124,7 +124,8 @@ export const api = {
     return response.arrayBuffer();
   },
   /** The assistant's next line in its own words (falls back to `fallback` without Claude). */
-  line: (body: { page: string; heard: string; facts: string; fallback: string; recent: string[] }) =>
+  voices: () => request<{ key: string; name: string }[]>("/v1/voice/voices"),
+  line: (body: { page: string; heard: string; facts: string; fallback: string; recent: string[]; profile_id?: string | null }) =>
     request<{ text: string }>("/v1/voice/line", { method: "POST", body: json(body) }),
   voiceStatus: () => request<{ enabled: boolean; provider: string }>("/v1/voice/status"),
   /** Onboarding answers spoken out loud → only the form fields the user mentioned. */

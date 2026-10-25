@@ -63,6 +63,9 @@ export interface Assistant {
   /** Cuts the assistant off mid-sentence and listens. */
   interrupt(): void;
   level(): number;
+  /** The picked voice (a key from GET /v1/voice/voices), or null for the default. */
+  voice: string | null;
+  setVoice(key: string, name: string): void;
   register(skill: Skill): () => void;
   shop: ShopState;
 }
