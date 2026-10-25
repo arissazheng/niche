@@ -277,8 +277,14 @@ the "good price / about market / above market" band is computed from their price
 explanation.
 
 
+## Best Use of Vultr
+
+| Criterion | How Niche meets it |
+|---|---|
+| **Bring a high-performance project to life instantly** | The live product at [shopniche.fashion](https://shopniche.fashion) runs on a Vultr cloud server (Ubuntu, Los Angeles): the Next.js site and the FastAPI backend behind Caddy with automatic HTTPS, in live mode with every integration running. Judges can use the real thing, not a recording. |
+| **Instant deploys** | The server redeploys `main` by itself within a few minutes of each merge (`deploy/autodeploy.sh` on a systemd timer); `deploy/deploy.sh` sends a new `backend/.env` and redeploys immediately. Service files for the API, web app and auto-deploy timer are in `deploy/`. |
+
 ## Not integrated (no code in this repo)
 
 - **Factory Droid SDK:** Droid is not used in the running product.
-- **Vultr:** Niche isn't hosted on Vultr.
 - **Elastic:** an Elasticsearch listing index was planned, but listing history is in Snowflake and recall in Moss; there is no Elastic code.
