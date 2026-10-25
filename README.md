@@ -101,13 +101,37 @@ For each track: the judging criteria, how Niche addresses each one, then the det
 
 ### Anthropic: Claude
 
-| Criterion | How Niche meets it |
-|---|---|
-| **1. A named community** — "Students" is too broad | Berkeley students who dress in a specific aesthetic (y2k, office siren, grunge, quiet luxury) and buy mostly secondhand on Depop, Poshmark and Vinted and from small independent labels, on a student budget, in sizes that are hard to filter for. We are this community: this is how Arissa shops. |
-| **2. A real problem** — you have lived it | We hit it testing this weekend. Asking for "Korean y2k grommet belts, like Lewkin" returned none of Lewkin's own pieces and six copies of one belt from look-alike Depop accounts. "Size S" returned Depop listings in L. "An asymmetrical buttoned top" returned black corsets that only shared a colour with our taste. Mainstream results were dominated by keyword-stuffed fast fashion (Fashion Nova, Shein) while the brands we actually buy from barely appeared. That's the bigger problem: not every business is fairly represented in search, and agentic shopping makes it worse, because agents inherit whatever their search engine promotes (paid placements and huge keyword-stuffed catalogs) while small and secondhand sellers never reach the shopper. |
-| **3. It works** — one thing done well, usable on Monday | The one thing: **from your own outfit photos to a short list of real, buyable pieces in your size and budget, each with the reason it fits.** It runs today against live listings (Apify, Bright Data) with real Claude ranking; nothing in the demo is mocked. Everything else (voice, sharing, market check) supports that flow. |
-| **4. Thoughtful use of Claude** — it matters to the solution | Without Claude there is no product: it is what turns photos into a taste profile, a request into search phrases, and a page of scraped listings into a ranked shortlist by actually looking at each photo. Keyword search is what produced the bad results above. Claude judges every listing on what the shopper wants (their taste, the request, their size) instead of on how the search engine ordered it, so the best match for the user is returned, not just what a particular engine promotes. |
-| **4. …and you know where it could go wrong for the people using it** | Wrong size → hard size filter per category, title size checks, "Size unverified" caveats. Misread colour → palette measured from pixels, skin excluded. Taste over-applied → no single trait fills more than 40% of a page. Request ignored for taste → request features must be visibly present or the item scores below 40 and is dropped. Invented listings or prices → ids checked against scraped data, prices from the server. Scams Claude can't see → rule-based "Before you buy" warnings. Privacy → consent before photos go to Claude; no name, email, age or ZIP sent. Refusals or outages → refusal fallback and a labelled keyword-ranking fallback. Full table below. |
+**1. A named community.** **Berkeley students who dress in a specific personal aesthetic (y2k, office siren, grunge)
+and buy it secondhand on Depop, Poshmark and Vinted or from small Instagram-native labels, on a student budget.** Not
+"students" or "shoppers": people whose style is specific, whose budget is tight, and whose favourite sellers are small.
+
+**2. A real problem.** **We lived it.** Arissa shops exactly this way, and this weekend we tested the AI-and-search
+route she'd otherwise use:
+- "Korean y2k grommet belts, like Lewkin" returned none of Lewkin's own pieces, but six copies of one belt from look-alike Depop accounts.
+- "Size S" returned Depop listings in L.
+- "An asymmetrical buttoned top" returned black corsets that only matched on colour.
+- Store results were mostly keyword-stuffed fast fashion (Fashion Nova, Shein); the brands she buys from barely appeared.
+
+The root cause: not every business is fairly represented in search, and agentic shopping inherits it. Agents return
+what their search engine promotes, so small and secondhand sellers never reach the shopper who'd want them.
+
+**3. It works.** **One thing done well: your own outfit photos in, a short list of real, buyable pieces out, in your
+size and budget, each with the reason it fits.** It runs today against live listings with real Claude ranking (nothing
+mocked), and you can buy from the result on the seller's own site. Voice, sharing and the price check all serve that
+one flow.
+
+**4. Thoughtful use of Claude.** **What it does that matters:** Claude is the part that understands taste. It turns
+photos into a taste profile, a request into search phrases, and a pile of scraped listings into a ranked shortlist by
+looking at each photo, judging every listing on what the shopper wants rather than how a search engine ordered it.
+
+**Where it could go wrong for these shoppers, and what we do about it:**
+- *Wrong size*: hard size filter per category, size checks in titles, "Size unverified" caveat when unknown.
+- *Misreads a colour*: colours are measured from pixels (skin and background excluded), not taken from Claude.
+- *Over-applies the taste profile*: no single trait fills more than 40% of a page; the request's features must be visible or the item is dropped.
+- *Invents a listing or price*: ranked ids are checked against scraped listings; prices come from the server.
+- *Can't spot a scam*: rule-based "Before you buy" warnings (off-platform payment, too-cheap, poorly reviewed or duplicated sellers).
+- *Sees more than it should*: consent before any photo goes to Claude; name, email, age and ZIP are never sent.
+- *Refuses or is down*: server-side refusal fallback, and a labelled keyword-ranking fallback.
 
 **In detail.** Claude does the core work. It reads lookbook photos (garments, colours, silhouettes, visible designers), clusters them
 into an editable taste profile, applies edits said out loud or typed ("less minimal, more vintage"), plans search
