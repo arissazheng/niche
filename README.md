@@ -373,7 +373,7 @@ explanation.
 
 - **Factory Droid SDK:** Droid is not used in the running product.
 - **Vultr:** Niche runs locally and isn't deployed on Vultr.
-- **Elastic:** an Elasticsearch listing index was planned (`docs/CHANGE_LIST.md`), but listing history is in Snowflake and recall in Moss; there is no Elastic code.
+- **Elastic:** an Elasticsearch listing index was planned, but listing history is in Snowflake and recall in Moss; there is no Elastic code.
 
 ---
 
