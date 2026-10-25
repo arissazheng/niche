@@ -1,10 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { SectionTitle } from "@/components/chrome";
 import { api } from "@/lib/api";
-import { SHOPPING, useAssistant, useAssistantSkill } from "@/lib/assistant";
+import { SHOPPING, isNo, isYes, useAssistant, useAssistantSkill } from "@/lib/assistant";
 import type { ProfileView } from "@/lib/types";
 
 export type Change = (task: () => Promise<ProfileView>) => Promise<string | null>;
@@ -36,8 +36,10 @@ export function ProfilePanel({ view, onChange }: { view: ProfileView; onChange: 
     return update(() => api.edit(profile.id, text, source), "Updating your profile…", `Updated: “${text}”`);
   }
 
-  // Talking about the taste profile edits it; shopping requests go on to the shopping agent.
+  // Talking about the taste profile edits it; shopping requests go on to the shopping agent. "No" means different
+  // things after "Did I get you right?" (it's off) and after "Anything else?" (all done), so remember which was asked.
   const assistant = useAssistant();
+  const asked = useRef<"confirm" | "more">("confirm");
   useAssistantSkill(
     profile.version === 0
       ? null
@@ -48,8 +50,20 @@ export function ProfilePanel({ view, onChange }: { view: ProfileView; onChange: 
           placeholder: "Less minimal, more vintage",
           async handle(text) {
             if (SHOPPING.test(text)) return null;
-            if (/^\s*(yes|yeah|yep|spot on|perfect|exactly|that'?s (right|me|it)|you got it|love it)\b/i.test(text)) {
-              return "Yay! Then let's go shopping. What are you looking for?";
+            const happy = /^\s*(spot on|perfect|exactly|that'?s (right|me)|you got it|love it)\b/i.test(text);
+            if (happy || isYes(text) || (isNo(text) && asked.current === "more")) {
+              asked.current = "more";
+              return assistant.phrase(
+                "They're happy with their taste profile as it is. Suggest going shopping and ask what they're looking for.",
+                ["Yay! Then let's go shopping. What are you in the mood for?", "Perfect. Want to go find something? Tell me what you're after.",
+                 "Love that. So, what are we shopping for?"],
+              );
+            }
+            if (isNo(text)) {
+              return assistant.phrase(
+                "They said the read-back of their taste doesn't feel right. Ask what feels off, warmly.",
+                ["Oh no, what feels off? Tell me and I'll fix it.", "Okay, what did I miss? Colors, shapes, the overall vibe?"],
+              );
             }
             setWorking("Updating your profile…");
             setStatus(null);
@@ -58,7 +72,12 @@ export function ProfilePanel({ view, onChange }: { view: ProfileView; onChange: 
             setStatus(error ? `Couldn't update: ${error}` : `Updated: “${text}”`);
             if (error) return `Hmm, I couldn't update that: ${error}`;
             setFlash(true);
-            return "Done, I updated your profile. Anything else feel off?";
+            asked.current = "more";
+            return assistant.phrase(
+              `Updated their taste profile from what they said: "${text}". Briefly say what changed in plain words, then ask if anything else feels off.`,
+              ["Done, that's in your profile now. Anything else feel off?", "Updated! Does the rest feel like you?",
+               "Got it, I changed that. Anything else you'd tweak?"],
+            );
           },
         },
   );
@@ -153,14 +172,12 @@ function readBack(profile: ProfileView["profile"]) {
     items.length > 1 ? `${items.slice(0, -1).join(", ")} and ${items.at(-1)}` : (items[0] ?? "");
   const vibe = list(profile.aesthetics.slice(0, 2).map((x) => x.toLowerCase()));
   const colors = list(profile.colors.filter((x) => !x.startsWith("#")).slice(0, 3).map((x) => x.toLowerCase()));
-  const shapes = list(profile.silhouettes.slice(0, 2).map((x) => x.toLowerCase()));
   const parts = [
     "Okay, so here's what I got from you.",
     vibe && `You're into ${vibe}`,
     colors && `${vibe ? "with" : "You love"} lots of ${colors}`,
-    shapes && `and you gravitate to ${shapes}.`,
   ].filter(Boolean);
   if (parts.length === 1 && profile.summary) parts.push(profile.summary.split(/(?<=\.)\s/)[0]);
-  const said = parts.join(" ").replace(/(\w)( and you)/, "$1,$2");
+  const said = parts.join(" ");
   return `${said}${said.endsWith(".") ? "" : "."} Did I get you right? Tell me anything that feels off.`;
 }

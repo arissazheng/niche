@@ -55,7 +55,7 @@ class Settings(BaseSettings):
         'NICHE_CARTESIA_API_KEY', 'CARTESIA_API_KEY', 'cartesia_api_key'))
     cartesia_base_url: str = 'https://api.cartesia.ai'
     cartesia_stt_model: str = 'ink-whisper'
-    cartesia_tts_model: str = 'sonic-2'  # measured ~0.3s to first byte vs ~0.9s for sonic-3, which matters mid-conversation
+    cartesia_tts_model: str = 'sonic-3'  # most natural-sounding; ~0.3s to first byte once warm
     cartesia_voice_id: str = 'e8e5fffb-252c-436d-b842-8879b84445b6'  # "Cathy - Coworker": casual, young adult
     # Moss semantic search over listings a shopper was already shown (taste/finds.py). Blank turns it off.
     moss_project_id: str = ''

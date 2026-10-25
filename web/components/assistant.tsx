@@ -23,7 +23,7 @@ import { getProfileId } from "@/lib/session";
 import type { Budget, ChatTurn } from "@/lib/types";
 import { canListen, openMic, type Mic } from "@/lib/voice-loop";
 
-const SHOP_SKILL = { id: "shop", label: "Shopping with you", placeholder: "Find me a vintage leather jacket under $150" };
+const SHOP_SKILL = { id: "shop", label: "Shopping with you", placeholder: "A vintage leather jacket under $150" };
 const SHOP_INTRO = "Hey, it's Niche! What are we shopping for today?";
 const STARTERS = ["Find me black knee-high boots under $120", "Find me a vintage leather jacket", "I need an outfit for a wedding"];
 const FOLLOW_UPS = ["Compare number 1 and 2", "Which is the best value?", "Which fits my style best?"];
@@ -53,6 +53,8 @@ function saveThread(profileId: string, thread: Thread) {
     // Storage blocked: the thread just won't survive a reload.
   }
 }
+
+const pick = <T,>(items: T[]) => items[Math.floor(Math.random() * items.length)];
 
 /** The shopping agent's history: its own turns, without the assistant's bookkeeping. */
 function shopTurns(turns: Turn[]): ChatTurn[] {
@@ -242,6 +244,20 @@ export function AssistantProvider({ children }: { children: React.ReactNode }) {
     [add, commit, listen, shop, speak],
   );
 
+  // A page's reply in the assistant's own words (backend /v1/voice/line), so it reacts to what was actually said and
+  // doesn't repeat itself. Falls back to one of the page's own lines.
+  const phrase = useCallback(async (facts: string, fallbacks: string[]) => {
+    const recent = turnsRef.current.filter((t) => t.role === "agent").slice(-4).map((t) => t.text);
+    const fresh = fallbacks.filter((f) => !recent.includes(f));
+    const fallback = pick(fresh.length ? fresh : fallbacks);
+    const heard = turnsRef.current.findLast((t) => t.role === "user")?.text ?? "";
+    try {
+      return (await api.line({ page: top()?.id ?? "shop", heard, facts, fallback, recent })).text;
+    } catch {
+      return fallback;
+    }
+  }, []);
+
   const say = useCallback(
     (text: string) => {
       add({ role: "agent", text, skill: top()?.id ?? "shop", aside: true });
@@ -273,7 +289,8 @@ export function AssistantProvider({ children }: { children: React.ReactNode }) {
     (skill: Skill | null) => {
       const id = skill?.id ?? "shop";
       if (introduced.current.has(id)) return false;
-      const intro = skill ? skill.intro : getProfileId() ? SHOP_INTRO : null;
+      // On Shop the page itself already asks "what are you shopping for?".
+      const intro = skill ? skill.intro : getProfileId() && pathRef.current !== "/shop" ? SHOP_INTRO : null;
       if (!intro) return false;
       introduced.current.add(id);
       say(intro);
@@ -418,6 +435,7 @@ export function AssistantProvider({ children }: { children: React.ReactNode }) {
     stop,
     send,
     say,
+    phrase,
     interrupt,
     level,
     register,
@@ -427,15 +445,22 @@ export function AssistantProvider({ children }: { children: React.ReactNode }) {
   return <AssistantContext.Provider value={assistant}>{children}</AssistantContext.Provider>;
 }
 
-/** The assistant's home on every page: a small bar at the bottom that opens into the conversation. */
+type View = "recent" | "all" | "hidden";
+type Placement = "bottom" | "hero" | "side";
+
+/** The assistant's home on every page: a small bar at the bottom that opens into the conversation. On Shop it starts
+ * in the middle of the page ("what are you shopping for?"), then moves to a sidebar beside the results. */
 export function AssistantDock() {
   const a = useAssistant();
-  const [open, setOpen] = useState(true);
+  const pathname = usePathname();
+  // "recent" keeps only the latest exchange on screen so the page stays visible; "all" shows the whole history.
+  const [view, setView] = useState<View>("recent");
   const [draft, setDraft] = useState("");
   const input = useRef<HTMLTextAreaElement>(null);
   const end = useRef<HTMLDivElement>(null);
-  const live = a.mode !== "off";
   const { start, mode } = a;
+  const placement: Placement =
+    pathname === "/shop" && a.shop.profileId ? (a.shop.searchId ? "side" : "hero") : "bottom";
 
   // Space twice (outside a text field) opens the conversation to type.
   useEffect(() => {
@@ -443,7 +468,7 @@ export function AssistantDock() {
     const onKey = (e: KeyboardEvent) => {
       if (!tapped(e)) return;
       e.preventDefault();
-      setOpen(true);
+      setView((v) => (v === "hidden" ? "recent" : v));
       if (mode !== "text") start("text");
       requestAnimationFrame(() => input.current?.focus());
     };
@@ -458,15 +483,190 @@ export function AssistantDock() {
   useEffect(() => {
     // Braces matter: newer browsers return a Promise from scrollIntoView, which React rejects as a cleanup.
     end.current?.scrollIntoView({ block: "end" });
-  }, [a.turns, a.phase, open]);
+  }, [a.turns, a.phase, view, placement]);
 
   function submit() {
     if (!draft.trim()) return;
+    if (mode === "off") start("text");
     a.send(draft);
     setDraft("");
   }
 
-  if (!live) {
+  const shopping = a.skill.id === "shop";
+  const shopTurns = a.turns.filter((t) => t.skill === "shop");
+  const last = a.turns.at(-1);
+  const pending = outstandingProposal(shopTurns);
+  const idle = a.phase === "idle" || a.phase === "listening";
+  const suggestions =
+    !shopping || !idle || !a.shop.profileId || placement === "hero"
+      ? []
+      : shopTurns.length === 0
+        ? STARTERS
+        : last?.done
+          ? FOLLOW_UPS
+          : [];
+  const everything = placement === "side" || view === "all";
+  const lastAsk = a.turns.findLastIndex((t) => t.role === "user");
+  const shown = everything ? a.turns : a.turns.slice(lastAsk < 0 ? -2 : lastAsk).slice(-4);
+  const earlier = a.turns.length - shown.length;
+
+  const transcript = (
+    <div className="overflow-y-auto px-4 pt-3 pb-2 grid gap-3 content-start min-h-0 flex-1">
+      {earlier > 0 && (
+        <button type="button" onClick={() => setView("all")} className="label underline justify-self-center">
+          Show {earlier} earlier
+        </button>
+      )}
+      {shown.map((t, i) => (
+        <Line key={earlier + i} turn={t} pending={t === pending && idle} onAccept={a.shop.accept} />
+      ))}
+      {suggestions.length > 0 && (
+        <div className="flex flex-wrap gap-2">
+          {suggestions.map((text) => (
+            <button key={text} onClick={() => a.send(text)} className="label border border-ink px-3 py-1.5 text-left">
+              {text}
+            </button>
+          ))}
+        </div>
+      )}
+      {a.error && <p className="text-sm" role="alert">{a.error}</p>}
+      <div ref={end} />
+    </div>
+  );
+
+  const textBox = (
+    <form
+      className="flex items-end gap-2 flex-1 min-w-0"
+      onSubmit={(e) => {
+        e.preventDefault();
+        submit();
+      }}
+    >
+      <textarea
+        ref={input}
+        rows={1}
+        className="flex-1 min-w-0 resize-none bg-transparent outline-none text-sm py-1.5 placeholder:text-muted"
+        placeholder={a.phase === "thinking" ? "Niche is thinking\u2026" : a.skill.placeholder ?? "Ask Niche anything"}
+        value={draft}
+        onChange={(e) => setDraft(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" && !e.shiftKey) {
+            e.preventDefault();
+            submit();
+          }
+          if (e.key === "Escape") a.stop();
+        }}
+      />
+      <button disabled={!draft.trim() || a.phase === "thinking"} className="label underline disabled:no-underline disabled:text-muted py-1.5">
+        Send
+      </button>
+    </form>
+  );
+
+  const voiceBar = (
+    <>
+      <button
+        type="button"
+        onClick={a.phase === "speaking" ? a.interrupt : undefined}
+        aria-label={a.phase === "speaking" ? "Cut in" : "Listening"}
+        className="shrink-0"
+      >
+        <Orb phase={a.phase} level={a.level} />
+      </button>
+      <div className="min-w-0 flex-1">
+        <p className="text-sm" role="status" aria-live="polite">
+          {STATUS[a.phase]}
+        </p>
+        <p className="label text-muted truncate">{a.skill.label}</p>
+      </div>
+    </>
+  );
+
+  // Shop, before the first search: the assistant is the page. Say it or type it, right in the middle.
+  if (placement === "hero") {
+    return (
+      <div className="fixed inset-x-0 top-[22vh] z-[800] flex justify-center px-4 pointer-events-none">
+        <section
+          aria-label="Niche assistant"
+          className="pointer-events-auto w-full max-w-2xl border border-ink bg-paper shadow-[0_10px_32px_rgba(0,0,0,.16)] grid"
+        >
+          <div className="px-5 pt-5 pb-3 grid gap-2">
+            <p className="label">Niche</p>
+            <h2 className="text-display">What are you shopping for?</h2>
+            <p className="text-sm text-muted">
+              Say it out loud or type it, like you would to a friend. Niche searches big stores, small shops and secondhand
+              for you, then you can keep talking to refine it.
+            </p>
+          </div>
+          {a.turns.length > 0 && <div className="max-h-[28vh] flex flex-col rule-t">{transcript}</div>}
+          <div className="rule-t flex items-center gap-3 px-4 py-3">
+            {mode === "voice" ? (
+              <>
+                {voiceBar}
+                <button type="button" onClick={() => start("text")} className="label underline">Type</button>
+              </>
+            ) : (
+              <>
+                {mode === "off" && (
+                  <button type="button" onClick={() => start("voice")} className="flex items-center gap-2 label bg-ink text-paper pl-2 pr-3 py-1.5 shrink-0">
+                    <span className="w-3 h-3 rounded-full bg-paper" /> Talk
+                  </button>
+                )}
+                {mode === "text" && (
+                  <button type="button" onClick={() => start("voice")} className="label underline shrink-0">Talk</button>
+                )}
+                {textBox}
+              </>
+            )}
+            {mode !== "off" && (
+              <button type="button" onClick={a.stop} className="text-xl leading-none px-1" aria-label="End conversation">×</button>
+            )}
+          </div>
+          <div className="rule-t flex flex-wrap gap-2 px-4 py-3">
+            {STARTERS.map((text) => (
+              <button key={text} onClick={() => a.send(text)} className="label border border-ink px-3 py-1.5 text-left">
+                {text}
+              </button>
+            ))}
+          </div>
+        </section>
+      </div>
+    );
+  }
+
+  // Shop, with results: a sidebar on the right (bottom sheet on phones), conversation always in view.
+  if (placement === "side") {
+    return (
+      <section
+        aria-label="Niche assistant"
+        className="fixed z-[800] inset-x-3 bottom-3 max-h-[45dvh] lg:inset-x-auto lg:right-4 lg:top-24 lg:bottom-4 lg:max-h-none lg:w-[380px] border border-ink bg-paper shadow-[0_8px_28px_rgba(0,0,0,.14)] flex flex-col"
+      >
+        <div className="rule-b flex items-baseline justify-between px-4 py-2">
+          <span className="text-display">Niche</span>
+          <button type="button" onClick={a.shop.reset} className="label underline">New search</button>
+        </div>
+        {transcript}
+        <div className="rule-t flex items-center gap-3 px-3 py-2">
+          {mode === "voice" ? (
+            <>
+              {voiceBar}
+              <button type="button" onClick={() => start("text")} className="label underline">Type</button>
+            </>
+          ) : (
+            <>
+              <button type="button" onClick={() => start("voice")} className="label underline shrink-0">Talk</button>
+              {textBox}
+            </>
+          )}
+          {mode !== "off" && (
+            <button type="button" onClick={a.stop} className="text-xl leading-none px-1" aria-label="End conversation">×</button>
+          )}
+        </div>
+      </section>
+    );
+  }
+
+  if (mode === "off") {
     return (
       <div className="fixed inset-x-0 bottom-0 z-[900] flex flex-col items-center gap-2 px-4 pb-4 pointer-events-none">
         {a.nudge && (
@@ -484,12 +684,7 @@ export function AssistantDock() {
             <Orb phase="idle" level={() => 0} />
             <span className="text-display leading-none">Talk to Niche</span>
           </button>
-          <button
-            type="button"
-            onClick={() => start("text")}
-            className="label border-l border-ink px-3"
-            title="Or press space twice"
-          >
+          <button type="button" onClick={() => start("text")} className="label border-l border-ink px-3" title="Or press space twice">
             Type
           </button>
         </div>
@@ -497,100 +692,34 @@ export function AssistantDock() {
     );
   }
 
-  const shopping = a.skill.id === "shop";
-  const shopTurns = a.turns.filter((t) => t.skill === "shop");
-  const last = a.turns.at(-1);
-  const pending = outstandingProposal(shopTurns);
-  const idle = a.phase === "idle" || a.phase === "listening";
-  const suggestions =
-    !shopping || !idle || !a.shop.profileId
-      ? []
-      : shopTurns.length === 0
-        ? STARTERS
-        : last?.done
-          ? FOLLOW_UPS
-          : [];
-
   return (
     <div className="fixed inset-x-0 bottom-0 z-[900] flex justify-center px-3 pb-3 pointer-events-none">
       <section
         aria-label="Niche assistant"
-        className="pointer-events-auto w-full max-w-2xl border border-ink bg-paper shadow-[0_8px_28px_rgba(0,0,0,.18)] flex flex-col max-h-[70dvh]"
+        className={`pointer-events-auto w-full max-w-2xl border border-ink bg-paper shadow-[0_8px_28px_rgba(0,0,0,.18)] flex flex-col ${
+          view === "all" ? "max-h-[60dvh]" : "max-h-[34dvh]"
+        }`}
       >
-        {open && (a.turns.length > 0 || a.error || suggestions.length > 0) && (
-          <div className="overflow-y-auto px-4 pt-3 pb-2 grid gap-3 content-start min-h-0 rule-b">
-            {a.turns.map((t, i) => (
-              <Line key={i} turn={t} pending={t === pending && idle} onAccept={a.shop.accept} />
-            ))}
-            {suggestions.length > 0 && (
-              <div className="flex flex-wrap gap-2">
-                {suggestions.map((text) => (
-                  <button key={text} onClick={() => a.send(text)} className="label border border-ink px-3 py-1.5 text-left">
-                    {text}
-                  </button>
-                ))}
-              </div>
+        {view !== "hidden" && (a.turns.length > 0 || a.error || suggestions.length > 0) && <div className="rule-b flex flex-col min-h-0">{transcript}</div>}
+        <div className="flex items-center gap-3 px-3 py-2">
+          {mode === "voice" ? voiceBar : textBox}
+          <div className="flex items-center gap-3 shrink-0">
+            <button type="button" onClick={() => start(mode === "voice" ? "text" : "voice")} className="label underline py-1.5">
+              {mode === "voice" ? "Type" : "Talk"}
+            </button>
+            {view !== "hidden" && (
+              <button type="button" onClick={() => setView(view === "all" ? "recent" : "all")} className="label underline py-1.5">
+                {view === "all" ? "Less" : "History"}
+              </button>
             )}
-            {a.error && <p className="text-sm" role="alert">{a.error}</p>}
-            <div ref={end} />
-          </div>
-        )}
-
-        {a.mode === "voice" ? (
-          <div className="flex items-center gap-3 px-3 py-2">
-            <button
-              type="button"
-              onClick={a.phase === "speaking" ? a.interrupt : undefined}
-              aria-label={a.phase === "speaking" ? "Cut in" : "Listening"}
-              className="shrink-0"
-            >
-              <Orb phase={a.phase} level={a.level} />
+            <button type="button" onClick={() => setView(view === "hidden" ? "recent" : "hidden")} className="label underline py-1.5" aria-expanded={view !== "hidden"}>
+              {view === "hidden" ? "Show" : "Hide"}
             </button>
-            <div className="min-w-0 flex-1">
-              <p className="text-sm" role="status" aria-live="polite">
-                {STATUS[a.phase]}
-              </p>
-              <p className="label text-muted truncate">{a.skill.label}</p>
-            </div>
-            <DockButtons open={open} onToggle={() => setOpen((o) => !o)} onStop={a.stop}>
-              <button type="button" onClick={() => a.start("text")} className="label underline">
-                Type
-              </button>
-            </DockButtons>
-          </div>
-        ) : (
-          <form
-            className="flex items-end gap-2 px-3 py-2"
-            onSubmit={(e) => {
-              e.preventDefault();
-              submit();
-            }}
-          >
-            <textarea
-              ref={input}
-              rows={1}
-              className="flex-1 resize-none bg-transparent outline-none text-sm py-1.5 placeholder:text-muted"
-              placeholder={a.phase === "thinking" ? "Niche is thinking…" : a.skill.placeholder ?? "Ask Niche anything"}
-              value={draft}
-              onChange={(e) => setDraft(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" && !e.shiftKey) {
-                  e.preventDefault();
-                  submit();
-                }
-                if (e.key === "Escape") a.stop();
-              }}
-            />
-            <button disabled={!draft.trim() || a.phase === "thinking"} className="label underline disabled:no-underline disabled:text-muted py-1.5">
-              Send
+            <button type="button" onClick={a.stop} className="text-xl leading-none px-1" aria-label="End conversation">
+              ×
             </button>
-            <DockButtons open={open} onToggle={() => setOpen((o) => !o)} onStop={a.stop}>
-              <button type="button" onClick={() => a.start("voice")} className="label underline py-1.5">
-                Talk
-              </button>
-            </DockButtons>
-          </form>
-        )}
+          </div>
+        </div>
       </section>
     </div>
   );
@@ -603,20 +732,6 @@ const STATUS: Record<Phase, string> = {
   thinking: "Thinking…",
   speaking: "Speaking · tap the circle to cut in",
 };
-
-function DockButtons({ open, onToggle, onStop, children }: { open: boolean; onToggle: () => void; onStop: () => void; children: React.ReactNode }) {
-  return (
-    <div className="flex items-center gap-3 shrink-0">
-      {children}
-      <button type="button" onClick={onToggle} className="label underline py-1.5" aria-expanded={open}>
-        {open ? "Hide" : "Show"}
-      </button>
-      <button type="button" onClick={onStop} className="text-xl leading-none px-1" aria-label="End conversation">
-        ×
-      </button>
-    </div>
-  );
-}
 
 /** A black circle that swells with the mic level while listening and breathes while the assistant talks. */
 function Orb({ phase, level }: { phase: Phase; level: () => number }) {

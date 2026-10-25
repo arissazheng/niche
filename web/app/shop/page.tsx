@@ -12,12 +12,10 @@ import { tables } from "@/lib/spacetime";
 import { TIER_LABELS, type Budget, type Listing, type NearbyShops, type SearchCounts, type SearchJob } from "@/lib/types";
 
 const DONE = new Set(["completed", "partial", "failed", "interrupted"]);
-// Tap-to-ask starters before the first search; the assistant (bottom of every page) does the talking.
-const STARTERS = ["Find me black knee-high boots under $120", "Find me a vintage leather jacket", "I need an outfit for a wedding"];
 
 export default function ShopPage() {
   const assistant = useAssistant();
-  const { profileId, searchId, budget, keepToBudget, setKeepToBudget, refreshBudget, reset, announce, fresh } = assistant.shop;
+  const { profileId, searchId, budget, keepToBudget, setKeepToBudget, refreshBudget, announce, fresh } = assistant.shop;
   const [job, setJob] = useState<SearchJob | null>(null);
   const [selected, setSelected] = useState<Listing | null>(null);
   const [kind, setKind] = useState<Kind>("all");
@@ -99,36 +97,17 @@ export default function ShopPage() {
   const ranked = finished || liveRows.some((r) => r.rank !== undefined);
 
   return (
-    <div className="px-4 mt-6 grid gap-4">
+    // With results, the assistant is a sidebar on the right; leave it room.
+    <div className={`px-4 mt-6 grid gap-4 ${searchId ? "lg:pr-[400px]" : ""}`}>
       {budget?.linked && <BudgetStrip budget={budget} keepToBudget={keepToBudget} onToggle={setKeepToBudget} />}
       <section className="min-w-0">
         {!searchId ? (
-          <div className="rule-t pt-2 grid gap-4 justify-items-start">
-            <p className="text-display">Tell Niche what you&apos;re looking for.</p>
-            <p className="text-sm max-w-md">
-              Talk or type at the bottom of the page, then keep going: &ldquo;less formal&rdquo;, &ldquo;only black&rdquo;,
-              &ldquo;under $60&rdquo;. Each reply refines the search.
-            </p>
-            <div className="flex flex-wrap gap-2">
-              <button onClick={() => assistant.start("voice")} className="label bg-ink text-paper px-3 py-1.5">
-                Talk to Niche
-              </button>
-              {STARTERS.map((text) => (
-                <button key={text} onClick={() => assistant.send(text)} className="label border border-ink px-3 py-1.5 text-left">
-                  {text}
-                </button>
-              ))}
-            </div>
-          </div>
+          // The assistant sits in the middle of the page here, asking what you're shopping for.
+          <div className="min-h-[70vh]" />
         ) : (
           <>
             <SectionTitle
-              aside={
-                <span className="flex gap-3">
-                  {job?.ranking_method}
-                  <button onClick={reset} className="underline">New search</button>
-                </span>
-              }
+              aside={job?.ranking_method}
             >
               {matchCount(results.length, !finished)}
             </SectionTitle>
@@ -149,7 +128,7 @@ export default function ShopPage() {
             {job?.warnings?.map((w) => (
               <p key={w} className="label mb-2 text-muted">{w}</p>
             ))}
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2">
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
               {results.map((item, i) => (
                 <button key={item.id} onClick={() => setSelected(item)} className="text-left">
                   <div className="bg-plinth aspect-[3/4] flex items-center justify-center overflow-hidden">
