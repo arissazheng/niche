@@ -114,12 +114,10 @@ Real shoppers don't write paragraph-long prompts describing their exact style, s
 show: partner brands (retailers are already striking deals with AI companies, like Target with OpenAI) and the biggest,
 most keyword-stuffed catalogs. The shopper gets things they wouldn't actually buy, and the wide range of clothing
 sellers whose pieces would have fit never appears. Niche fixes the input side too: your photos and taste profile say
-what a paragraph-long prompt would, so a short request is enough. Arissa shops exactly this way, and this weekend we
-tested the AI-and-search route she'd otherwise use:
-- "Korean y2k grommet belts, like Lewkin" returned none of Lewkin's own pieces, but six copies of one belt from look-alike Depop accounts.
-- "Size S" returned Depop listings in L.
-- "An asymmetrical buttoned top" returned black corsets that only matched on colour.
-- Store results were mostly keyword-stuffed fast fashion (Fashion Nova, Shein); the small brands she buys from barely appeared.
+what a paragraph-long prompt would, so a short request is enough. We tried today's AI assistants with the kind of short prompts real shoppers type:
+- **ChatGPT**, "Find 5 outfits for my next week.": searched 30 retailers, then suggested only Target.
+- **ChatGPT**, "Now try secondhand.": cited a Harvard paper on eating disorders and an Ohio government website, not a single listing.
+- **Gemini and Grok**, "Help me find clothes.": Urban Outfitters, ASOS, Forever 21, Uniqlo. No one small, no one secondhand.
 
 **3. It works.** **One thing done well: your own outfit photos in, a short list of real, buyable pieces out, in your
 size and budget, from any seller big or small, each with the reason it fits.** It runs today against live listings
