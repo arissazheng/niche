@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import Image from "next/image";
 import { useEffect, useRef, useState } from "react";
 import { HandCircle } from "@/components/hand-circle";
 import { MeasurementsPanel } from "@/components/measurements";
@@ -262,7 +263,9 @@ export default function OnboardPage() {
                   </div>
                 )}
               </Entry>
-              <Plate variant="portrait" />
+              <div className="book-plate book-plate-portrait relative overflow-hidden">
+                <Image src="/images/profile/fashion-board.webp" alt="" fill sizes="(max-width: 699px) 40vw, 20vw" className="object-cover object-[center_28%]" />
+              </div>
               <Entry title="Before we begin">
                 <label className="flex items-start gap-3 text-sm">
                   <input
