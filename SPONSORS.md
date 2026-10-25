@@ -6,28 +6,30 @@ For each track: the judging criteria, how Niche addresses each one, then the det
 
 ## Anthropic: Claude
 
-**1. A named community.** **Berkeley students who dress in a specific personal aesthetic (y2k, office siren, grunge)
-and buy it secondhand on Depop, Poshmark and Vinted or from small Instagram-native labels, on a student budget.** Not
-"students" or "shoppers": people whose style is specific, whose budget is tight, and whose favourite sellers are small.
+**1. A named community.** **Small clothing sellers (independent labels, Depop and Poshmark resellers, vintage and
+thrift shops) and the Berkeley students who buy from them:** people who dress in a specific aesthetic (y2k, office
+siren, grunge) and shop secondhand and from Instagram-native labels on a student budget. Not "students" or "shoppers":
+a specific set of buyers, and the long tail of sellers they want to find.
 
-**2. A real problem.** **We lived it.** Arissa shops exactly this way, and this weekend we tested the AI-and-search
-route she'd otherwise use:
+**2. A real problem.** **We lived it, and it's getting worse as shopping moves to AI agents.** Agentic search tends to
+surface whoever has a partnership or the biggest catalog (retailers are already striking deals with AI companies, like
+Target with OpenAI), so a wide range of clothing sellers is left behind no matter how well their pieces fit the
+shopper. Arissa shops exactly this way, and this weekend we tested the AI-and-search route she'd otherwise use:
 - "Korean y2k grommet belts, like Lewkin" returned none of Lewkin's own pieces, but six copies of one belt from look-alike Depop accounts.
 - "Size S" returned Depop listings in L.
 - "An asymmetrical buttoned top" returned black corsets that only matched on colour.
-- Store results were mostly keyword-stuffed fast fashion (Fashion Nova, Shein); the brands she buys from barely appeared.
-
-The root cause: not every business is fairly represented in search, and agentic shopping inherits it. Agents return
-what their search engine promotes, so small and secondhand sellers never reach the shopper who'd want them.
+- Store results were mostly keyword-stuffed fast fashion (Fashion Nova, Shein); the small brands she buys from barely appeared.
 
 **3. It works.** **One thing done well: your own outfit photos in, a short list of real, buyable pieces out, in your
-size and budget, each with the reason it fits.** It runs today against live listings with real Claude ranking (nothing
-mocked), and you can buy from the result on the seller's own site. Voice, sharing and the price check all serve that
-one flow.
+size and budget, from any seller big or small, each with the reason it fits.** It runs today against live listings
+from independent labels, resale marketplaces, local shops and major retailers, with real Claude ranking (nothing
+mocked), and you buy on the seller's own site. Voice, sharing and the price check all serve that one flow.
 
-**4. Thoughtful use of Claude.** **What it does that matters:** Claude is the part that understands taste. It turns
-photos into a taste profile, a request into search phrases, and a pile of scraped listings into a ranked shortlist by
-looking at each photo, judging every listing on what the shopper wants rather than how a search engine ordered it.
+**4. Thoughtful use of Claude.** **What it does that matters:** Claude is what makes fair representation possible. It
+judges every listing on its merits (the photo against the shopper's taste, the request and their size) instead of on
+which brand is promoted or how a search engine ordered it, so a one-person Depop shop or an independent label can
+outrank a partner brand when it's the better fit. It also turns photos into a taste profile and a request into search
+phrases, and it is told never to favour a store or brand unless the shopper asked for it.
 
 **Where it could go wrong for these shoppers, and what we do about it:**
 - *Wrong size*: hard size filter per category, size checks in titles, "Size unverified" caveat when unknown.
