@@ -95,35 +95,20 @@ flowchart LR
 
 ---
 
-## Prize tracks and how Niche uses each
+## Prize tracks: criteria and how Niche meets them
 
-| Track | How Niche integrates it | Where |
-|---|---|---|
-| **Anthropic (Claude)** | Claude is the core of the product. It reads every lookbook photo, clusters taste and writes the profile, plans searches, ranks listings by looking at their photos against your taste (structured outputs), and runs the shopping chat (propose/search, compare, gift mode), the assistant and the Snowflake verdicts via Cortex. Server-side refusal fallback; consent and data minimisation before anything is sent. | `backend/taste/engine.py`, `backend/taste/chat.py`, `backend/sourcing/claude.py` |
-| **Visa: Reimagining Shopping** | Covers discovery (conversational, multimodal search), decision-making (compare in chat, market check), personalization (taste profile), checkout/payments (budget-aware agent, shortlist → store → mark bought), and trust (explanations, scam warnings, consent, delete). Each search shows its impact: how many listings were checked and how many were left out for size or price. | `/shop`, `/how-it-works`, `backend/sourcing/risk.py` |
-| **Capital One Nessie** | A linked demo bank account gives the agent your balance, this month's clothing spend and upcoming bills. With *Keep to budget* on, it caps searches at what's left and mentions tight weeks. Marking an item as bought records a purchase to the Nessie ledger (Nessie balances don't move, so Niche computes the running balance). | `backend/finance/`, `backend/checkout/api.py`, `python -m finance.seed <profile_id>` |
-| **Apify (best use, best actor)** | Four actors of our own: `niche-mainstream` (Google Shopping, keeping only stores on our trusted list plus brands you name), `niche-secondhand` (Depop/Poshmark/Vinted/Etsy/Grailed in one labelled, streaming list with sold, promoted and duplicate listings dropped and seller ratings included), and two fully team-built ones that use no community actors: **`niche-indie`** (independent labels' public Shopify catalogs) and **`independent-labels`** (verified independent labels; public on the Apify Store at [apify.com/zaarahemd/independent-labels](https://apify.com/zaarahemd/independent-labels)). | `backend/actors/` |
-| **Bright Data** | Live public web data the product depends on: lookbook imports from public Pinterest, Instagram and TikTok (scrapers, Web Unlocker for boards); finding independent labels on any shop platform (SERP API → Web Unlocker → schema.org product data); verifying that suggested brands are real independents. Public pages only, no logins. | `backend/taste/imports.py`, `backend/sourcing/webshops.py`, `backend/taste/brands.py` |
-| **SpacetimeDB** | The real-time backbone: the shared moodboard (owner and friends move pieces together with live cursors), build progress, profile versions that refresh open tabs, and search results streaming in per marketplace as they're scraped and ranked. A server-side `forget_profile` reducer handles Delete my data. | `spacetime/src/index.ts`, `backend/sourcing/live.py` |
-| **Cartesia** | Voice is how you talk to Niche: the hands-free assistant on every page listens (Cartesia speech-to-text), cuts at pauses, and replies out loud (Cartesia text-to-speech): `ink-whisper` speech-to-text and `sonic-3` voices, six to pick from. Spoken onboarding fills the profile form ("I'm Dana, I shop on Depop, budget up to $120"). The key stays on the backend. | `backend/voice/api.py`, `web/components/assistant.tsx` |
-| **Moss** | Semantic memory for the agent: every listing you've been shown goes into your own Moss index, so the shop chat recalls "the green skirt from before" without a new search. Saved independent labels' catalogs are indexed too, for millisecond answers while live searches run. | `backend/taste/finds.py`, `backend/taste/labels.py` |
-| **Best Use of Gemini** | *Shops near you:* with an opt-in ZIP, Gemini (3.1 Flash-Lite) with **Grounding with Google Maps** finds real independent, vintage and consignment shops worth visiting for each search. Only shops Gemini cites a Maps place for are kept, each with its Google Maps link. Looked up alongside the search in about 3 s. | `backend/taste/nearby.py` |
-| **Best Use of Snowflake API** | *Market check:* every listing we see goes into `NICHE.MARKET.LISTINGS` through the **SQL API**, embedded with `AI_EMBED`. Opening a listing finds the ~20 most similar past listings and computes the typical price range, and a **Cortex REST** call (`/api/v2/cortex/inference:complete`) writes a one-line verdict: good deal, fair or above typical. | `backend/market/` |
-| **Meta: Bringing People Closer Together** | *Shop for a friend:* share your taste and a friend shops for you using your profile: view-only moodboard, gift chat with your taste and sizes but their budget, revocable links. A shared moodboard with live cursors, and moodboard images for Instagram, TikTok and X. | `/friend`, `/gift`, `backend/taste/api.py` |
-| **Microsoft: Built for the Real World / Customer Impact** | A production-minded agent for a real consumer problem: customer understanding (multimodal taste profile), measurable usefulness (impact line per search, market check), responsible design (consent, explanations, scam warnings, delete), end-to-end flow from photos to purchase. 170+ backend tests. | whole repo |
+For each track: the judging criteria, how Niche addresses each one, then the details (where the code is and what it doesn't do). Keys live in `backend/.env` and are never committed.
 
-**Not integrated (no code in this repo yet):**
-- **Factory Droid SDK:** Droid is not used in the running product.
-- **Vultr:** Niche runs locally; it isn't deployed on Vultr.
-- **Elastic:** an Elasticsearch index of listings was planned (`docs/CHANGE_LIST.md`), but listing history is in Snowflake and recall in Moss; there is no Elastic code.
+### Anthropic: Claude
 
-## Sponsor tools in detail
+| Criterion | How Niche meets it |
+|---|---|
+| **A named community** | People who care about personal style but shop on a student budget, secondhand and from small labels (built by and for Berkeley students like us), whom AI shopping tools currently push toward the same big brands. |
+| **A real problem** | We lived it: asking an assistant for "an asymmetrical buttoned top" or "Korean y2k belts like Lewkin" returns sponsored, keyword-stuffed fast fashion, in the wrong size, from stores you never shop. |
+| **It works** | One flow done end to end: photos → taste profile → chat search → ranked, explained results in your size and budget → shortlist → buy on the seller's site. Live with real listings; 170+ backend tests. |
+| **Thoughtful use of Claude** | Claude does what only it can: reads outfit photos, clusters taste, plans searches, ranks listings by looking at their photos, and talks with you. Where it could go wrong, and our guard for each, is in the risk table below. |
 
-What each sponsor's tool does in the running product, where the code is, and what it doesn't do. Everything here can be checked in the repo. Keys live in `backend/.env` and are never committed.
-
-### Claude (Anthropic)
-
-Claude does the core work. It reads lookbook photos (garments, colours, silhouettes, visible designers), clusters them
+**In detail.** Claude does the core work. It reads lookbook photos (garments, colours, silhouettes, visible designers), clusters them
 into an editable taste profile, applies edits said out loud or typed ("less minimal, more vintage"), plans search
 phrases, ranks listings using their photos, and runs the shopping chat. Code: `backend/taste/engine.py`,
 `backend/sourcing/claude.py`, `backend/taste/chat.py`.
@@ -141,9 +126,90 @@ Where it could go wrong for a shopper, and what we do about it:
 
 Every Claude stage logs its system prompt and writes `prompt` and `model_usage` rows to `backend/data/sourcing.sqlite3`.
 
+
+### Visa: Reimagining Shopping with AI
+
+| Criterion | How Niche meets it |
+|---|---|
+| **Innovation (25%)** | You shop from your own photos and an editable taste profile, not keywords; a friend can shop *for* you from your taste; local shops and a market price check sit next to online results. |
+| **User experience (25%)** | A friend-like assistant on every page (voice or text); the agent searches as soon as you ask; compare pieces in chat; sizes in your own chart; a moodboard you can edit and share. |
+| **Technical execution (20%)** | Claude plans and visually ranks; four Apify actors plus Bright Data search stores, resale and independent labels in parallel; results stream live through SpacetimeDB; Snowflake checks prices; Nessie budgets. |
+| **Commerce impact (15%)** | Small sellers get found: every results page reports listings checked and the share from independent and secondhand sellers; *Secondhand first*; budget-aware search; shortlist → seller's own site → "mark as bought" to Nessie. |
+| **Trust & responsibility (15%)** | No sponsored placements; every result explains why; "Before you buy" scam warnings (off-platform payment, too-cheap, poorly reviewed sellers, duplicate listings); consent before photos go to Claude; expiring photo links; Delete my data. |
+
+**In detail.** - **Innovation:** you shop from your own photos and an editable taste profile, not from keywords.
+- **Experience:** a friend-like assistant on every page, by voice or text; sizes in your own chart.
+- **AI:** Claude plans each search and ranks every listing against your taste, size and budget, and says why each
+  result matches.
+- **Commerce impact:** small sellers get found. Each results page says how many results came from independent
+  labels and secondhand sellers, and you can filter to them.
+- **Trust:** no sponsored placements or paid boosts, a visible and editable profile, prices from the server, consent
+  before photos go to Claude, delete-my-data. Purchases happen on the seller's own site; Niche doesn't take payments.
+
+#### Measuring it
+
+`python -m sourcing.report` (in `backend/`) reads this machine's search log and prints what Niche actually did across
+live searches: listings checked, results shown, items left out for wrong size, price or sold, the share of results
+from independent labels and secondhand sellers, median time to first listings, and Claude tokens per search. Add
+`--json` for the raw numbers. Fixture-mode searches are left out unless you pass `--fixture`.
+
+#### Secondhand first
+
+A profile setting (on the setup page). When a resale listing and a new one fit about equally (within 8 points), the
+resale one ranks first; a clearly better new piece still wins (`SECONDHAND_NUDGE` in `sourcing/pipeline.py`). The
+shortlist shows how many saved pieces are secondhand, from independent labels, or new from big stores. Niche doesn't
+estimate carbon or water savings.
+
+
+### Meta: Bringing People Closer Together with AI
+
+| Criterion | How Niche meets it |
+|---|---|
+| **Strengthens human connection** | Shop for a friend from their shared taste link (a view-only moodboard plus a gift chat using *their* taste and sizes); arrange one moodboard together live with named cursors; share your moodboard to Instagram, TikTok or X. |
+| **Essential, well-integrated AI** | Without Claude's taste profile, a friend is guessing; with it, the AI translates someone else's style into pieces you can actually buy for them. |
+| **Originality** | Gifting from someone's own taste, not your guess or a gift guide. |
+| **Working demo** | Share my taste → open the friend link → "Find something for Arissa" → a real gift search; revoke the link and it stops working. |
+
+**In detail.** - **Gift mode** (`/gift/<token>`): shop for a friend using the moodboard link they shared. The agent uses their taste
+  and sizes; your budget; their bank and history stay untouched.
+- **Shared boards:** friends arrange one moodboard together, live, with named cursors.
+
+
+### Microsoft: Built for the Real World / Customer Impact
+
+| Criterion | How Niche meets it |
+|---|---|
+| **Customer understanding** | The product starts from the customer's own photos, sizes, budget and favourite shops, and asks before acting on its own ideas. |
+| **Measurable usefulness** | `python -m sourcing.report` prints listings checked, results shown, items left out for wrong size or price, share from independent and secondhand sellers, time to first results and tokens per search; each page shows its own impact line and market check. |
+| **Path from prototype to production** | One FastAPI service with typed models, a fixture mode that runs with no keys, our own deployable Apify actors, cached and retried external calls, and live state in SpacetimeDB (Maincloud for the demo). |
+| **Responsible design** | Consent, data minimisation (no name, email, age or ZIP to Claude), explanations, scam warnings, revocable share links, Delete my data. |
+| **End-to-end functionality** | Onboarding → lookbook → taste profile → search → shortlist → purchase recorded to a bank ledger, all live. |
+
+
+### Capital One Nessie
+
+| Criterion | How Niche meets it |
+|---|---|
+| **Completeness** | Accounts, purchases, bills and merchants: a profile links to a seeded demo checking account; the agent reads balance, this month's clothing spend and upcoming bills; "mark as bought" writes the purchase back. |
+| **Creativity** | A shopping agent that respects your actual money: *Keep to budget* caps searches at what's left this month and mentions a bill that's due, without lecturing. |
+| **Complexity** | Nessie balances never change, so Niche computes the running balance from purchases; clothing spend is categorised by merchant; purchases are recorded once per item. |
+
+**In detail.** A budget-aware shopping agent (`backend/finance`). A profile links to a Nessie demo checking account; each chat turn
+reads the balance, this month's clothing spend and bills due in the next 14 days, so searches stay inside the monthly
+clothing budget and the agent mentions a bill that's due. "Mark as bought" records a purchase to Nessie. Seed a demo
+account with `python -m finance.seed <profile_id>`.
+
+
 ### Cartesia
 
-The assistant on every page talks and listens hands-free.
+| Criterion | How Niche meets it |
+|---|---|
+| **Problem and originality** | Describing style is easier out loud than in a form: "I'm a medium in tops now", "less minimal, more vintage". |
+| **Use of Cartesia** | Voice is core, not an add-on: the hands-free assistant on every page uses `ink-whisper` speech-to-text and `sonic-3` replies (six voices) for onboarding, photo reactions, taste edits and the shopping chat. |
+| **Execution** | Pause detection cuts each utterance; the mic pauses while Niche speaks; tap to interrupt; everything also works by typing. |
+| **Impact and responsibility** | Accessible without typing; audio isn't stored by Niche; the key stays on the backend. Known limitations are listed below. |
+
+**In detail.** The assistant on every page talks and listens hands-free.
 
 - **Speech to text:** `ink-whisper`, via `POST /v1/voice/transcribe` (`backend/voice/api.py`).
 - **Speech:** `sonic-3`, via `POST /v1/voice/speak`. Six voices to pick from: Sierra (default), Michelle, Jacqueline,
@@ -166,9 +232,29 @@ Known limitations:
 - Each turn is a full request (record, then transcribe, then reply), not streaming, so there is a short gap
   before each answer.
 
-### Apify
 
-All product search runs through Niche's own actors (`backend/actors`): `niche-mainstream` (Google Shopping, kept to
+### Moss
+
+| Criterion | How Niche meets it |
+|---|---|
+| **Voice AI** | The Niche assistant listens and acts in real time (with Cartesia), and Moss supplies what it remembers. |
+| **Personal agent: remembers you** | Every listing you're shown is indexed per shopper, so "the green skirt from before" comes back instantly; saved labels' catalogs answer "something like that Batul slip dress" in milliseconds while live searches run. |
+
+**In detail.** Shopping chat memory. Every result a shopper is shown is indexed per shopper (`niche-finds-<profile>`), so "the green
+skirt from before" finds it again; saved labels' catalogs go into `niche-indie-labels` (`backend/taste/finds.py`,
+`backend/taste/labels.py`). Queries use the Moss SDK (`pip install -e '.[moss]'`) or Moss's cloud query API. Moss is
+retrieval, not speech: Cartesia does the voice.
+
+
+### Apify: Best Use / Best Actor
+
+| Criterion | How Niche meets it |
+|---|---|
+| **Meaningful use** | All product search runs on Apify actors we wrote: without them there are no results. |
+| **Project quality** | Results stream per marketplace, are deduplicated and labelled by store type, and are ranked by Claude. |
+| **Best actor (built for this event)** | `niche-indie` and `independent-labels` are fully our own code (no community actors inside); `independent-labels` is public on the Apify Store. |
+
+**In detail.** All product search runs through Niche's own actors (`backend/actors`): `niche-mainstream` (Google Shopping, kept to
 the ~100 stores in our retailer bank), `niche-secondhand` (Depop, Poshmark, Vinted, Etsy; Grailed opt-in) and
 `niche-indie` (independent labels' own Shopify stores). The backend runs them for every search, streams each
 marketplace's rows in as they finish, and Claude ranks them as one list.
@@ -180,9 +266,38 @@ verified independent labels and their in-stock products out. It shares its check
 Apify doesn't power every feature: lookbook imports and web-wide indie shop discovery use Bright Data, and the price
 check uses Snowflake.
 
+
+### Bright Data
+
+| Criterion | How Niche meets it |
+|---|---|
+| **Essential to the core experience** | Remove it and Niche can't find independent labels off Shopify, can't import Pinterest/Instagram/TikTok lookbooks, and can't verify suggested brands. |
+| **Real problem, specific user** | Small labels on Squarespace, WooCommerce or Big Cartel are invisible to shopping agents; Bright Data is how a shopper finds them. |
+| **Live in the demo; real web conditions** | Live searches every time; 502s retried, slow or blocked pages skipped, and the page says when the web source was blocked or empty. |
+| **Right tools, combined** | SERP API to find shops → Web Unlocker to read them → schema.org product data, plus the social scrapers for imports. |
+| **Disqualifiers avoided** | Public pages only (no logins or paywalls), no personal data (outfit photos only, never who posted them), no mocked data in the demo. |
+
+**In detail.** - **Indie shops on any platform** (`backend/sourcing/webshops.py`): the SERP API finds independent shops for a
+  search, Web Unlocker reads their pages, and we pull schema.org product data (or a Shopify catalog). This is the only
+  way Niche finds small labels that aren't on Shopify. On when `BRIGHTDATA_SERP_ZONE` and `BRIGHTDATA_UNLOCKER_ZONE`
+  are set.
+- **Lookbook imports** (`backend/taste/imports.py`): public Pinterest, Instagram and TikTok links become lookbook
+  photos (outfit photos only, never the person).
+- **Real web conditions:** Bright Data's occasional 502 is retried once, a page that fails or times out is skipped,
+  and the results page says when the web source was blocked or found nothing, so an empty source never reads as
+  "nothing matched".
+
+Public pages only: no logins, no paywalls. A web search takes about 60-80 s, so its results arrive last.
+
+
 ### SpacetimeDB
 
-The live layer between the backend's agents and every open browser (`spacetime/src/index.ts`, hosted on SpacetimeDB Maincloud for our demo):
+| Criterion | How Niche meets it |
+|---|---|
+| **Core real-time backend, not on the side** | Live shared state between agents and every open browser: the shared moodboard, build progress, profile versions, and search results streaming in as each marketplace lands. |
+| **Multiplayer / instant sync** | Friends with the link drag moodboard pieces together with named cursors; a voice edit in one tab updates every open view. |
+
+**In detail.** The live layer between the backend's agents and every open browser (`spacetime/src/index.ts`, hosted on SpacetimeDB Maincloud for our demo):
 
 | Live feature | Tables |
 |---|---|
@@ -195,78 +310,36 @@ The live layer between the backend's agents and every open browser (`spacetime/s
 Without it, the shared board and live cursors don't exist and results arrive all at once after polling. The polling
 fallback is there so the backend can be developed without a SpacetimeDB server.
 
-### Visa: reimagining shopping
 
-- **Innovation:** you shop from your own photos and an editable taste profile, not from keywords.
-- **Experience:** a friend-like assistant on every page, by voice or text; sizes in your own chart.
-- **AI:** Claude plans each search and ranks every listing against your taste, size and budget, and says why each
-  result matches.
-- **Commerce impact:** small sellers get found. Each results page says how many results came from independent
-  labels and secondhand sellers, and you can filter to them.
-- **Trust:** no sponsored placements or paid boosts, a visible and editable profile, prices from the server, consent
-  before photos go to Claude, delete-my-data. Purchases happen on the seller's own site; Niche doesn't take payments.
+### Best Use of Gemini API
 
-### Bright Data
+| Criterion | How Niche meets it |
+|---|---|
+| **Pushing what's possible with Gemini** | Gemini with **Grounding with Google Maps** turns a search like "black satin gala dress" plus a ZIP into real nearby vintage, consignment and independent shops worth visiting, which Claude can't do. It runs alongside the search in about 3 s. |
 
-- **Indie shops on any platform** (`backend/sourcing/webshops.py`): the SERP API finds independent shops for a
-  search, Web Unlocker reads their pages, and we pull schema.org product data (or a Shopify catalog). This is the only
-  way Niche finds small labels that aren't on Shopify. On when `BRIGHTDATA_SERP_ZONE` and `BRIGHTDATA_UNLOCKER_ZONE`
-  are set.
-- **Lookbook imports** (`backend/taste/imports.py`): public Pinterest, Instagram and TikTok links become lookbook
-  photos (outfit photos only, never the person).
-- **Real web conditions:** Bright Data's occasional 502 is retried once, a page that fails or times out is skipped,
-  and the results page says when the web source was blocked or found nothing, so an empty source never reads as
-  "nothing matched".
-
-Public pages only: no logins, no paywalls. A web search takes about 60-80 s, so its results arrive last.
-
-### Moss
-
-Shopping chat memory. Every result a shopper is shown is indexed per shopper (`niche-finds-<profile>`), so "the green
-skirt from before" finds it again; saved labels' catalogs go into `niche-indie-labels` (`backend/taste/finds.py`,
-`backend/taste/labels.py`). Queries use the Moss SDK (`pip install -e '.[moss]'`) or Moss's cloud query API. Moss is
-retrieval, not speech: Cartesia does the voice.
-
-### Capital One Nessie
-
-A budget-aware shopping agent (`backend/finance`). A profile links to a Nessie demo checking account; each chat turn
-reads the balance, this month's clothing spend and bills due in the next 14 days, so searches stay inside the monthly
-clothing budget and the agent mentions a bill that's due. "Mark as bought" records a purchase to Nessie. Seed a demo
-account with `python -m finance.seed <profile_id>`.
-
-### Snowflake
-
-Market price check (`backend/market`). Public listing data (title, brand, price, store, condition, link; never
-anything about the shopper) goes into Snowflake. Cortex `AI_EMBED` (arctic-embed-l-v2.0) finds similar past listings,
-the "good price / about market / above market" band is computed from their prices, and Cortex writes the one-line
-explanation.
-
-### Gemini
-
-"Shops near you" (`backend/taste/nearby.py`): Gemini with Grounding with Google Maps suggests up to four nearby
+**In detail.** "Shops near you" (`backend/taste/nearby.py`): Gemini with Grounding with Google Maps suggests up to four nearby
 vintage, consignment and independent shops worth checking for a search. Opt-in; only the ZIP code and the search brief
 are sent, and each shop keeps its Google Maps link. Gemini can't see store stock, so these are shops worth a visit, not
 shops that have the item.
 
-### Meta: bringing people closer
 
-- **Gift mode** (`/gift/<token>`): shop for a friend using the moodboard link they shared. The agent uses their taste
-  and sizes; your budget; their bank and history stay untouched.
-- **Shared boards:** friends arrange one moodboard together, live, with named cursors.
+### Best Use of Snowflake API
 
-### Measuring it
+| Criterion | How Niche meets it |
+|---|---|
+| **LLMs and AI features through the Snowflake APIs** | The **SQL API** stores public listing history and embeds it with Cortex `AI_EMBED`; similar past listings give a typical price range; the **Cortex REST** endpoint (`/api/v2/cortex/inference:complete`) writes the verdict ("good deal", "fair", "above typical"). A retrieval-backed AI feature on one account. |
 
-`python -m sourcing.report` (in `backend/`) reads this machine's search log and prints what Niche actually did across
-live searches: listings checked, results shown, items left out for wrong size, price or sold, the share of results
-from independent labels and secondhand sellers, median time to first listings, and Claude tokens per search. Add
-`--json` for the raw numbers. Fixture-mode searches are left out unless you pass `--fixture`.
+**In detail.** Market price check (`backend/market`). Public listing data (title, brand, price, store, condition, link; never
+anything about the shopper) goes into Snowflake. Cortex `AI_EMBED` (arctic-embed-l-v2.0) finds similar past listings,
+the "good price / about market / above market" band is computed from their prices, and Cortex writes the one-line
+explanation.
 
-### Secondhand first
 
-A profile setting (on the setup page). When a resale listing and a new one fit about equally (within 8 points), the
-resale one ranks first; a clearly better new piece still wins (`SECONDHAND_NUDGE` in `sourcing/pipeline.py`). The
-shortlist shows how many saved pieces are secondhand, from independent labels, or new from big stores. Niche doesn't
-estimate carbon or water savings.
+### Not integrated (no code in this repo)
+
+- **Factory Droid SDK:** Droid is not used in the running product.
+- **Vultr:** Niche runs locally and isn't deployed on Vultr.
+- **Elastic:** an Elasticsearch listing index was planned (`docs/CHANGE_LIST.md`), but listing history is in Snowflake and recall in Moss; there is no Elastic code.
 
 ---
 
