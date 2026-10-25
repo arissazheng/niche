@@ -175,9 +175,7 @@ export default function OnboardPage() {
                 <div className="book-plate relative overflow-hidden">
                   <Image src="/images/profile/palm-beach.png" alt="" fill sizes="(max-width: 699px) 45vw, 23vw" className="object-cover object-[center_32%]" />
                 </div>
-                <div className="book-plate relative overflow-hidden">
-                  <Image src="/images/profile/bridge-street.png" alt="" fill sizes="(max-width: 699px) 45vw, 23vw" className="object-cover object-center" />
-                </div>
+                <Plate />
               </div>
             </Column>
             <Column ruled>
@@ -229,7 +227,9 @@ export default function OnboardPage() {
                   />
                 </div>
               </Entry>
-              <Plate variant="landscape" />
+              <div className="book-plate book-plate-landscape relative overflow-hidden">
+                <Image src="/images/profile/bridge-street.png" alt="" fill sizes="(max-width: 699px) 45vw, 23vw" className="object-cover object-center" />
+              </div>
               <Entry title="Where you usually shop">
                 <div className="flex flex-wrap gap-2">
                   {SHOPS.map((shop) => (
