@@ -230,7 +230,7 @@ export default function OnboardPage() {
                 </div>
               </Entry>
               <div className="book-plate book-plate-landscape relative overflow-hidden">
-                <Image src="/images/profile/ballet-shoes.png" alt="" fill sizes="(max-width: 699px) 45vw, 23vw" className="object-cover object-[center_90%]" />
+                <Image src="/images/profile/ballet-shoes.png" alt="" fill sizes="(max-width: 699px) 45vw, 23vw" className="object-cover object-bottom" />
               </div>
               <Entry title="Where you usually shop">
                 <div className="flex flex-wrap gap-2">
