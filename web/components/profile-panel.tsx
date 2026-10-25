@@ -137,7 +137,7 @@ export function ProfilePanel({ view, onChange }: { view: ProfileView; onChange: 
               setInstruction("");
             }}
           >
-            <span className="label">Adjust it</span>
+            <h2 className="text-display">Adjust it</h2>
             <input
               className="input"
               placeholder="Less minimal, more vintage"
