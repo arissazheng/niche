@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { SectionTitle } from "@/components/chrome";
 import { api } from "@/lib/api";
 import type { BrandSuggestion, IndieShop, ProfileView } from "@/lib/types";
 import type { Change } from "@/components/profile-panel";
@@ -40,9 +39,10 @@ export function IndieShops({ view, onChange }: { view: ProfileView; onChange: Ch
 
   return (
     <section className="grid gap-3">
-      <SectionTitle aside={shops.length + favorites.length ? `${shops.length + favorites.length}` : undefined}>
-        Brands &amp; stores you like
-      </SectionTitle>
+      <div className="flex items-baseline justify-between mb-3">
+        <h2 className="text-display">Brands &amp; stores you like</h2>
+        {shops.length + favorites.length > 0 && <span className="label">{shops.length + favorites.length}</span>}
+      </div>
       <p className="text-sm">
         Any brand or store, big or small. Labels with their own online shop get searched directly every time, so you
         see their new pieces, not only resale. The rest are favorites that Niche looks for and ranks a little higher.

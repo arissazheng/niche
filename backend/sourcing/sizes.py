@@ -55,3 +55,14 @@ def match(requested, item_sizes):
     if letters_wanted == letters_had or (letters_wanted and have & set(LETTERS)):
         return False
     return None
+
+
+def listing_labels(item_sizes, title):
+    """Use explicit title sizing when a marketplace omits its structured size field."""
+    if any(str(label).strip() for label in item_sizes):
+        return item_sizes
+    explicit = re.search(r'\bsize\s*[:=-]?\s*(xxxl|xxl|xxs|xl|xs|s|m|l|small|medium|large)\b', title, re.I)
+    if explicit:
+        return [explicit.group(1)]
+    alpha = re.search(r'\b(?:XXXL|XXL|XXS|XL|XS)\b', title)
+    return [alpha.group()] if alpha else []

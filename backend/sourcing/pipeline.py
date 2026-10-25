@@ -48,12 +48,13 @@ def eligible(items, request, left_out=None):
         if item.available is None:
             unknown.append('Availability unverified')
         if r.size:
-            fits = sizes.match(r.size, item.sizes)
+            listed_sizes = sizes.listing_labels(item.sizes, item.title)
+            fits = sizes.match(r.size, listed_sizes)
             if fits is False:
                 tally('wrong_size')
                 continue
             if fits is None:
-                unknown.append(f'Size unverified (listed as {", ".join(item.sizes)})' if item.sizes else 'Size unverified')
+                unknown.append(f'Size unverified (listed as {", ".join(listed_sizes)})' if listed_sizes else 'Size unverified')
         if not r.allow_secondhand:
             if item.condition is None:
                 unknown.append('Condition unverified')

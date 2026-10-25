@@ -312,15 +312,20 @@ def create_router(settings, store: Store, budgets: Budgets | None = None, signer
         sources = list(search.sources)
         if 'indie' in sources and 'web' not in sources and web.enabled:
             sources.append('web')  # independent labels on any platform, through Bright Data
+        category = search.category if search.category not in (None, 'other') else guess_category(search.query)
+        fit = search_sizes(profile, category, search.query)
+        # Size constraints belong to the server hand-off too; clients may omit the chat's inferred fields.
+        effective_size = search.size or fit['size']
         return SearchRequest(taste_profile=profile.to_sourcing(), sources=sources, limit=search.limit,
             profile_id=profile.id, for_friend=for_friend,
             # A gift search has no cap unless the friend shopping names one (the owner's own budget isn't theirs).
             request=ShoppingRequest(query=search.query,
                 max_item_price=search.max_item_price or (10000 if for_friend else ob.budget_max),
-                currency=ob.currency, size=search.size, length=search.length, measurements=inches(ob.measurements),
-                shoe_size_system=search.shoe_size_system, size_note=search.size_note,
+                currency=ob.currency, size=effective_size, length=search.length or fit['length'], measurements=inches(ob.measurements),
+                shoe_size_system=search.shoe_size_system or fit['shoe_size_system'],
+                size_note=search.size_note or (f'Size {search.size}, as asked' if search.size else fit['size_note']),
                 must_have=clean_features(search.must_have), brands=[b.strip()[:40] for b in search.brands if b.strip()][:3],
-                category=search.category if search.category not in (None, 'other') else guess_category(search.query)))
+                category=category))
 
     def start_search(profile, search: ProfileSearch, for_friend=False):
         job = store.create(search_request(profile, search, for_friend).model_dump(mode='json'))

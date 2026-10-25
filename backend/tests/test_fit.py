@@ -95,6 +95,11 @@ def test_catalog_and_sizes_flow_through_the_api(tmp_path):
         with sqlite3.connect(tmp_path / 'f.sqlite') as db:
             request = json.loads(db.execute('SELECT request FROM jobs WHERE id=?', (job['search_id'],)).fetchone()[0])
         assert request['request']['size_note'] == 'Bottoms: 6 or 8' and request['request']['measurements'] == {'bust': 35.0}
+        job = client.post(f'/v1/taste/profiles/{pid}/searches', json={'query': 'white tee'}).json()
+        with sqlite3.connect(tmp_path / 'f.sqlite') as db:
+            request = json.loads(db.execute('SELECT request FROM jobs WHERE id=?', (job['search_id'],)).fetchone()[0])
+        assert request['request']['size'] == 'S'
+
 
 
 def test_size_regions_have_their_own_charts_and_us_is_the_default():
