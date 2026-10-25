@@ -250,7 +250,7 @@ class FixtureSources:
                   ('Olive sold trousers','olive relaxed linen',40)]
         rows = [Listing(id=f'{source}:fixture-{i}', source=source,title=title,
             url=f'https://example.invalid/{source}/{i}',description=desc,price=price,currency='USD',
-            sizes=['8'],condition=condition,available=i!=5,seller=f'Demo seller {i%3}',retailer=retailer,tier=tier,
+            sizes=['8'],condition=condition,available=i!=5,seller=f'Demo {source} seller {i%3}',retailer=retailer,tier=tier,
             scraped_at=now(),is_fixture=True,provenance={'mode':'fixture'},
             warnings=['Synthetic demo item; not for purchase']) for i,(title,desc,price) in enumerate(styles)]
         return rows[:limit], {'status':'fixture','count':len(rows[:limit])}

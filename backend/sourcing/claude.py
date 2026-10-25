@@ -5,7 +5,7 @@ import json
 import logging
 import anthropic
 from PIL import Image, UnidentifiedImageError
-from . import safe_fetch
+from . import dedupe, safe_fetch
 from .features import FEATURES, clean
 from .sources import public_url
 
@@ -35,8 +35,11 @@ When the request names a brand, that brand's listings fit best and similar piece
 The request comes first, taste second. When the request names defining features (e.g. asymmetrical, buttoned, a
 high collar, wide-leg, a specific neckline), a listing visibly missing them scores below 40 however well its colours
 or mood fit the taste; one that has some of them sits in the middle; only one that has them can score above 70.
-request.size_note gives the shopper's sizes for this kind of item; prefer listings in those sizes and mention a
-mismatch in uncertainties. A size chart (women's or men's) is about fit only: never lower a score for the department.
+Judge the taste as a whole: no single trait (a pattern such as stripes, one colour, one material) decides a score
+unless the request asks for it, and a listing sharing one trait but not the overall look is a middling fit. Hints from
+earlier picks in taste.summary are light hints, never stronger than the rest of the profile.
+request.size_note gives the shopper's sizes for this kind of item; a listing clearly in another size scores below 40,
+one whose size isn't stated scores lower than one stated in their size, and either is noted in uncertainties. A size chart (women's or men's) is about fit only: never lower a score for the department.
 request.measurements are the shopper's body measurements in inches. When a listing states garment measurements
 (pit to pit, chest, waist, hips, inseam, sleeve, shoulders), judge fit against them, allowing normal ease
 (a top's chest about 2-4 in over the bust), and say so in the reason; a clear misfit should score lower.
@@ -147,7 +150,9 @@ class Claude:
         # Short labels instead of marketplace ids: Claude mistypes long near-identical numbers (depop:96083…).
         by_alias = {f'L{i+1}':item for i,item in enumerate(listings)}
         for (alias,item),image in zip(by_alias.items(),images[len(references):]):
-            content.append({'type':'text','text':json.dumps({**item.model_dump(exclude={'provenance','image_urls'}),'id':alias})})
+            if image:  # fingerprint for spotting the same piece listed on two marketplaces
+                item.image_hash = dedupe.image_hash(base64.b64decode(image['source']['data']))
+            content.append({'type':'text','text':json.dumps({**item.model_dump(exclude={'provenance','image_urls','image_hash'}),'id':alias})})
             if image:
                 content.append(image)
         # Low effort: ranking is a comparison against a written rubric, and latency is what the shopper feels.

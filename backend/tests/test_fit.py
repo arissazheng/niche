@@ -66,7 +66,8 @@ def test_search_gets_size_filter_note_length_and_shoe_chart():
     pants = for_search(s, 'bottom')
     assert pants['size'] == '32' and pants['length'] == 'long' and pants['size_note'] == "Bottoms: 32 (Waist (in)), inseam 34 in (men's chart)"
     shoes = for_search(s, 'shoes')
-    assert shoes['size'] is None and shoes['shoe_size_system'] is None and 'EU' in shoes['size_note']  # EU isn't filtered
+    # EU sizes filter with the country named, so a US 43 or UK 43 never passes for it.
+    assert shoes['size'] == 'EU 43' and shoes['shoe_size_system'] is None and 'EU' in shoes['size_note']
     assert for_search(s, 'accessory', 'silver signet ring')['size'] == '9'
     assert for_search(s, 'accessory', 'leather tote')['size'] is None
     assert for_search(Sizing(womens={'dresses': {'format': 'us', 'values': ['4'], 'extras': {'fit': 'Petite'}}}), 'dress')['length'] == 'short'
@@ -112,7 +113,8 @@ def test_size_regions_have_their_own_charts_and_us_is_the_default():
     eu = Sizing(region='eu', system='mens', mens={'bottoms': {'format': 'eu', 'values': ['50'], 'extras': {'inseam_cm': '81'}},
                                                   'outerwear': {'format': 'eu', 'values': ['50'], 'extras': {'length': 'L'}}})
     pants = for_search(eu, 'bottom')
-    assert pants['size'] is None and pants['length'] == 'regular' and 'EU numeric' in pants['size_note']  # 81 cm ≈ 32 in
+    assert pants['size'] == 'EU 50' and pants['length'] == 'regular' and 'EU numeric' in pants['size_note']  # 81 cm ≈ 32 in
+    assert for_search(uk, 'dress')['size'] == 'UK 12'  # filtered in the UK chart, not as a US 12
     bra = for_search(uk, 'bra')
     assert bra['size'] is None and bra['size_note'] == 'Bra 34FF (UK band and cup)'  # only US cups filter listings
     jp_ring = Sizing(region='asia', accessories={'rings': {'format': 'jp', 'values': ['11']}})
