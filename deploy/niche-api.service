@@ -1,0 +1,15 @@
+[Unit]
+Description=Niche API (FastAPI)
+After=network-online.target
+
+[Service]
+User=niche
+WorkingDirectory=/opt/niche/backend
+# backend/.env holds the keys; these override it for the public deployment.
+Environment=PUBLIC_API_URL=https://shopniche.fashion/api
+Environment='CORS_ORIGINS=["https://shopniche.fashion"]'
+ExecStart=/opt/niche/venv/bin/uvicorn app:create_app --factory --host 127.0.0.1 --port 8000 --proxy-headers
+Restart=always
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,7 @@
+[Unit]
+Description=Deploy origin/main if it changed
+
+[Service]
+Type=oneshot
+ExecStart=/opt/niche/deploy/autodeploy.sh
+TimeoutStartSec=20min

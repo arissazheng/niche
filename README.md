@@ -374,10 +374,13 @@ the "good price / about market / above market" band is computed from their price
 explanation.
 
 
+### Hosting
+
+- **Vultr:** shopniche.fashion runs on a Vultr cloud server (Ubuntu, Los Angeles): Next.js and FastAPI behind Caddy with automatic HTTPS, in live mode. The server redeploys `main` by itself within a few minutes of each merge (`deploy/autodeploy.sh` on a systemd timer); `deploy/deploy.sh` sends a new `backend/.env` and redeploys now.
+
 ### Not integrated (no code in this repo)
 
 - **Factory Droid SDK:** Droid is not used in the running product.
-- **Vultr:** Niche isn't hosted on Vultr.
 - **Elastic:** an Elasticsearch listing index was planned, but listing history is in Snowflake and recall in Moss; there is no Elastic code.
 
 ---
