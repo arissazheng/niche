@@ -900,7 +900,10 @@ function Line({ turn, pending, onAccept }: { turn: Turn; pending: boolean; onAcc
         ))}
         <p className="text-sm">{turn.text}</p>
         {turn.recalled?.length ? (
-          <ul className="mt-2 grid gap-1">
+          <p className="label text-muted mt-2">From your earlier finds</p>
+        ) : null}
+        {turn.recalled?.length ? (
+          <ul className="mt-1 grid gap-1">
             {turn.recalled.map((f) => (
               <li key={f.url} className="text-xs">
                 <a href={f.url} target="_blank" rel="noopener noreferrer" className="underline">

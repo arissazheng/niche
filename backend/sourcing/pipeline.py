@@ -4,12 +4,15 @@ from .models import Listing
 from .sources import NICHE, ApifySources, FixtureSources
 from .claude import Claude
 from .live import Live
-from . import risk, sizes
+from . import dedupe, risk, sizes
 
 
 # Never shown, from any source (new, mainstream or resale): Shein and its in-house labels, and Fashion Nova.
 EXCLUDED_BRANDS = re.compile(r'\b(shein|romwe|dazy|motf|emery rose|fashion ?nova)\b', re.I)
 EXCLUDED_DOMAINS = ('shein.com', 'romwe.com', 'fashionnova.com')
+# How the shop page names each source in a note about it.
+SOURCE_NAMES = {'mainstream': 'Big stores', 'secondhand': 'Secondhand apps', 'indie': 'Independent labels',
+                'web': 'Independent shops on the web'}
 
 
 def excluded(item):
@@ -130,15 +133,71 @@ def matching(listings, query, wanted_types=None):
     return [x for x in listings if wanted & terms(x.title)]
 
 
+# A taste trait (say stripes) adds this much to the keyword score, and only this many distinct traits count, so one
+# trait repeated across the profile can't outweigh what the request itself asks for.
+TRAIT_POINTS, MAX_TRAITS = 8, 2
+# At most this share of a page shares one pattern or cut from the taste profile, unless the request asks for it.
+TRAIT_SHARE = 0.4
+# A listing whose size can't be checked ranks below ones checked to be in the shopper's size.
+SIZE_UNVERIFIED_PENALTY = 15
+
+
+def trait_key(term):
+    """Stripes, striped and Breton stripe are one trait."""
+    words = re.findall(r'[a-z]+', term.lower())
+    return re.sub(r'(es|s|ed|d)$', '', words[-1])[:5] if words else ''
+
+
+def traits_in(item, terms):
+    text = (item.title+' '+item.description).lower()
+    # A word starting with the trait ("striped" for stripes); short ones ("leg" from wide-leg) only as the whole term.
+    return {trait_key(t) for t in terms if trait_key(t) and (t.lower() in text or (
+        len(trait_key(t)) >= 4 and re.search(rf'\b{re.escape(trait_key(t))}', text)))}
+
+
+def size_unverified(item, request):
+    return bool(request.request.size) and any(w.startswith('Size unverified') for w in item.warnings)
+
+
 def lexical_score(item, request):
     text = (item.title+' '+item.description).lower()
     query_terms = set(re.findall(r'\w+',request.request.query.lower())) - {'find','me','a','some','everyday','please'}
     profile = request.taste_profile
-    positive = profile.colors + profile.silhouettes + profile.materials
+    traits = traits_in(item, profile.colors + profile.silhouettes + profile.materials + profile.patterns)
     labels = ' '.join(x for x in (item.brand, item.retailer, item.seller) if x).lower()
     preferred = sum(t.lower() in text or t.lower() in labels for t in profile.preferred_brands + profile.preferred_stores)
-    return max(0,min(100, 20 + 15*sum(t in text for t in query_terms) + 10*sum(t.lower() in text for t in positive)
-        + 10*min(preferred, 1) - 30*sum(t.lower() in text for t in profile.avoid)))
+    return max(0,min(100, 20 + 15*sum(t in text for t in query_terms) + TRAIT_POINTS*min(len(traits), MAX_TRAITS)
+        + 10*min(preferred, 1) - 30*sum(t.lower() in text for t in profile.avoid)
+        - SIZE_UNVERIFIED_PENALTY*size_unverified(item, request)))
+
+
+def size_adjusted(item, request):
+    """Claude's score, lowered when the size can't be checked; never below the relevance floor for that alone."""
+    if not size_unverified(item, request) or item.score is None:
+        return item.score
+    return max(min(item.score, RELEVANT), item.score - SIZE_UNVERIFIED_PENALTY)
+
+
+def spread_traits(items, request, limit):
+    """Ranked items with any beyond a taste trait's share of the page moved after the rest, so one pattern or cut from
+    the profile (stripes on every result) can't fill the page. Colours and materials aren't capped, nor what the
+    request names."""
+    if request is None:
+        return items
+    profile = request.taste_profile
+    asked = request.request.query.lower()
+    terms = [t for t in profile.patterns + profile.silhouettes if trait_key(t) and trait_key(t) not in asked]
+    cap = max(2, round(limit*TRAIT_SHARE))
+    counts, kept, held = {}, [], []
+    for item in items:
+        found = traits_in(item, terms)
+        if any(counts.get(t, 0) >= cap for t in found):
+            held.append(item)
+            continue
+        for t in found:
+            counts[t] = counts.get(t, 0) + 1
+        kept.append(item)
+    return kept + held
 
 
 # Each source (new from stores, secondhand) with good matches gets at least this share of the results, so one side
@@ -146,6 +205,9 @@ def lexical_score(item, request):
 MIX_FLOOR = 0.25
 GOOD_FIT = 50
 RELEVANT = 40  # Claude scores below this miss the request (wrong item, or none of its defining features)
+# With "Secondhand first" on, resale listings rank as if they scored this much higher: a close call goes to resale,
+# a clearly better new piece still wins.
+SECONDHAND_NUDGE = 8
 
 
 def copy_key(item):
@@ -153,16 +215,14 @@ def copy_key(item):
     return (item.marketplace or item.source, re.sub(r'[^a-z0-9]', '', item.title.lower())[:80], round(item.price, 2))
 
 
-def diversify(items, limit):
-    counts, capped, copies = {}, [], {}
-    for item in items:
-        copies[copy_key(item)] = copies.get(copy_key(item), 0) + 1
-    shown = set()
-    for item in sorted(items,key=lambda x: x.score or 0,reverse=True):
-        if copy_key(item) in shown:
-            continue  # keep the best-ranked copy only
-        shown.add(copy_key(item))
-        item.copies = copies[copy_key(item)]
+def same_listing(a, b):
+    return not dedupe.distinct(a, b) and (copy_key(a) == copy_key(b) or dedupe.same_piece(a, b))
+
+
+def diversify(items, limit, request=None):
+    counts, capped = {}, []
+    # One piece posted twice (the same seller on Etsy and Depop, or look-alike accounts) shows once, as its better listing.
+    for item in spread_traits(dedupe.collapse(items, same_listing), request, limit):
         key = (item.source,item.seller or item.id)
         if counts.get(key,0)>=2:
             continue
@@ -181,7 +241,8 @@ def diversify(items, limit):
                 break
             selected.remove(min((x for x in selected if x.source==biggest), key=lambda x: x.score or 0))
             selected.append(item)
-    return sorted(selected,key=lambda x: x.score or 0,reverse=True)
+    nudge = SECONDHAND_NUDGE if request is not None and request.taste_profile.secondhand_first else 0
+    return sorted(selected,key=lambda x: (x.score or 0) + (nudge if x.source=='secondhand' else 0),reverse=True)
 
 class Pipeline:
     def __init__(self, settings, store, sources=None, model=None, live=None, market=None):
@@ -230,7 +291,7 @@ class Pipeline:
         def scored_rows():
             # Claude-ranked items that don't match the request are dropped rather than padding the page.
             relevant = [x for x in ranked if not x.match_dimensions or (x.score or 0) >= RELEVANT]
-            shown = risk.flag(diversify(relevant,request.limit))  # price warnings compare against this page
+            shown = risk.flag(diversify(relevant,request.limit,request))  # price warnings compare against this page
             return [{**x.model_dump(mode='json'), 'rank': i+1} for i,x in enumerate(shown)]
 
         async def publish():
@@ -246,6 +307,8 @@ class Pipeline:
                 try:
                     batch = await self.model.rank(request,batch,job_id)
                     methods.append('claude')
+                    for item in batch:
+                        item.score = size_adjusted(item, request)
                 except Exception as exc:
                     self.store.event(job_id,'ranking_failed',{'source':source,'type':type(exc).__name__,'detail':str(exc)[:200]})
                     methods.append('lexical_fallback')
@@ -329,6 +392,14 @@ class Pipeline:
         result['counts'] = counts
         if self.market:
             self.market.ingest_soon(seen_listings)  # price history for later checks; runs after, never blocks
+        # Say plainly which sources came back empty-handed, so a blocked site or a slow scraper never looks like
+        # "nothing matched" and the shopper knows the page is from the rest.
+        for source, summary in result['sources'].items():
+            name = SOURCE_NAMES.get(source, source)
+            if summary.get('status') == 'failed':
+                result['warnings'].append(f"{name} didn't answer this time, so these results come from the others")
+            elif source == 'web' and not summary.get('count'):
+                result['warnings'].append(f'{name}: no products this time (sites blocked us or had nothing in stock)')
         if methods:
             if 'lexical_fallback' in methods:
                 result['warnings'].append('Claude ranking unavailable for some results; lexical fallback used')

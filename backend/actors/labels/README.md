@@ -29,7 +29,7 @@ It works for stores on Shopify, which most small labels use.
 ## Input
 
 ```json
-{"brands": ["Batul The Collection", "velathelabel.com"], "query": "slip skirt", "maxPrice": 250,
+{"brands": ["Batul The Collection", "velascarves.com"], "query": "slip skirt", "maxPrice": 250,
  "itemsPerBrand": 10, "verifiedOnly": true}
 ```
 
@@ -38,5 +38,34 @@ It works for stores on Shopify, which most small labels use.
 Each dataset item is one product: `title, url, price, currency, image_urls, sizes, brand, retailer, available,
 description`, plus `domain`, `verified` and `checks` for the label it came from. The `OUTPUT` record lists every
 brand you asked for, with the store it resolved to (or why none was found) and the result of each check.
+
+## Use it for
+
+- **Shopping agents** that should show small labels new, not only as resale listings.
+- **Brand research**: check whether a label is a real, independent, established store before you feature or stock it.
+- **Watching a few labels' new arrivals**: schedule a run with a `query` and compare datasets.
+
+## Example result
+
+From a live run on 2026-10-24 with `["Batul The Collection", "Veiled", "Vela"]`:
+
+| Brand | Resolved store | Verified |
+|---|---|---|
+| Batul The Collection | batulthecollection.com | yes |
+| Veiled | veiled.com | yes |
+| Vela | no store found by name (vela.com is a software company) | no; pass `velascarves.com` instead |
+
+## Limits
+
+- Only finds stores on **Shopify**. A label on Squarespace, Wix or its own platform comes back as "no store found".
+- A name lookup tries common domain patterns. A label with an unusual domain needs its website passed in.
+- The checks use the public catalog only, so they can't see who owns a store. `independent` means "not a known
+  marketplace, chain or big retailer", nothing more.
+- Prices are in each shop's own currency; `maxPrice` is compared in that currency.
+
+## Cost
+
+No third-party scrapers and no per-result fee: you pay only the run's compute. A run over a handful of labels
+finishes in seconds.
 
 Built for [Niche](https://github.com/arissazheng/niche), a shopping assistant that finds pieces for your taste.

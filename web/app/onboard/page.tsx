@@ -190,13 +190,8 @@ export default function OnboardPage() {
         <Book>
           <BookPage side="left" letter="P" number="01" footer="The Niche Profile">
             <Column>
-              <div className="book-image-pair">
-                <div className="book-plate relative overflow-hidden">
-                  <Image src="/images/profile/neutral-tailoring.png" alt="" fill sizes="(max-width: 699px) 45vw, 23vw" className="object-cover object-[center_10%]" />
-                </div>
-                <div className="book-plate relative overflow-hidden">
-                  <Image src="/images/profile/desert-landscape.png" alt="" fill sizes="(max-width: 699px) 45vw, 23vw" className="object-cover object-top" />
-                </div>
+              <div className="book-plate book-plate-opening relative overflow-hidden">
+                <Image src="/images/profile/neutral-tailoring.png" alt="" fill sizes="(max-width: 699px) 45vw, 23vw" className="object-cover object-[center_10%]" />
               </div>
             </Column>
             <Column ruled>
@@ -251,7 +246,7 @@ export default function OnboardPage() {
                 </div>
               </Entry>
               <div className="book-plate book-plate-landscape relative overflow-hidden">
-                <Image src="/images/profile/ballet-shoes.png" alt="" fill sizes="(max-width: 699px) 45vw, 23vw" className="object-cover object-[center_90%]" />
+                <Image src="/images/profile/tailored-outfit.png" alt="" fill sizes="(max-width: 699px) 45vw, 23vw" className="object-cover object-[center_30%]" />
               </div>
               <Entry title="Where you usually shop">
                 <div className="flex flex-wrap gap-2">
@@ -264,6 +259,20 @@ export default function OnboardPage() {
               </Entry>
             </Column>
             <Column ruled>
+              <Entry title="Secondhand first">
+                <label className="flex items-start gap-3 text-sm">
+                  <input
+                    type="checkbox"
+                    className="mt-1 accent-ink"
+                    checked={!!form.secondhand_first}
+                    onChange={(e) => setForm({ ...form, secondhand_first: e.target.checked })}
+                  />
+                  <span>
+                    When a secondhand piece and a new one fit about equally, show the secondhand one first. A clearly
+                    better new piece still ranks higher.
+                  </span>
+                </label>
+              </Entry>
               <Entry title="Shops near you">
                 <label className="flex items-start gap-3 text-sm">
                   <input
@@ -334,6 +343,9 @@ export default function OnboardPage() {
                 )}
                 {!form.sizing.system && <p className="text-xs text-muted">Choose a sizing system on the facing page to add optional measurements.</p>}
               </Entry>
+              <div className="book-plate book-plate-strip relative overflow-hidden">
+                <Image src="/images/profile/desert-landscape.png" alt="" fill sizes="(max-width: 699px) 90vw, 46vw" className="object-cover object-top" />
+              </div>
             </Column>
           </BookPage>
         </Book>

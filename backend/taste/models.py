@@ -1,3 +1,4 @@
+import re
 from typing import Literal
 from pydantic import BaseModel, Field, ConfigDict, field_validator, model_validator
 from sourcing.models import IndieShop, TasteProfile as SourcingProfile
@@ -52,6 +53,8 @@ class Onboarding(StrictModel):
     # "Shops near you": off unless the shopper opts in. Only a US ZIP code is kept, never precise location; it goes to
     # Gemini (Google Maps grounding) to suggest nearby shops, and never to Claude.
     nearby_shops: bool = False
+    # "Secondhand first": when a resale listing and a new one fit about equally, the resale one ranks higher.
+    secondhand_first: bool = False
     zip_code: str = Field(default='', pattern=r'^(\d{5})?$')
 
 
@@ -129,14 +132,25 @@ class Profile(StrictModel):
 
     def to_sourcing(self) -> SourcingProfile:
         ob = self.onboarding
-        learned = ('\n\nFrom pieces they picked out of earlier results: ' + ' '.join(self.learned_notes[-6:])
-                   if self.learned_notes else '')
+        # Light hints only: the lesson from each of the last few picks, without the picked titles, which would read as
+        # more taste evidence (a striped shirt picked three times put "striped" in every search three more times).
+        lessons = list(dict.fromkeys(lesson(x) for x in self.learned_notes[-LEARNED_IN_SEARCH:]))
+        learned = ('\n\nLight hints from pieces they picked out of earlier results (never outweighing the profile '
+                   'above): ' + ' '.join(lessons) if lessons else '')
         return SourcingProfile(summary=((self.prompt or self.summary) + learned)[:3000], colors=self.colors[:20],
-            silhouettes=self.silhouettes[:20], materials=(self.materials + self.patterns)[:20], avoid=self.avoid[:20],
+            silhouettes=self.silhouettes[:20], materials=self.materials[:20], patterns=self.patterns[:20], avoid=self.avoid[:20],
             # Visible designers in liked photos count as brand preferences alongside the ones the user named.
             preferred_brands=list(dict.fromkeys(ob.favorite_brands + self.designers))[:30],
             preferred_stores=list(dict.fromkeys(ob.usual_shops + [x.name for x in self.indie_shops]))[:30],
-            indie_shops=self.indie_shops[:30])
+            indie_shops=self.indie_shops[:30], secondhand_first=ob.secondhand_first)
+
+
+LEARNED_IN_SEARCH = 3
+
+
+def lesson(note):
+    """'Shortlisted “Striped linen shirt” (searching “summer top”): it was linen.' -> 'it was linen.'"""
+    return re.sub(r'^(Shortlisted|Loved) “[^”]*”(?: \(searching “[^”]*”\))?:\s*', '', note)
 
 
 class LookbookNotes(StrictModel):

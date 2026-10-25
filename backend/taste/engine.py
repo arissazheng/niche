@@ -29,7 +29,8 @@ Each cluster's description is printed on a small card on the moodboard: a short 
 User notes outrank image evidence: if they say they like the color but not the frills, frills go in avoid.
 Photos of kind "own" show the user in their own clothes: the strongest evidence of what they actually wear.
 lookbook_notes are looks the user described in words instead of finding a photo; treat them like photos.
-learned_from_picks says what results they saved or loved had that the rest of a search didn't; weigh it like a note.
+learned_from_picks says what results they saved or loved had that the rest of a search didn't: a light hint, weighed
+below photos and the user's own notes. A trait repeated across picks is one trait, not several pieces of evidence.
 Measured palettes are pixel facts; prefer them over guessed colors.
 Write prompt as a 120-250 word second-person-free description of the taste that a shopping agent can search with:
 concrete garments, colors, silhouettes, materials, eras, and what to avoid. No brand names unless the user's photos show them.

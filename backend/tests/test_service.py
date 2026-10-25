@@ -70,6 +70,7 @@ def test_partial_source_failure(request_data,store):
     assert result['status']=='partial'
     assert result['sources']['etsy']['status']=='failed'
     assert result['results']
+    assert "etsy didn't answer this time, so these results come from the others" in result['warnings']
 
 
 def test_all_source_failure(request_data,store):

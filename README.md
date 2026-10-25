@@ -39,26 +39,45 @@ Built at Cal Hacks 13.0 by Arissa Zheng and Zaara.
 
 ## Architecture
 
-```
-            ┌──────────────── web (Next.js 15, React, Tailwind v4) ─────────────────┐
-            │ /onboard  /upload  /taste  /shop  /shortlist  /friend  /gift  /how-it-works │
-            │ Niche assistant (voice + text, every page)   live moodboard / results     │
-            └───────────────┬──────────────────────────────────────┬────────────────┘
-                     REST (FastAPI)                         WebSocket subscriptions
-                            │                                      │
-┌───────────────────────── backend (Python, FastAPI) ─────────┐   ┌─▼──────────────────────┐
-│ taste/    profile, photos, Claude extraction → clusters,    │──▶│ SpacetimeDB module     │
-│           chat agent, shortlist, sharing, nearby (Gemini),  │   │ board pieces, cursors, │
-│           earlier finds + labels (Moss), imports (Bright    │   │ build progress, search │
-│           Data), share images, signed photo links           │   │ + streaming listings   │
-│ sourcing/ query planning (Claude) → Apify actors + Bright   │   └────────────────────────┘
-│           Data web shops → hard filters → photo ranking     │
-│           (Claude) → mix, dedupe, scam checks               │──▶ Apify: niche-mainstream,
-│ market/   Snowflake SQL API + Cortex: price history check   │    niche-secondhand, niche-indie,
-│ finance/  Capital One Nessie: budget snapshot, purchases    │    independent-labels (ours)
-│ voice/    Cartesia speech-to-text and text-to-speech        │──▶ Claude, Gemini, Snowflake,
-│ checkout/ "mark as bought" → Nessie ledger                  │    Nessie, Cartesia, Moss, Bright Data
-└─────────────────────────────────────────────────────────────┘
+```mermaid
+flowchart LR
+  subgraph Browser["Browser (Next.js)"]
+    UI["Taste · Shop · Shortlist pages"]
+    VOICE["Assistant dock<br/>hands-free mic + VAD"]
+  end
+  subgraph API["FastAPI backend"]
+    TASTE["Taste engine"]
+    SRC["Sourcing pipeline<br/>plan → scrape → filter → rank"]
+    CHAT["Shopping chat"]
+    VAPI["Voice routes"]
+  end
+  CLAUDE(["Claude<br/>vision, profile, planner, ranker, chat"])
+  APIFY(["Apify actors<br/>mainstream · secondhand · indie"])
+  BD(["Bright Data<br/>SERP + Web Unlocker, social imports"])
+  CART(["Cartesia<br/>ink-whisper STT · sonic-3 TTS"])
+  STDB[("SpacetimeDB<br/>boards, cursors, progress, live results")]
+  MOSS[("Moss<br/>per-shopper finds index")]
+  SNOW[("Snowflake Cortex<br/>listing history, price check")]
+  GEM(["Gemini + Google Maps<br/>shops near you"])
+  NESSIE(["Capital One Nessie<br/>budget + purchases"])
+
+  UI -- photos, links, edits --> TASTE --> CLAUDE
+  TASTE -- Pinterest, Instagram, TikTok links --> BD
+  UI -- search --> SRC
+  SRC --> CLAUDE
+  SRC --> APIFY
+  SRC --> BD
+  SRC --> SNOW
+  SRC --> GEM
+  VOICE -- WAV --> VAPI --> CART
+  VOICE -- transcript --> CHAT
+  CHAT --> MOSS
+  CHAT --> NESSIE
+  CHAT --> SRC
+  TASTE -- progress, profile version --> STDB
+  SRC -- listings as each source lands --> STDB
+  STDB -- subscriptions --> UI
+  UI -- drag pieces, cursors --> STDB
 ```
 
 **Search pipeline** (`backend/sourcing/pipeline.py`):
@@ -78,6 +97,8 @@ Built at Cal Hacks 13.0 by Arissa Zheng and Zaara.
 
 ## Prize tracks and how Niche uses each
 
+Detailed write-ups per tool (setup, features, known limitations): **[docs/SPONSORS.md](docs/SPONSORS.md)**.
+
 | Track | How Niche integrates it | Where |
 |---|---|---|
 | **Anthropic (Claude)** | Claude is the core of the product. It reads every lookbook photo, clusters taste and writes the profile, plans searches, ranks listings by looking at their photos against your taste (structured outputs), and runs the shopping chat (propose/search, compare, gift mode), the assistant and the Snowflake verdicts via Cortex. Server-side refusal fallback; consent and data minimisation before anything is sent. | `backend/taste/engine.py`, `backend/taste/chat.py`, `backend/sourcing/claude.py` |
@@ -86,7 +107,7 @@ Built at Cal Hacks 13.0 by Arissa Zheng and Zaara.
 | **Apify (best use, best actor)** | Four actors of our own: `niche-mainstream` (Google Shopping, keeping only stores on our trusted list plus brands you name), `niche-secondhand` (Depop/Poshmark/Vinted/Etsy/Grailed in one labelled, streaming list with sold, promoted and duplicate listings dropped and seller ratings included), and two fully team-built ones that use no community actors: **`niche-indie`** (independent labels' public Shopify catalogs) and **`independent-labels`** (verified independent labels, published-ready with output/dataset schemas). | `backend/actors/` |
 | **Bright Data** | Live public web data the product depends on: lookbook imports from public Pinterest, Instagram and TikTok (scrapers, Web Unlocker for boards); finding independent labels on any shop platform (SERP API → Web Unlocker → schema.org product data); verifying that suggested brands are real independents. Public pages only, no logins. | `backend/taste/imports.py`, `backend/sourcing/webshops.py`, `backend/taste/brands.py` |
 | **SpacetimeDB** | The real-time backbone: the shared moodboard (owner and friends move pieces together with live cursors), build progress, profile versions that refresh open tabs, and search results streaming in per marketplace as they're scraped and ranked. A server-side `forget_profile` reducer handles Delete my data. | `spacetime/src/index.ts`, `backend/sourcing/live.py` |
-| **Cartesia** | Voice is how you talk to Niche: the hands-free assistant on every page listens (Cartesia speech-to-text), cuts at pauses, and replies out loud (Cartesia text-to-speech). Pick from six voices. Spoken onboarding fills the profile form ("I'm Dana, I shop on Depop, budget up to $120"). The key stays on the backend. | `backend/voice/api.py`, `web/components/assistant.tsx` |
+| **Cartesia** | Voice is how you talk to Niche: the hands-free assistant on every page listens (Cartesia speech-to-text), cuts at pauses, and replies out loud (Cartesia text-to-speech): `ink-whisper` speech-to-text and `sonic-3` voices, six to pick from. Spoken onboarding fills the profile form ("I'm Dana, I shop on Depop, budget up to $120"). The key stays on the backend. | `backend/voice/api.py`, `web/components/assistant.tsx` |
 | **Moss** | Semantic memory for the agent: every listing you've been shown goes into your own Moss index, so the shop chat recalls "the green skirt from before" without a new search. Saved independent labels' catalogs are indexed too, for millisecond answers while live searches run. | `backend/taste/finds.py`, `backend/taste/labels.py` |
 | **Best Use of Gemini** | *Shops near you:* with an opt-in ZIP, Gemini (3.1 Flash-Lite) with **Grounding with Google Maps** finds real independent, vintage and consignment shops worth visiting for each search. Only shops Gemini cites a Maps place for are kept, each with its Google Maps link. Looked up alongside the search in about 3 s. | `backend/taste/nearby.py` |
 | **Best Use of Snowflake API** | *Market check:* every listing we see goes into `NICHE.MARKET.LISTINGS` through the **SQL API**, embedded with `AI_EMBED`. Opening a listing finds the ~20 most similar past listings and computes the typical price range, and a **Cortex REST** call (`/api/v2/cortex/inference:complete`) writes a one-line verdict: good deal, fair or above typical. | `backend/market/` |
@@ -134,6 +155,10 @@ Everything runs with **no API keys** in fixture mode (`TASTE_MODE=fixture`, `SOU
 | `NESSIE_API_KEY`, then `python -m finance.seed <profile_id>` | Budget-aware agent with a demo bank account |
 
 No secrets are committed; `.env` files are git-ignored.
+
+## Debugging Claude
+
+Every Claude stage (`extract`, `synthesize`, `edit`, `planner`, `ranker`) logs its system prompt to the server log. It also writes `prompt` and `model_usage` rows to the `events` table in `backend/data/sourcing.sqlite3`. Claude calls use server-side refusal fallback (`fallbacks: "default"`).
 
 ## Tests
 

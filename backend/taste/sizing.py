@@ -287,6 +287,8 @@ ACCESSORY_WORDS = (('belts', r'belts?'), ('hats', r'hats?|caps?|beanies?|berets?
                    ('gloves', r'gloves?|mittens?'), ('rings', r'rings?'))
 # Formats whose values marketplaces print as-is ("M", "8", "W30", "US 8"), so listings can be filtered on them.
 FILTERABLE = {'alpha', 'us', 'waist'}
+# Country charts: filtered with the country named ("UK 10"), so a US 10 or an EU 10 never passes for it.
+REGIONAL = {'uk': 'UK', 'eu': 'EU', 'jp': 'JP'}
 SHORT_INSEAM, LONG_INSEAM = 29, 32.5
 
 
@@ -308,6 +310,17 @@ def describe(pick: Pick, spec: dict) -> str:
             name, unit = re.match(r'(.*?)\s*(?:\((\w+)\))?$', e['label']).groups()
             extras.append(f', {name.lower()} {pick.extras[e["id"]]}{" " + unit if unit else ""}')
     return text + ''.join(extras)
+
+
+def joined(values, limit=30):
+    """Sizes as one filter string ("6/8"), as many as fit the search's 30-character size field."""
+    out = ''
+    for value in values:
+        longer = f'{out}/{value}' if out else value
+        if len(longer) > limit:
+            break
+        out = longer
+    return out or None
 
 
 def for_search(sizing: Sizing, category: str, text: str = '', suggested: ClothingSizes | None = None) -> dict:
@@ -338,7 +351,9 @@ def for_search(sizing: Sizing, category: str, text: str = '', suggested: Clothin
     who = {'womens': "women's", 'mens': "men's"}[system]
     out['size_note'] = f'{spec["label"]}: {describe(pick, spec)}' + (f" ({who} chart)" if category != 'accessory' else '')
     if pick.format in FILTERABLE or (category == 'accessory' and pick.format == 'us'):
-        out['size'] = '/'.join(pick.values)
+        out['size'] = joined(pick.values)
+    elif pick.format in REGIONAL and category != 'accessory':
+        out['size'] = joined(f'{REGIONAL[pick.format]} {v}' for v in pick.values)
     if category == 'shoes':
         out['shoe_size_system'] = system if pick.format == 'us' else None
     fit = pick.extras.get('fit')

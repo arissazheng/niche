@@ -107,6 +107,8 @@ export interface Onboarding {
   data_consent?: boolean;
   /** "Shops near you": opt-in; only the ZIP code is kept and sent to Gemini (Google Maps). */
   nearby_shops?: boolean;
+  /** Rank resale above new when they fit about equally. */
+  secondhand_first?: boolean;
   zip_code?: string;
 }
 

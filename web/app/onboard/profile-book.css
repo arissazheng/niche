@@ -7,7 +7,7 @@
 .book-page-grid { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 16px 12px; }
 .book-column { min-width: 0; gap: 16px; }
 .book-entry { gap: 8px; }
-.book-entry h2 { font-size: 22px; }
+.book-entry h2 { font-size: clamp(26px, 2.2vw, 34px); font-weight: 600; line-height: 1.05; }
 .book-entry .text-sm { font-size: 12px; line-height: 1.35; }
 .book-entry .input { width: 100%; min-width: 0; }
 .book-entry input[type=range] { min-width: 0; width: 100%; }
@@ -80,3 +80,19 @@
 .book-plate-landscape { height: clamp(100px, 13dvh, 160px); }
 .book-plate-portrait { height: clamp(140px, 19dvh, 210px); width: 82%; }
 .book-plate-strip { height: clamp(50px, 6dvh, 75px); margin-top: 12px; }
+
+.book-plate-opening { height: clamp(126px, 14dvh + 6px, 176px); }
+
+/* Both image strips share the page's bottom baseline, independent of form height. */
+.book-page { padding-bottom: calc(52px + clamp(50px, 6dvh, 75px)); }
+.book-page .book-plate-strip {
+  position: absolute;
+  left: 28px;
+  right: 28px;
+  bottom: 36px;
+  width: auto;
+  margin-top: 0;
+}
+@media (max-width: 699px) {
+  .book-page .book-plate-strip { left: 26px; right: 26px; }
+}

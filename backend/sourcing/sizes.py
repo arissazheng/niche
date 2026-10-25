@@ -2,6 +2,9 @@
 
 match() returns True (fits), False (clearly another size) or None (can't tell: no size, or a different sizing
 system such as US numeric when the shopper asked for a letter). Callers keep None with a warning.
+
+Numbered sizes belong to a country's chart: "UK 8", "EU 38" and "8 UK" are not a US 8. A size or label without a
+country is read as US. Letter sizes are the same everywhere.
 """
 import re
 
@@ -15,6 +18,10 @@ WORDS = {
     'xxx-large': 'xxxl', '3x': 'xxxl', '3xl': 'xxxl',
 }
 ONE_SIZE = re.compile(r'\b(one size|os|o/s|free size)\b')
+COUNTRIES = {'us': 'us', 'usa': 'us', 'uk': 'uk', 'eu': 'eu', 'eur': 'eu', 'it': 'it', 'fr': 'fr', 'au': 'au',
+             'jp': 'jp', 'japan': 'jp'}
+_COUNTRY = '|'.join(sorted(COUNTRIES, key=len, reverse=True))
+COUNTRY = re.compile(rf'(?<![a-z])({_COUNTRY})\s*(?=\d)|\d(?:\.\d+)?\s*({_COUNTRY})(?![a-z])', re.I)
 
 
 def tokens(label):
@@ -27,9 +34,28 @@ def tokens(label):
         part = part.strip('.')
         if part in LETTERS:
             found.add(part)
-        elif re.fullmatch(r'[a-z]{0,2}\d+(\.\d+)?', part):  # "8", "8.5", "w27", "us4"
-            found.add(re.sub(r'^[a-z]+', '', part))
+        elif re.fullmatch(r'[a-z]{0,5}\d+(\.\d+)?([a-z]{2,5})?', part):  # "8", "8.5", "w27", "us4", "10uk"
+            found.add(re.sub(r'[a-z]+$', '', re.sub(r'^[a-z]+', '', part)))
     return found
+
+
+def country(label):
+    """The size chart a label names ('uk', 'eu', ...), or None when it names none."""
+    found = COUNTRY.search(str(label))
+    return COUNTRIES[(found.group(1) or found.group(2)).lower()] if found else None
+
+
+def charted(labels):
+    """(chart, tokens) for each part of each label. "US 6 (UK 10)" is two parts; a part without a country takes the
+    one before it in the same label ("EU 38/40")."""
+    out = []
+    for label in labels:
+        current = None
+        for part in re.split(r'[/,|()]+', str(label)):
+            current = country(part) or current
+            if found := tokens(part):
+                out.append((current, found))
+    return out
 
 
 def is_letter(size):
@@ -45,7 +71,12 @@ def match(requested, item_sizes):
     labels = [str(x) for x in item_sizes if x]
     if any(ONE_SIZE.search(x.lower()) for x in labels):
         return True
-    have = set().union(*(tokens(x) for x in labels)) if labels else set()
+    chart = country(requested) or 'us'
+    have = set()
+    for where, found in charted(labels):
+        have |= found & set(LETTERS)
+        if (where or 'us') == chart:
+            have |= found - set(LETTERS)  # numbers only compare within one country's chart
     if not have:
         return None
     if want & have:
@@ -64,5 +95,11 @@ def listing_labels(item_sizes, title):
     explicit = re.search(r'\bsize\s*[:=-]?\s*(xxxl|xxl|xxs|xl|xs|s|m|l|small|medium|large)\b', title, re.I)
     if explicit:
         return [explicit.group(1)]
+    # "UK 10", "EU 38", "size 8", "8 UK", "W28"
+    numbered = (re.search(rf'(?<![a-z])(?:{_COUNTRY})\s*\d{{1,2}}(?:\.5)?\b|\b\d{{1,2}}(?:\.5)?\s*(?:{_COUNTRY})\b', title, re.I)
+                or re.search(r'\bsize\s*[:=-]?\s*(?:us\s*)?\d{1,2}(?:\.5)?\b', title, re.I)
+                or re.search(r'\bW\s?\d{2}\b', title))
+    if numbered:
+        return [re.sub(r'(?i)^size\s*[:=-]?\s*', '', numbered.group())]
     alpha = re.search(r'\b(?:XXXL|XXL|XXS|XL|XS)\b', title)
     return [alpha.group()] if alpha else []

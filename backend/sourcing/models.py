@@ -25,10 +25,12 @@ class TasteProfile(StrictModel):
     colors: list[str] = Field(default_factory=list, max_length=20)
     silhouettes: list[str] = Field(default_factory=list, max_length=20)
     materials: list[str] = Field(default_factory=list, max_length=20)
+    patterns: list[str] = Field(default_factory=list, max_length=20)  # stripes, florals, gingham
     avoid: list[str] = Field(default_factory=list, max_length=20)
     # Brands and stores the user asked for; used in queries and as a modest ranking boost, never over taste fit.
     preferred_brands: list[str] = Field(default_factory=list, max_length=30)
     preferred_stores: list[str] = Field(default_factory=list, max_length=30)
+    secondhand_first: bool = False  # nudge resale above new when the fit is close (pipeline.SECONDHAND_NUDGE)
     # The shopper's own independent shops, searched alongside niche-indie's seed list.
     indie_shops: list[IndieShop] = Field(default_factory=list, max_length=30)
     reference_image_urls: list[HttpUrl] = Field(default_factory=list, max_length=3)
@@ -87,7 +89,8 @@ class Listing(StrictModel):
     seller_rating: float | None = None  # 0-5, where the marketplace gives it
     seller_reviews: int | None = None
     features: list[str] = []  # visible features Claude tagged from the photo (pre-loaded listings only)
-    copies: int = 1  # how many identical listings (same title and price) were found; only the best one is shown
+    copies: int = 1  # how many listings of this piece were found (reposts, cross-listings); only the best one is shown
+    image_hash: str | None = None  # photo fingerprint taken while ranking, to spot cross-listings (sourcing/dedupe.py)
     risks: list[str] = []  # scam / buyer-protection warnings, shown before the shopper clicks through (sourcing/risk.py)
     shipping_cost: float | None = None
     ships_to: list[str] | None = None

@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { BackButton } from "@/components/back-button";
 import type { Metadata } from "next";
 import { SectionTitle } from "@/components/chrome";
 
@@ -130,7 +131,7 @@ export default function HowItWorks() {
         </p>
       </section>
 
-      <Link href="/shop" className="rule-t rule-b text-display py-2 text-center">Start shopping</Link>
+      <BackButton />
     </div>
   );
 }

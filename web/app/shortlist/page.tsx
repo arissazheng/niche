@@ -97,6 +97,13 @@ export default function ShortlistPage() {
   return (
     <div className="px-4 mt-6 grid gap-4">
       <SectionTitle aside={`${view.items.length} saved`}>Your shortlist</SectionTitle>
+      {view.items.length > 0 && (
+        <p className="label -mt-2">
+          {view.items.filter((item) => item.listing.source === "secondhand").length} secondhand ·{" "}
+          {view.items.filter((item) => item.listing.source === "indie" || item.listing.source === "web").length} from
+          independent labels · {view.items.filter((item) => item.listing.source === "mainstream").length} new from big stores
+        </p>
+      )}
       {error && <p className="text-sm">{error}</p>}
 
       {view.items.length === 0 && view.collections.length === 0 ? (
