@@ -175,7 +175,9 @@ export default function OnboardPage() {
                 <div className="book-plate relative overflow-hidden">
                   <Image src="/images/profile/palm-beach.png" alt="" fill sizes="(max-width: 699px) 45vw, 23vw" className="object-cover object-[center_32%]" />
                 </div>
-                <Plate />
+                <div className="book-plate relative overflow-hidden">
+                  <Image src="/images/profile/bridge-street.png" alt="" fill sizes="(max-width: 699px) 45vw, 23vw" className="object-cover object-center" />
+                </div>
               </div>
             </Column>
             <Column ruled>
