@@ -492,3 +492,14 @@ def test_indie_is_a_third_source_with_its_own_share(request_data):
     counts = {s: sum(x.source == s for x in picked) for s in pools}
     assert all(n >= 3 for n in counts.values())  # each source with good fits keeps a quarter
     assert pools['indie'][0].retailer == 'Independent label' and pools['indie'][0].tier == 'small_shop'
+
+
+def test_size_filter_checks_explicit_title_when_source_omits_sizes(request_data):
+    items, _ = asyncio.run(FixtureSources().fetch('etsy', '', 4, ''))
+    for item, title in zip(items, ['Vintage top size XL', 'Vintage top size S', 'Vintage XL blouse', 'Small floral print blouse']):
+        item.sizes = []
+        item.title = title
+    request_data.request.size = 'S'
+    kept = eligible(items, request_data)
+    assert items[0] not in kept and items[2] not in kept
+    assert items[1] in kept and items[3] in kept
