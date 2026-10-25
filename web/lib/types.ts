@@ -170,6 +170,8 @@ export interface Profile {
   aesthetics: string[];
   avoid: string[];
   lookbook_notes?: string[];
+  /** What results the shopper shortlisted or loved had that the rest of the search didn't (newest last). */
+  learned_notes?: string[];
   prompt: string;
   mode: "empty" | "fixture" | "claude";
   updated_at: string;
@@ -333,4 +335,24 @@ export interface PriceCheck {
   high: number | null;
   sentence: string;
   comparables: { title: string; price: number; marketplace: string | null }[];
+}
+
+/** Clothing item kinds the shortlist sorts by (backend/taste/chat.py CATEGORY_WORDS). */
+export type ShortlistCategory = "top" | "bottom" | "dress" | "outerwear" | "shoes" | "bra" | "accessory" | "other";
+
+/** A result saved to buy later (backend/taste/shortlist.py). The listing is a copy from its search. */
+export interface ShortlistItem {
+  id: string;
+  search_id: string;
+  listing: Listing;
+  category: ShortlistCategory | string;
+  collection: string | null;
+  /** How it differed from the rest of its search; also on the taste profile. */
+  learning: string;
+  created_at: string;
+}
+
+export interface ShortlistView {
+  items: ShortlistItem[];
+  collections: string[];
 }

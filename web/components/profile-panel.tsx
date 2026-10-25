@@ -111,6 +111,35 @@ export function ProfilePanel({ view, onChange }: { view: ProfileView; onChange: 
             ))}
           </dl>
 
+          {!!profile.learned_notes?.length && (
+            // Learned from results they shortlisted or added to their taste: how each differed from the rest.
+            <div className="grid gap-1">
+              <span className="label">Learned from pieces you picked</span>
+              <ul className="grid gap-1 text-sm">
+                {[...profile.learned_notes].reverse().map((note) => (
+                  <li key={note} className="flex items-start justify-between gap-2">
+                    <span>{note}</span>
+                    <button
+                      onClick={() =>
+                        update(
+                          () => api.setLearned(profile.id, (profile.learned_notes ?? []).filter((x) => x !== note)),
+                          "Removing…",
+                          "Removed that from your taste profile.",
+                        )
+                      }
+                      disabled={!!working}
+                      aria-label="Remove this from your taste profile"
+                      className="label text-muted hover:text-ink shrink-0"
+                    >
+                      ×
+                    </button>
+                  </li>
+                ))}
+              </ul>
+              <p className="text-xs text-muted">Every search reads these. Tap × if one got you wrong.</p>
+            </div>
+          )}
+
           <div className="grid gap-2">
             <span className="label">What the shopping agent reads (editable)</span>
             <textarea

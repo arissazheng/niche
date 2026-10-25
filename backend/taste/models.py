@@ -109,6 +109,9 @@ class Profile(StrictModel):
     avoid: list[str] = []
     # Lookbook notes: what the user described in words when they couldn't find a photo.
     lookbook_notes: list[str] = []
+    # What the shopper's picks taught us: one line per result they shortlisted or added to their taste, on how it
+    # differed from the rest of that search (taste/shortlist.py). Part of the taste profile, not the moodboard.
+    learned_notes: list[str] = []
     # The editable "taste prompt": the backend text fed into sourcing and chat agents.
     prompt: str = ''
     mode: Literal['empty', 'fixture', 'claude'] = 'empty'
@@ -126,7 +129,9 @@ class Profile(StrictModel):
 
     def to_sourcing(self) -> SourcingProfile:
         ob = self.onboarding
-        return SourcingProfile(summary=(self.prompt or self.summary)[:3000], colors=self.colors[:20],
+        learned = ('\n\nFrom pieces they picked out of earlier results: ' + ' '.join(self.learned_notes[-6:])
+                   if self.learned_notes else '')
+        return SourcingProfile(summary=((self.prompt or self.summary) + learned)[:3000], colors=self.colors[:20],
             silhouettes=self.silhouettes[:20], materials=(self.materials + self.patterns)[:20], avoid=self.avoid[:20],
             # Visible designers in liked photos count as brand preferences alongside the ones the user named.
             preferred_brands=list(dict.fromkeys(ob.favorite_brands + self.designers))[:30],

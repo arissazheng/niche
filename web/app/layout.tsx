@@ -13,6 +13,7 @@ import "@fontsource/playfair-display/400-italic.css";
 import { AssistantDock, AssistantProvider } from "@/components/assistant";
 import { SiteFooter, SiteHeader } from "@/components/chrome";
 import { LiveProvider } from "@/components/live-provider";
+import { ShortlistToast } from "@/components/shortlist";
 import { APP_NAME } from "@/lib/session";
 import "./globals.css";
 
@@ -33,6 +34,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
             <main className="flex-1 pb-24">{children}</main>
             <SiteFooter />
             <AssistantDock />
+            <ShortlistToast />
           </AssistantProvider>
         </LiveProvider>
       </body>
